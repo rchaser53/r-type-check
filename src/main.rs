@@ -1,10 +1,10 @@
 #[macro_use]
 extern crate combine;
 use combine::error::{ParseError, ParseResult};
-use combine::parser::char::{char, letter, spaces};
+use combine::parser::char::{char, letter, spaces, string};
 use combine::stream::state::State;
-use combine::stream::{Positioned, Stream};
-use combine::{between, choice, many1, parser, sep_by, Parser};
+use combine::stream::Stream;
+use combine::{between, choice, many1, parser, sep_by, token, Parser};
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
@@ -13,8 +13,9 @@ pub enum Expr {
     Pair(Box<Expr>, Box<Expr>),
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Statement {
-    Expr(Expr, Expr)
+    Expr(Expr, Expr),
 }
 
 fn expr_<I>() -> impl Parser<Input = I, Output = Expr>
@@ -43,7 +44,32 @@ parser! {
     }
 }
 
+fn statement_<I>() -> impl Parser<Input = I, Output = Statement>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    string("let")
+        .skip(spaces())
+        .and(expr_())
+        .skip(spaces())
+        .skip(token('='))
+        .skip(spaces())
+        .and(expr_())
+        .skip(token(';'))
+        .map(|((_, id), value)| Statement::Expr(id, value))
+}
+
+parser! {
+    fn statement[I]()(I) -> Statement
+    where [I: Stream<Item = char>]
+    {
+        statement_()
+    }
+}
+
 fn main() {
-    let result = expr().parse("[]; (hello, world); [rust];");
-    dbg!(result);
+    dbg!(expr().parse("[]; (hello, world); [rust];"));
+
+    dbg!(statement().parse("let abc = aaa;"));
 }
