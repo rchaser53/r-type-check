@@ -1,8 +1,7 @@
-use combine::error::{ParseError, ParseResult};
-use combine::parser::char::{char, letter, spaces, string};
-use combine::stream::state::State;
+use combine::error::ParseError;
+use combine::parser::char::{spaces, string};
 use combine::stream::Stream;
-use combine::{between, choice, many1, parser, sep_by, token, Parser};
+use combine::{parser, token, Parser};
 
 use crate::expr::*;
 
@@ -41,8 +40,7 @@ parser! {
 }
 
 mod test {
-    use super::expr::*;
-    use super::statement::*;
+    use crate::statement::*;
 
     #[test]
     fn let_fn() {

@@ -1,18 +1,17 @@
-use combine::error::{ParseError, ParseResult};
-use combine::parser::char::{char, letter, spaces, string};
-use combine::stream::state::State;
+use combine::error::ParseError;
+use combine::parser::char::{char, digit, letter, spaces};
 use combine::stream::Stream;
-use combine::{between, choice, many1, parser, sep_by, token, Parser};
+use combine::{between, choice, many1, parser, sep_by, Parser};
 
 #[derive(Debug, PartialEq)]
-pub struct Id(String);
+pub struct Id(pub String);
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
     Id(Id),
     Array(Vec<Expr>),
     String(String),
-    Pair(Box<Expr>, Box<Expr>),
+    Number(i32),
 }
 
 pub fn expr_<I>() -> impl Parser<Input = I, Output = Expr>
@@ -24,15 +23,20 @@ where
     let skip_spaces = || spaces().silent();
     let lex_char = |c| char(c).skip(skip_spaces());
 
-    let string = between(lex_char('"'), lex_char('"'), many1(letter()));
-
     let comma_list = sep_by(expr(), lex_char(','));
     let array = between(lex_char('['), lex_char(']'), comma_list);
 
-    let pair = (lex_char('('), expr(), lex_char(';'), expr(), lex_char(')'))
-        .map(|t| Expr::Pair(Box::new(t.1), Box::new(t.3)));
+    let string = between(lex_char('"'), lex_char('"'), many1(letter()));
+    let integer =
+        spaces().with(many1(digit()).map(|string: String| string.parse::<i32>().unwrap()));
 
-    choice((word, string.map(Expr::String), array.map(Expr::Array), pair)).skip(skip_spaces())
+    choice((
+        word,
+        array.map(Expr::Array),
+        string.map(Expr::String),
+        integer.map(Expr::Number),
+    ))
+    .skip(skip_spaces())
 }
 
 parser! {
