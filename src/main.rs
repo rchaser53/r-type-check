@@ -7,15 +7,19 @@ use combine::stream::Stream;
 use combine::{between, choice, many1, parser, sep_by, token, Parser};
 
 #[derive(Debug, PartialEq)]
+pub struct Id(String);
+
+#[derive(Debug, PartialEq)]
 pub enum Expr {
-    Id(String),
+    Id(Id),
     Array(Vec<Expr>),
+    String(String),
     Pair(Box<Expr>, Box<Expr>),
 }
 
 #[derive(Debug, PartialEq)]
 pub enum Statement {
-    Expr(Expr, Expr),
+    LetExpr(Id, Expr),
 }
 
 fn expr_<I>() -> impl Parser<Input = I, Output = Expr>
@@ -23,9 +27,11 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    let word = many1(letter());
+    let word = many1(letter()).map(|e| Expr::Id(Id(e)));
     let skip_spaces = || spaces().silent();
     let lex_char = |c| char(c).skip(skip_spaces());
+
+    let string = between(lex_char('"'), lex_char('"'), many1(letter()));
 
     let comma_list = sep_by(expr(), lex_char(','));
     let array = between(lex_char('['), lex_char(']'), comma_list);
@@ -33,7 +39,7 @@ where
     let pair = (lex_char('('), expr(), lex_char(';'), expr(), lex_char(')'))
         .map(|t| Expr::Pair(Box::new(t.1), Box::new(t.3)));
 
-    choice((word.map(Expr::Id), array.map(Expr::Array), pair)).skip(skip_spaces())
+    choice((word, string.map(Expr::String), array.map(Expr::Array), pair)).skip(skip_spaces())
 }
 
 parser! {
@@ -56,8 +62,13 @@ where
         .skip(token('='))
         .skip(spaces())
         .and(expr_())
-        .skip(token(';'))
-        .map(|((_, id), value)| Statement::Expr(id, value))
+        .skip(spaces())
+        .and(token(';'))
+        .skip(spaces())
+        .map(|(((_, id), value), _)| match id {
+            Expr::Id(id) => Statement::LetExpr(id, value),
+            _ => panic!("should come Id. actual: {:?}", id),
+        })
 }
 
 parser! {
@@ -70,6 +81,19 @@ parser! {
 
 fn main() {
     dbg!(expr().parse("[]; (hello, world); [rust];"));
+}
 
-    dbg!(statement().parse("let abc = aaa;"));
+mod test {
+    use super::*;
+    #[test]
+    fn let_fn() {
+        let input = r#"let abc = "aaa";"#;
+        assert_eq!(
+            statement().parse(input),
+            Ok((
+                Statement::LetExpr(Id(String::from("abc")), Expr::String(String::from("aaa"))),
+                ""
+            ))
+        );
+    }
 }
