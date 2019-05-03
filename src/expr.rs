@@ -1,7 +1,7 @@
 use combine::error::ParseError;
 use combine::parser::char::{char, digit, letter, spaces};
 use combine::stream::Stream;
-use combine::{between, choice, many1, parser, sep_by, Parser};
+use combine::{between, choice, many, many1, one_of, parser, sep_by, Parser};
 
 #[derive(Debug, PartialEq)]
 pub struct Id(pub String);
@@ -12,6 +12,13 @@ pub enum Expr {
     Array(Vec<Expr>),
     String(String),
     Number(i32),
+    Boolean(Boolean),
+}
+
+#[derive(Debug, PartialEq)]
+enum Boolean {
+    True,
+    False,
 }
 
 pub fn expr_<I>() -> impl Parser<Input = I, Output = Expr>
@@ -19,7 +26,11 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    let word = many1(letter()).map(|e| Expr::Id(Id(e)));
+    let word = many1(letter()).map(|e: String| match e.as_ref() {
+        "true" => Expr::Boolean(Boolean::True),
+        "false" => Expr::Boolean(Boolean::False),
+        _ => Expr::Id(Id(e.into())),
+    });
     let skip_spaces = || spaces().silent();
     let lex_char = |c| char(c).skip(skip_spaces());
 
@@ -44,5 +55,18 @@ parser! {
     where [I: Stream<Item = char>]
     {
         expr_()
+    }
+}
+
+mod test {
+    use crate::expr::*;
+
+    #[test]
+    fn expr_test() {
+        assert_eq!(
+            expr().parse(r#"true"#),
+            Ok((Expr::Boolean(Boolean::True), ""))
+        );
+        assert_eq!(expr().parse(r#"123"#), Ok((Expr::Number(123), "")));
     }
 }

@@ -32,7 +32,7 @@ where
 }
 
 parser! {
-    fn statement[I]()(I) -> Statement
+    pub fn statement[I]()(I) -> Statement
     where [I: Stream<Item = char>]
     {
         statement_()
@@ -43,7 +43,7 @@ mod test {
     use crate::statement::*;
 
     #[test]
-    fn let_fn() {
+    fn let_test() {
         let input = r#"let abc = "aaa";"#;
         assert_eq!(
             statement().parse(input),
