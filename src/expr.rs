@@ -26,28 +26,51 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    let word = many1(letter()).map(|e: String| match e.as_ref() {
+    let skip_spaces = || spaces().silent();
+    choice((word(), array(), string(), integer())).skip(skip_spaces())
+}
+
+pub fn word<I>() -> impl Parser<Input = I, Output = Expr>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    many1(letter()).map(|e: String| match e.as_ref() {
         "true" => Expr::Boolean(Boolean::True),
         "false" => Expr::Boolean(Boolean::False),
         _ => Expr::Id(Id(e.into())),
-    });
+    })
+}
+
+pub fn array<I>() -> impl Parser<Input = I, Output = Expr>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
     let skip_spaces = || spaces().silent();
     let lex_char = |c| char(c).skip(skip_spaces());
-
     let comma_list = sep_by(expr(), lex_char(','));
-    let array = between(lex_char('['), lex_char(']'), comma_list);
+    between(lex_char('['), lex_char(']'), comma_list).map(Expr::Array)
+}
 
-    let string = between(lex_char('"'), lex_char('"'), many1(letter()));
-    let integer =
-        many1(digit()).map(|string: String| string.parse::<i32>().unwrap());
+pub fn string<I>() -> impl Parser<Input = I, Output = Expr>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    let skip_spaces = || spaces().silent();
+    let lex_char = |c| char(c).skip(skip_spaces());
+    between(lex_char('"'), lex_char('"'), many1(letter())).map(Expr::String)
+}
 
-    choice((
-        word,
-        array.map(Expr::Array),
-        string.map(Expr::String),
-        integer.map(Expr::Number),
-    ))
-    .skip(skip_spaces())
+pub fn integer<I>() -> impl Parser<Input = I, Output = Expr>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    many1(digit())
+        .map(|string: String| string.parse::<i32>().unwrap())
+        .map(Expr::Number)
 }
 
 parser! {
