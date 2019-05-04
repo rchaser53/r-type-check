@@ -39,7 +39,7 @@ where
 
     let string = between(lex_char('"'), lex_char('"'), many1(letter()));
     let integer =
-        spaces().with(many1(digit()).map(|string: String| string.parse::<i32>().unwrap()));
+        many1(digit()).map(|string: String| string.parse::<i32>().unwrap());
 
     choice((
         word,
