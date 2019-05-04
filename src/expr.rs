@@ -1,7 +1,10 @@
 use combine::error::ParseError;
 use combine::parser::char::{char, digit, letter, spaces};
 use combine::stream::Stream;
-use combine::{between, choice, many, many1, one_of, parser, sep_by, Parser};
+use combine::{between, choice, many1, parser, sep_by, Parser};
+
+mod binop;
+use binop::BinOpKind;
 
 #[derive(Debug, PartialEq)]
 pub struct Id(pub String);
@@ -13,10 +16,11 @@ pub enum Expr {
     String(String),
     Number(i32),
     Boolean(Boolean),
+    BinOp(Box<Expr>, BinOpKind, Box<Expr>),
 }
 
 #[derive(Debug, PartialEq)]
-enum Boolean {
+pub enum Boolean {
     True,
     False,
 }

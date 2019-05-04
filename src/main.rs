@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate combine;
 
-mod expr;
-mod statement;
+pub mod expr;
+pub mod statement;
 fn main() {}
