@@ -1,9 +1,7 @@
 use combine::error::ParseError;
-use combine::parser::char::{spaces, string};
+use combine::parser::char::string;
 use combine::stream::Stream;
-use combine::{choice, many1, parser, Parser};
-
-use combine::parser::item::any;
+use combine::{choice, parser, Parser};
 
 #[derive(Debug, PartialEq)]
 pub enum BinOpKind {
@@ -25,16 +23,45 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    (op())
+    choice((
+        add(),
+        sub(),
+        mul(),
+        div(),
+        shr(),
+        eq(),
+        ne(),
+        lt(),
+        le(),
+        gt(),
+        ge(),
+    ))
 }
 
-pub fn op<I>() -> impl Parser<Input = I, Output = BinOpKind>
-where
-    I: Stream<Item = char>,
-    I::Error: ParseError<I::Item, I::Range, I::Position>,
-{
-    string("+").map(|_| BinOpKind::Add)
+macro_rules! create_op {
+    ($name:ident, $str:expr, $op:expr) => {
+        fn $name<I>() -> impl Parser<Input = I, Output = BinOpKind>
+        where
+            I: Stream<Item = char>,
+            I::Error: ParseError<I::Item, I::Range, I::Position>,
+        {
+            string($str).map(|_| $op)
+        }
+    };
 }
+
+create_op!(add, "+", BinOpKind::Add);
+create_op!(sub, "-", BinOpKind::Sub);
+create_op!(mul, "*", BinOpKind::Mul);
+create_op!(div, "/", BinOpKind::Div);
+create_op!(shr, "%", BinOpKind::Shr);
+
+create_op!(eq, "==", BinOpKind::Eq);
+create_op!(ne, "!=", BinOpKind::Ne);
+create_op!(lt, "<", BinOpKind::Lt);
+create_op!(le, "<=", BinOpKind::Le);
+create_op!(gt, ">", BinOpKind::Gt);
+create_op!(ge, ">=", BinOpKind::Ge);
 
 parser! {
     pub fn bin_op[I]()(I) -> BinOpKind
