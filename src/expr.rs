@@ -3,8 +3,8 @@ use combine::parser::char::{char, digit, letter, spaces};
 use combine::stream::Stream;
 use combine::{between, choice, many1, parser, sep_by, Parser};
 
-mod binop;
-use binop::BinOpKind;
+pub mod bin_op;
+use bin_op::{bin_op as bin_op_, BinOpKind};
 
 #[derive(Debug, PartialEq)]
 pub struct Id(pub String);
@@ -31,7 +31,7 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     let skip_spaces = || spaces().silent();
-    choice((word(), array(), string(), integer())).skip(skip_spaces())
+    choice((word(), array(), string(), integer(), binary())).skip(skip_spaces())
 }
 
 pub fn word<I>() -> impl Parser<Input = I, Output = Expr>
@@ -77,6 +77,20 @@ where
         .map(Expr::Number)
 }
 
+pub fn binary<I>() -> impl Parser<Input = I, Output = Expr>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    integer()
+        .skip(spaces())
+        .and(bin_op_())
+        .skip(spaces())
+        .and(integer())
+        .skip(spaces())
+        .map(|((left, op), right)| Expr::BinOp(Box::new(left), op, Box::new(right)))
+}
+
 parser! {
     pub fn expr[I]()(I) -> Expr
     where [I: Stream<Item = char>]
@@ -96,4 +110,20 @@ mod test {
         );
         assert_eq!(expr().parse(r#"123"#), Ok((Expr::Number(123), "")));
     }
+
+    // #[test]
+    // fn binary_test() {
+    //     assert_eq!(
+    //         expr().parse(r#"1 + 3"#),
+    //         Ok((
+    //             Expr::BinOp(
+    //                 Box::new(Expr::Number(1)),
+    //                 BinOpKind::Add,
+    //                 Box::new(Expr::Number(3))
+    //             ),
+    //             ""
+    //         ))
+    //     );
+    //     assert_eq!(expr().parse(r#"123"#), Ok((Expr::Number(123), "")));
+    // }
 }
