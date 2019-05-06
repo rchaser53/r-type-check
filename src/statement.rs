@@ -3,6 +3,7 @@ use combine::parser::char::{spaces, string};
 use combine::stream::Stream;
 use combine::{parser, token, Parser};
 
+use crate::expr::uni::*;
 use crate::expr::*;
 
 #[derive(Debug, PartialEq)]
@@ -26,7 +27,12 @@ where
         .and(token(';'))
         .skip(spaces())
         .map(|(((_, id), value), _)| match id {
-            Expr::Id(id) => Statement::LetExpr(id, value),
+            Expr::Unary(unary_) => {
+                if let Uni::Id(id_) = unary_ {
+                    return Statement::LetExpr(id_, value);
+                };
+                panic!("should come Uni::Id. actual: {:?}", unary_);
+            }
             _ => panic!("should come Id. actual: {:?}", id),
         })
 }
@@ -40,6 +46,8 @@ parser! {
 }
 
 mod test {
+    use crate::expr::uni::*;
+    use crate::expr::*;
     use crate::statement::*;
 
     #[test]
@@ -48,7 +56,10 @@ mod test {
         assert_eq!(
             statement().parse(input),
             Ok((
-                Statement::LetExpr(Id(String::from("abc")), Expr::String(String::from("aaa"))),
+                Statement::LetExpr(
+                    Id(String::from("abc")),
+                    Expr::Unary(Uni::String(String::from("aaa")))
+                ),
                 ""
             ))
         );
