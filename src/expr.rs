@@ -11,7 +11,7 @@ use uni::{integer, Uni};
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
-    BinOp(Box<Uni>, BinOpKind, Box<Uni>),
+    BinOp(Uni, BinOpKind, Uni),
 }
 
 pub fn expr_<I>() -> impl Parser<Input = I, Output = Expr>
@@ -28,11 +28,13 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-      (
-        integer(),
-        bin_op_(),
-        integer()
-      ).map(|(left, op, right)| Expr::BinOp(Box::new(left), op, Box::new(right)))
+    integer()
+        .skip(spaces())
+        .and(bin_op_())
+        .skip(spaces())
+        .and(integer())
+        .skip(spaces())
+        .map(|((left, op), right)| Expr::BinOp(left, op, right))
 }
 
 parser! {
@@ -40,5 +42,22 @@ parser! {
     where [I: Stream<Item = char>]
     {
         expr_()
+    }
+}
+
+mod test {
+    use crate::expr::bin_op::*;
+    use crate::expr::uni::*;
+    use crate::expr::*;
+
+    #[test]
+    fn binary_test() {
+        assert_eq!(
+            expr().parse(r#"123 + 456"#),
+            Ok((
+                Expr::BinOp(Uni::Number(123), BinOpKind::Add, Uni::Number(456),),
+                ""
+            ))
+        );
     }
 }
