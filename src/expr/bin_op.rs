@@ -76,6 +76,6 @@ mod test {
 
     #[test]
     fn bin_op_test() {
-        assert_eq!(bin_op().parse(r#"+"#), Ok((BinOpKind::Add, "")));
+        assert_eq!(bin_op().easy_parse(r#"+"#), Ok((BinOpKind::Add, "")));
     }
 }

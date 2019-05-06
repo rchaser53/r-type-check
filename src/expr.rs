@@ -62,19 +62,8 @@ mod test {
     #[test]
     fn unary_test() {
         assert_eq!(
-            expr().parse(r#""abc""#),
+            expr().easy_parse(r#""abc""#),
             Ok((Expr::Unary(Uni::String(String::from("abc"))), ""))
-        );
-    }
-
-    #[test]
-    fn binary_test() {
-        assert_eq!(
-            expr().parse(r#"123 + 456"#),
-            Ok((
-                Expr::Binary(Uni::Number(123), BinOpKind::Add, Uni::Number(456),),
-                ""
-            ))
         );
     }
 }

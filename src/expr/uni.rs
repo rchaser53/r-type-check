@@ -87,9 +87,9 @@ mod test {
     #[test]
     fn uni_test() {
         assert_eq!(
-            uni().parse(r#"true"#),
+            uni().easy_parse(r#"true"#),
             Ok((Uni::Boolean(Boolean::True), ""))
         );
-        assert_eq!(uni().parse(r#"123"#), Ok((Uni::Number(123), "")));
+        assert_eq!(uni().easy_parse(r#"123"#), Ok((Uni::Number(123), "")));
     }
 }

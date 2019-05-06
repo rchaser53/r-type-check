@@ -54,7 +54,7 @@ mod test {
     fn let_test() {
         let input = r#"let abc = "aaa";"#;
         assert_eq!(
-            statement().parse(input),
+            statement().easy_parse(input),
             Ok((
                 Statement::LetExpr(
                     Id(String::from("abc")),
