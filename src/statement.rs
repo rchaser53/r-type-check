@@ -46,8 +46,6 @@ parser! {
 }
 
 mod test {
-    use crate::expr::uni::*;
-    use crate::expr::*;
     use crate::statement::*;
 
     #[test]
