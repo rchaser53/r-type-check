@@ -50,7 +50,7 @@ where
         token('(')
             .skip(spaces())
             .and(
-                attempt(sep_by1(expr(), token(',')).map(|exps| Args(exps)))
+                attempt(sep_by1(expr(), token(',').skip(spaces())).map(|exps| Args(exps)))
                     .or(expr().map(|exp| Args(vec![exp]))),
             )
             .skip(spaces())
@@ -144,7 +144,25 @@ mod test {
             ))
         );
 
-        let input = r#"fn def(a,b) {
+        let input = r#"fn def( a ) {
+          let abc = "aaa";
+        }"#;
+        assert_eq!(
+            statement().easy_parse(input),
+            Ok((
+                Statement::Fn(
+                    Id(String::from("def")),
+                    Args(vec![Expr::Unary(Uni::Id(Id(String::from("a")))),]),
+                    vec![Box::new(Statement::LetExpr(
+                        Id(String::from("abc")),
+                        Expr::Unary(Uni::String(String::from("aaa")))
+                    ))]
+                ),
+                ""
+            ))
+        );
+
+        let input = r#"fn def( a, b ) {
           let abc = "aaa";
         }"#;
         assert_eq!(
