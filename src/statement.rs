@@ -1,7 +1,7 @@
 use combine::error::ParseError;
 use combine::parser::char::{spaces, string};
 use combine::stream::Stream;
-use combine::{choice, many, parser, token, Parser};
+use combine::{attempt, choice, many, parser, sep_by1, token, Parser};
 
 use crate::expr::uni::*;
 use crate::expr::*;
@@ -9,8 +9,11 @@ use crate::expr::*;
 #[derive(Debug, PartialEq)]
 pub enum Statement {
     LetExpr(Id, Expr),
-    Fn(Id, Vec<Box<Statement>>),
+    Fn(Id, Args, Vec<Box<Statement>>),
 }
+
+#[derive(Debug, PartialEq)]
+pub struct Args(Vec<Expr>);
 
 fn let_<I>() -> impl Parser<Input = I, Output = Statement>
 where
@@ -38,6 +41,22 @@ where
         })
 }
 
+fn args<I>() -> impl Parser<Input = I, Output = Args>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    token('(')
+        .skip(spaces())
+        .and(
+            attempt(sep_by1(expr(), token(',')).map(|exps| Args(exps)))
+                .or(expr().map(|exp| Args(vec![exp]))),
+        )
+        .skip(spaces())
+        .and(token(')'))
+        .map(|((_, exps), _)| exps)
+}
+
 fn fn_<I>() -> impl Parser<Input = I, Output = Statement>
 where
     I: Stream<Item = char>,
@@ -47,6 +66,8 @@ where
         .skip(spaces())
         .and(expr_())
         .skip(spaces())
+        .and(args())
+        .skip(spaces())
         .skip(token('{'))
         .skip(spaces())
         .and(many(statement()))
@@ -54,11 +75,13 @@ where
         .and(token('}'))
         .skip(spaces())
         .map(
-            |(((_, id), stetements_), _): (((_, Expr), Vec<Statement>), _)| match id {
+            |((((_, id), args), stetements_), _): ((((_, Expr), Args), Vec<Statement>), _)| match id
+            {
                 Expr::Unary(unary_) => {
                     if let Uni::Id(id_) = unary_ {
                         return Statement::Fn(
                             id_,
+                            args,
                             stetements_.into_iter().map(|s| Box::new(s)).collect(),
                         );
                     };
@@ -97,7 +120,7 @@ mod test {
 
     #[test]
     fn fn_test() {
-        let input = r#"fn def {
+        let input = r#"fn def(a,b) {
           let abc = "aaa";
         }"#;
         assert_eq!(
@@ -105,6 +128,10 @@ mod test {
             Ok((
                 Statement::Fn(
                     Id(String::from("def")),
+                    Args(vec![
+                        Expr::Unary(Uni::Id(Id(String::from("a")))),
+                        Expr::Unary(Uni::Id(Id(String::from("b"))))
+                    ]),
                     vec![Box::new(Statement::LetExpr(
                         Id(String::from("abc")),
                         Expr::Unary(Uni::String(String::from("aaa")))
