@@ -46,15 +46,21 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    token('(')
-        .skip(spaces())
-        .and(
-            attempt(sep_by1(expr(), token(',')).map(|exps| Args(exps)))
-                .or(expr().map(|exp| Args(vec![exp]))),
-        )
+    attempt(
+        token('(')
+            .skip(spaces())
+            .and(
+                attempt(sep_by1(expr(), token(',')).map(|exps| Args(exps)))
+                    .or(expr().map(|exp| Args(vec![exp]))),
+            )
+            .skip(spaces())
+            .and(token(')'))
+            .map(|((_, exps), _)| exps),
+    )
+    .or(token('(')
         .skip(spaces())
         .and(token(')'))
-        .map(|((_, exps), _)| exps)
+        .map(|_| Args(vec![])))
 }
 
 fn fn_<I>() -> impl Parser<Input = I, Output = Statement>
@@ -120,6 +126,24 @@ mod test {
 
     #[test]
     fn fn_test() {
+        let input = r#"fn def() {
+          let abc = "aaa";
+        }"#;
+        assert_eq!(
+            statement().easy_parse(input),
+            Ok((
+                Statement::Fn(
+                    Id(String::from("def")),
+                    Args(vec![]),
+                    vec![Box::new(Statement::LetExpr(
+                        Id(String::from("abc")),
+                        Expr::Unary(Uni::String(String::from("aaa")))
+                    ))]
+                ),
+                ""
+            ))
+        );
+
         let input = r#"fn def(a,b) {
           let abc = "aaa";
         }"#;
