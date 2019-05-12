@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use combine::error::ParseError;
 use combine::parser::char::string;
 use combine::stream::Stream;
@@ -16,6 +18,24 @@ pub enum BinOpKind {
     Ne,  // !=
     Ge,  // >=
     Gt,  // >
+}
+
+impl BinOpKind {
+    pub fn priority(&self) -> usize {
+        match self {
+            BinOpKind::Add => 2,
+            BinOpKind::Sub => 2,
+            BinOpKind::Mul => 3,
+            BinOpKind::Div => 3,
+            BinOpKind::Shr => 3,
+            BinOpKind::Eq => 1,
+            BinOpKind::Lt => 1,
+            BinOpKind::Le => 1,
+            BinOpKind::Ne => 1,
+            BinOpKind::Ge => 1,
+            BinOpKind::Gt => 1,
+        }
+    }
 }
 
 pub fn bin_op_<I>() -> impl Parser<Input = I, Output = BinOpKind>
