@@ -36,15 +36,32 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    attempt(
+    attempt(attempt(
         token('(')
             .skip(spaces())
             .and(try_binary())
             .skip(spaces())
             .and(token(')'))
             .skip(spaces())
-            .map(|((_, exp), _)| exp),
-    )
+            .map(|((_, exp), _)| exp)
+            .skip(spaces())
+            .and(many(bin_op_().skip(spaces()).and(expr())))
+            .skip(spaces())
+            .map(|(left, mut others): (Expr, Vec<(BinOpKind, Expr)>)| {
+                let length = others.len();
+                if length == 0 {
+                    return left;
+                }
+
+                let mut exp = left;
+                for _ in 0..length {
+                    let (bin_op, right) = others.swap_remove(0);
+                    exp = Expr::Binary(Box::new(exp), bin_op, Box::new(right));
+                }
+
+                exp
+            }),
+    ))
     .or(try_binary())
 }
 
@@ -134,7 +151,7 @@ mod test {
     #[test]
     fn paren() {
         assert_eq!(
-            expr().easy_parse(r#"1 + 2 * 3"#),
+            expr().easy_parse(r#"(1 + 2 * 3)"#),
             Ok((
                 Expr::Binary(
                     Box::new(Expr::Unary(Uni::Number(1))),
@@ -160,6 +177,22 @@ mod test {
                         BinOpKind::Mul,
                         Box::new(Expr::Unary(Uni::Number(3))),
                     ))
+                ),
+                ""
+            ))
+        );
+
+        assert_eq!(
+            expr().easy_parse(r#"(1 + 2) * 3"#),
+            Ok((
+                Expr::Binary(
+                    Box::new(Expr::Binary(
+                        Box::new(Expr::Unary(Uni::Number(1))),
+                        BinOpKind::Add,
+                        Box::new(Expr::Unary(Uni::Number(2))),
+                    )),
+                    BinOpKind::Mul,
+                    Box::new(Expr::Unary(Uni::Number(3))),
                 ),
                 ""
             ))
