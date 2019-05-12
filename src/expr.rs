@@ -20,7 +20,7 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    try_paren_with_binary()
+    attempt(handle_op(try_paren_with_binary())).or(try_binary())
 }
 
 pub fn unary<I>() -> impl Parser<Input = I, Output = Expr>
@@ -36,33 +36,40 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    attempt(attempt(
-        token('(')
-            .skip(spaces())
-            .and(try_binary())
-            .skip(spaces())
-            .and(token(')'))
-            .skip(spaces())
-            .map(|((_, exp), _)| exp)
-            .skip(spaces())
-            .and(many(bin_op_().skip(spaces()).and(expr())))
-            .skip(spaces())
-            .map(|(left, mut others): (Expr, Vec<(BinOpKind, Expr)>)| {
-                let length = others.len();
-                if length == 0 {
-                    return left;
-                }
+    token('(')
+        .skip(spaces())
+        .and(try_binary())
+        .skip(spaces())
+        .and(token(')'))
+        .skip(spaces())
+        .map(|((_, exp), _)| exp)
+}
 
-                let mut exp = left;
-                for _ in 0..length {
-                    let (bin_op, right) = others.swap_remove(0);
-                    exp = Expr::Binary(Box::new(exp), bin_op, Box::new(right));
-                }
+pub fn handle_op<I>(
+    input: impl Parser<Input = I, Output = Expr>,
+) -> impl Parser<Input = I, Output = Expr>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    input
+        .skip(spaces())
+        .and(many(bin_op_().skip(spaces()).and(expr())))
+        .skip(spaces())
+        .map(|(left, mut others): (Expr, Vec<(BinOpKind, Expr)>)| {
+            let length = others.len();
+            if length == 0 {
+                return left;
+            }
 
-                exp
-            }),
-    ))
-    .or(try_binary())
+            let mut exp = left;
+            for _ in 0..length {
+                let (bin_op, right) = others.swap_remove(0);
+                exp = Expr::Binary(Box::new(exp), bin_op, Box::new(right));
+            }
+
+            exp
+        })
 }
 
 pub fn try_binary<I>() -> impl Parser<Input = I, Output = Expr>
@@ -70,27 +77,7 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    attempt(
-        unary()
-            .skip(spaces())
-            .and(many(bin_op_().skip(spaces()).and(expr())))
-            .skip(spaces())
-            .map(|(left, mut others): (Expr, Vec<(BinOpKind, Expr)>)| {
-                let length = others.len();
-                if length == 0 {
-                    return left;
-                }
-
-                let mut exp = left;
-                for _ in 0..length {
-                    let (bin_op, right) = others.swap_remove(0);
-                    exp = Expr::Binary(Box::new(exp), bin_op, Box::new(right));
-                }
-
-                exp
-            }),
-    )
-    .or(unary())
+    attempt(handle_op(unary())).or(unary())
 }
 
 parser! {
