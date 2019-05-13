@@ -54,7 +54,10 @@ where
 {
     input
         .skip(spaces())
-        .and(many(bin_op_().skip(spaces()).and(unary())))
+        .and(
+            attempt(many(bin_op_().skip(spaces()).and(unary())))
+                .or(many(bin_op_().skip(spaces()).and(expr()))),
+        )
         .skip(spaces())
         .map(|(left, mut right_pairs): (Expr, Vec<(BinOpKind, Expr)>)| {
             match right_pairs.len() {
@@ -88,8 +91,12 @@ where
                         }
                         // exp1 op1 [exp2 op2 exp3]
                         else {
+                            let (left_op, left_exp) = left_pair;
                             let (right_op, right_exp) = right_pair;
-                            exp = Expr::Binary(Box::new(exp), right_op, Box::new(right_exp));
+                            left_pair = (
+                                left_op,
+                                Expr::Binary(Box::new(left_exp), right_op, Box::new(right_exp)),
+                            );
 
                             if length == 0 {
                                 let (left_op, left_exp) = left_pair;
@@ -156,13 +163,13 @@ mod test {
             expr().easy_parse(r#"1 + 2 * 3"#),
             Ok((
                 Expr::Binary(
-                    Box::new(Expr::Unary(Uni::Number(1))),
-                    BinOpKind::Add,
                     Box::new(Expr::Binary(
                         Box::new(Expr::Unary(Uni::Number(2))),
                         BinOpKind::Mul,
                         Box::new(Expr::Unary(Uni::Number(3))),
-                    ))
+                    )),
+                    BinOpKind::Add,
+                    Box::new(Expr::Unary(Uni::Number(1))),
                 ),
                 ""
             ))
@@ -172,16 +179,16 @@ mod test {
     #[test]
     fn paren() {
         assert_eq!(
-            expr().easy_parse(r#"(1 + 2 * 3)"#),
+            expr().easy_parse(r#"1 + 2 * 3"#),
             Ok((
                 Expr::Binary(
-                    Box::new(Expr::Unary(Uni::Number(1))),
-                    BinOpKind::Add,
                     Box::new(Expr::Binary(
                         Box::new(Expr::Unary(Uni::Number(2))),
                         BinOpKind::Mul,
                         Box::new(Expr::Unary(Uni::Number(3))),
-                    ))
+                    )),
+                    BinOpKind::Add,
+                    Box::new(Expr::Unary(Uni::Number(1))),
                 ),
                 ""
             ))
