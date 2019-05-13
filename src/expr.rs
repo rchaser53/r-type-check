@@ -54,21 +54,55 @@ where
 {
     input
         .skip(spaces())
-        .and(many(bin_op_().skip(spaces()).and(expr())))
+        .and(many(bin_op_().skip(spaces()).and(unary())))
         .skip(spaces())
-        .map(|(left, mut others): (Expr, Vec<(BinOpKind, Expr)>)| {
-            let length = others.len();
-            if length == 0 {
-                return left;
-            }
+        .map(|(left, mut right_pairs): (Expr, Vec<(BinOpKind, Expr)>)| {
+            match right_pairs.len() {
+                0 => return left,
+                1 => {
+                    let (bin_op, right) = right_pairs.swap_remove(0);
+                    return Expr::Binary(Box::new(left), bin_op, Box::new(right));
+                }
+                _ => {
+                    let mut exp = left;
+                    let mut left_pair = right_pairs.swap_remove(0);
+                    let mut right_pair = right_pairs.swap_remove(0);
+                    let mut length = right_pairs.len();
 
-            let mut exp = left;
-            for _ in 0..length {
-                let (bin_op, right) = others.swap_remove(0);
-                exp = Expr::Binary(Box::new(exp), bin_op, Box::new(right));
-            }
+                    while length >= 0 {
+                        let left_priority = left_pair.0.priority();
+                        let right_priority = right_pair.0.priority();
 
-            exp
+                        // [exp1 op1 exp2] op2 exp3
+                        if left_priority > right_priority {
+                            let (left_op, left_exp) = left_pair;
+                            exp = Expr::Binary(Box::new(exp), left_op, Box::new(left_exp));
+
+                            if length == 0 {
+                                let (right_op, right_exp) = right_pair;
+                                return Expr::Binary(Box::new(exp), right_op, Box::new(right_exp));
+                            }
+
+                            left_pair = right_pair;
+                            right_pair = right_pairs.swap_remove(0);
+                        }
+                        // exp1 op1 [exp2 op2 exp3]
+                        else {
+                            let (right_op, right_exp) = right_pair;
+                            exp = Expr::Binary(Box::new(exp), right_op, Box::new(right_exp));
+
+                            if length == 0 {
+                                let (left_op, left_exp) = left_pair;
+                                return Expr::Binary(Box::new(left_exp), left_op, Box::new(exp));
+                            }
+
+                            right_pair = right_pairs.swap_remove(0);
+                        }
+                        length -= 1;
+                    }
+                    unreachable!()
+                }
+            }
         })
 }
 
