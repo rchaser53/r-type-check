@@ -1,5 +1,3 @@
-use std::cmp::Ordering;
-
 use combine::error::ParseError;
 use combine::parser::char::string;
 use combine::stream::Stream;

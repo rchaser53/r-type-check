@@ -63,16 +63,15 @@ where
             match right_pairs.len() {
                 0 => return left,
                 1 => {
-                    let (bin_op, right) = right_pairs.swap_remove(0);
+                    let (bin_op, right) = right_pairs.remove(0);
                     return Expr::Binary(Box::new(left), bin_op, Box::new(right));
                 }
                 _ => {
                     let mut exp = left;
-                    let mut left_pair = right_pairs.swap_remove(0);
-                    let mut right_pair = right_pairs.swap_remove(0);
+                    let mut left_pair = right_pairs.remove(0);
+                    let mut right_pair = right_pairs.remove(0);
                     let mut length = right_pairs.len();
-
-                    while length >= 0 {
+                    loop {
                         let left_priority = left_pair.0.priority();
                         let right_priority = right_pair.0.priority();
 
@@ -87,7 +86,7 @@ where
                             }
 
                             left_pair = right_pair;
-                            right_pair = right_pairs.swap_remove(0);
+                            right_pair = right_pairs.remove(0);
                         }
                         // exp1 op1 [exp2 op2 exp3]
                         else {
@@ -103,11 +102,10 @@ where
                                 return Expr::Binary(Box::new(left_exp), left_op, Box::new(exp));
                             }
 
-                            right_pair = right_pairs.swap_remove(0);
+                            right_pair = right_pairs.remove(0);
                         }
                         length -= 1;
                     }
-                    unreachable!()
                 }
             }
         })
@@ -158,7 +156,7 @@ mod test {
     }
 
     #[test]
-    fn add_and_mul() {
+    fn three() {
         assert_eq!(
             expr().easy_parse(r#"1 + 2 * 3"#),
             Ok((
@@ -167,6 +165,45 @@ mod test {
                         Box::new(Expr::Unary(Uni::Number(2))),
                         BinOpKind::Mul,
                         Box::new(Expr::Unary(Uni::Number(3))),
+                    )),
+                    BinOpKind::Add,
+                    Box::new(Expr::Unary(Uni::Number(1))),
+                ),
+                ""
+            ))
+        );
+
+        assert_eq!(
+            expr().easy_parse(r#"1 * 2 + 3"#),
+            Ok((
+                Expr::Binary(
+                    Box::new(Expr::Binary(
+                        Box::new(Expr::Unary(Uni::Number(1))),
+                        BinOpKind::Mul,
+                        Box::new(Expr::Unary(Uni::Number(2))),
+                    )),
+                    BinOpKind::Add,
+                    Box::new(Expr::Unary(Uni::Number(3))),
+                ),
+                ""
+            ))
+        );
+    }
+
+    #[test]
+    fn four() {
+        assert_eq!(
+            expr().easy_parse(r#"1 + 2 * 3 - 5"#),
+            Ok((
+                Expr::Binary(
+                    Box::new(Expr::Binary(
+                        Box::new(Expr::Binary(
+                            Box::new(Expr::Unary(Uni::Number(2))),
+                            BinOpKind::Mul,
+                            Box::new(Expr::Unary(Uni::Number(3))),
+                        )),
+                        BinOpKind::Sub,
+                        Box::new(Expr::Unary(Uni::Number(5))),
                     )),
                     BinOpKind::Add,
                     Box::new(Expr::Unary(Uni::Number(1))),
