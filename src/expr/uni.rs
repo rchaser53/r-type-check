@@ -27,10 +27,10 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     let skip_spaces = || spaces().silent();
-    choice((word(), array(), string(), integer())).skip(skip_spaces())
+    choice((word_(), array(), string(), integer())).skip(skip_spaces())
 }
 
-pub fn word<I>() -> impl Parser<Input = I, Output = Uni>
+pub fn word_<I>() -> impl Parser<Input = I, Output = Uni>
 where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
@@ -71,6 +71,14 @@ where
     many1(digit())
         .map(|string: String| string.parse::<i32>().unwrap())
         .map(Uni::Number)
+}
+
+parser! {
+    pub fn word[I]()(I) -> Uni
+    where [I: Stream<Item = char>]
+    {
+        word_()
+    }
 }
 
 parser! {

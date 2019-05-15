@@ -1,18 +1,19 @@
 use combine::error::ParseError;
 use combine::parser::char::spaces;
 use combine::stream::Stream;
-use combine::{attempt, many, parser, token, Parser};
+use combine::{attempt, many, parser, sep_by, token, Parser};
 
 pub mod bin_op;
 use bin_op::{bin_op as bin_op_, BinOpKind};
 
 pub mod uni;
-use uni::{uni as create_uni, Uni};
+use uni::{uni as create_uni, word_, Id, Uni};
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
     Unary(Uni),
     Binary(Box<Expr>, BinOpKind, Box<Expr>),
+    Call(Id, Vec<Box<Expr>>),
 }
 
 pub fn expr_<I>() -> impl Parser<Input = I, Output = Expr>
@@ -117,6 +118,30 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     attempt(handle_op(unary())).or(unary())
+}
+
+pub fn call<I>() -> impl Parser<Input = I, Output = Expr>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    word_()
+        .skip(spaces())
+        .and(token('('))
+        .skip(spaces())
+        .and(
+            sep_by(expr(), token(','))
+                .skip(spaces())
+                .map(|exps: Vec<Expr>| exps.into_iter().map(|exp| Box::new(exp)).collect()),
+        )
+        .skip(spaces())
+        .and(token(')'))
+        .map(|(((fn_name, _), args), _)| {
+            if let Uni::Id(id_) = fn_name {
+                return Expr::Call(id_, args);
+            };
+            panic!("should come Uni::Id. actual: {:?}", fn_name);
+        })
 }
 
 parser! {
