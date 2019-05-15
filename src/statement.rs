@@ -1,7 +1,7 @@
 use combine::error::ParseError;
 use combine::parser::char::{spaces, string};
 use combine::stream::Stream;
-use combine::{attempt, choice, many, parser, sep_by1, token, Parser};
+use combine::{attempt, choice, many, parser, sep_by, token, Parser};
 
 use crate::expr::bin_op::BinOpKind;
 use crate::expr::uni::*;
@@ -47,10 +47,7 @@ where
     attempt(
         token('(')
             .skip(spaces())
-            .and(
-                attempt(sep_by1(expr(), token(',').skip(spaces())).map(|exps| Args(exps)))
-                    .or(expr().map(|exp| Args(vec![exp]))),
-            )
+            .and(sep_by(expr(), token(',').skip(spaces())).map(|exps| Args(exps)))
             .skip(spaces())
             .and(token(')'))
             .map(|((_, exps), _)| exps),
