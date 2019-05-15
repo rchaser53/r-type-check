@@ -3,6 +3,7 @@ use combine::parser::char::{spaces, string};
 use combine::stream::Stream;
 use combine::{attempt, choice, many, parser, sep_by1, token, Parser};
 
+use crate::expr::bin_op::BinOpKind;
 use crate::expr::uni::*;
 use crate::expr::*;
 
@@ -111,13 +112,31 @@ mod test {
 
     #[test]
     fn let_test() {
-        let input = r#"let abc = "aaa";"#;
         assert_eq!(
-            statement().easy_parse(input),
+            statement().easy_parse(r#"let abc = "aaa";"#),
             Ok((
                 Statement::LetExpr(
                     Id(String::from("abc")),
                     Expr::Unary(Uni::String(String::from("aaa")))
+                ),
+                ""
+            ))
+        );
+
+        assert_eq!(
+            statement().easy_parse(r#"let abc = (1 + 3) * 4;"#),
+            Ok((
+                Statement::LetExpr(
+                    Id(String::from("abc")),
+                    Expr::Binary(
+                        Box::new(Expr::Binary(
+                            Box::new(Expr::Unary(Uni::Number(1))),
+                            BinOpKind::Add,
+                            Box::new(Expr::Unary(Uni::Number(3))),
+                        )),
+                        BinOpKind::Mul,
+                        Box::new(Expr::Unary(Uni::Number(4))),
+                    ),
                 ),
                 ""
             ))
