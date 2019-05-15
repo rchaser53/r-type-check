@@ -23,7 +23,7 @@ where
 {
     string("let")
         .skip(spaces())
-        .and(expr_())
+        .and(word())
         .skip(spaces())
         .skip(token('='))
         .skip(spaces())
@@ -31,14 +31,11 @@ where
         .skip(spaces())
         .and(token(';'))
         .skip(spaces())
-        .map(|(((_, id), value), _)| match id {
-            Expr::Unary(unary_) => {
-                if let Uni::Id(id_) = unary_ {
-                    return Statement::LetExpr(id_, value);
-                };
-                panic!("should come Uni::Id. actual: {:?}", unary_);
-            }
-            _ => panic!("should come Id. actual: {:?}", id),
+        .map(|(((_, unary_), value), _)| {
+            if let Uni::Id(id_) = unary_ {
+                return Statement::LetExpr(id_, value);
+            };
+            panic!("should come Uni::Id. actual: {:?}", unary_);
         })
 }
 
