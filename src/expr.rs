@@ -130,7 +130,7 @@ where
         .and(token('('))
         .skip(spaces())
         .and(
-            sep_by(expr(), token(','))
+            sep_by(expr().skip(spaces()), token(',').skip(spaces()))
                 .skip(spaces())
                 .map(|exps: Vec<Expr>| exps.into_iter().map(|exp| Box::new(exp)).collect()),
         )
@@ -148,7 +148,8 @@ parser! {
     pub fn expr[I]()(I) -> Expr
     where [I: Stream<Item = char>]
     {
-        expr_()
+        attempt(call())
+          .or(expr_())
     }
 }
 
@@ -174,6 +175,39 @@ mod test {
                     Box::new(Expr::Unary(Uni::Number(1))),
                     BinOpKind::Add,
                     Box::new(Expr::Unary(Uni::Number(2))),
+                ),
+                ""
+            ))
+        );
+    }
+
+    #[test]
+    fn call_test() {
+        assert_eq!(
+            expr().easy_parse(r#"ab()"#),
+            Ok((Expr::Call(Id(String::from("ab")), vec![]), ""))
+        );
+
+        assert_eq!(
+            expr().easy_parse(r#"ab( cde )"#),
+            Ok((
+                Expr::Call(
+                    Id(String::from("ab")),
+                    vec![Box::new(Expr::Unary(Uni::Id(Id(String::from("cde")))))]
+                ),
+                ""
+            ))
+        );
+
+        assert_eq!(
+            expr().easy_parse(r#"ab( cde , fgh )"#),
+            Ok((
+                Expr::Call(
+                    Id(String::from("ab")),
+                    vec![
+                        Box::new(Expr::Unary(Uni::Id(Id(String::from("cde"))))),
+                        Box::new(Expr::Unary(Uni::Id(Id(String::from("fgh")))))
+                    ]
                 ),
                 ""
             ))

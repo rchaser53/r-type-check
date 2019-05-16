@@ -47,7 +47,7 @@ where
     attempt(
         token('(')
             .skip(spaces())
-            .and(sep_by(expr(), token(',').skip(spaces())).map(|exps| Args(exps)))
+            .and(sep_by(unary(), token(',').skip(spaces())).map(|exps| Args(exps)))
             .skip(spaces())
             .and(token(')'))
             .map(|((_, exps), _)| exps),
@@ -65,7 +65,7 @@ where
 {
     string("fn")
         .skip(spaces())
-        .and(expr_())
+        .and(unary())
         .skip(spaces())
         .and(args())
         .skip(spaces())
