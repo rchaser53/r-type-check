@@ -1,0 +1,17 @@
+language: rust
+rust:
+  - niglty
+os:
+  - osx
+  - linux
+cache:
+  - cargo
+  - build
+
+script:
+  - |
+    cargo build
+    cargo test
+
+notifications:
+  email: false
