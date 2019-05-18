@@ -22,7 +22,7 @@ pub struct Assign(Id, Expr);
 pub struct Args(Vec<Expr>);
 
 #[derive(Debug, PartialEq)]
-pub struct ForCondition(Assign, Assign, Assign);
+pub struct ForCondition(Box<Statement>, Box<Statement>, Box<Statement>);
 
 fn let_<I>() -> impl Parser<Input = I, Output = Statement>
 where
@@ -87,15 +87,17 @@ where
 {
     token('(')
         .skip(spaces())
-        .and(assign_())
+        .and(let_())
         .skip(spaces())
-        .and(assign_())
+        .and(expr_statement())
         .skip(spaces())
-        .and(assign_())
+        .and(expr_statement())
         .skip(spaces())
         .and(token(')'))
         .skip(spaces())
-        .map(|((((_, first), limit), iterate), _)| ForCondition(first, limit, iterate))
+        .map(|((((_, first), limit), iterate), _)| {
+            ForCondition(Box::new(first), Box::new(limit), Box::new(iterate))
+        })
 }
 
 fn assign_<I>() -> impl Parser<Input = I, Output = Assign>
@@ -220,6 +222,32 @@ mod test {
                         BinOpKind::Mul,
                         Box::new(Expr::Unary(Uni::Number(4))),
                     ),
+                ),
+                ""
+            ))
+        );
+    }
+
+    #[test]
+    fn for_condition_test() {
+        assert_eq!(
+            for_condition().easy_parse(r#"(let i = 0; i < 10; i + 1;)"#),
+            Ok((
+                ForCondition(
+                    Box::new(Statement::LetExpr(
+                        Id(String::from("i")),
+                        Expr::Unary(Uni::Number(0)),
+                    )),
+                    Box::new(Statement::Expr(Expr::Binary(
+                        Box::new(Expr::Unary(Uni::Id(Id(String::from("i"))))),
+                        BinOpKind::Lt,
+                        Box::new(Expr::Unary(Uni::Number(10)))
+                    ))),
+                    Box::new(Statement::Expr(Expr::Binary(
+                        Box::new(Expr::Unary(Uni::Id(Id(String::from("i"))))),
+                        BinOpKind::Add,
+                        Box::new(Expr::Unary(Uni::Number(1)))
+                    )))
                 ),
                 ""
             ))
