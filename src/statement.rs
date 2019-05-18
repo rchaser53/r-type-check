@@ -3,13 +3,13 @@ use combine::parser::char::{spaces, string};
 use combine::stream::Stream;
 use combine::{attempt, choice, many, parser, sep_by, token, Parser};
 
-use crate::expr::bin_op::BinOpKind;
 use crate::expr::uni::*;
 use crate::expr::*;
 
 #[derive(Debug, PartialEq)]
 pub enum Statement {
     LetExpr(Id, Expr),
+    Expr(Expr),
     Assign(Assign),
     Fn(Id, Args, Vec<Box<Statement>>),
     For(ForCondition, Vec<Box<Statement>>),
@@ -45,6 +45,18 @@ where
             };
             panic!("should come Uni::Id. actual: {:?}", unary_);
         })
+}
+
+fn expr_statement<I>() -> impl Parser<Input = I, Output = Statement>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    expr()
+        .skip(spaces())
+        .and(token(';'))
+        .skip(spaces())
+        .map(|(exp, _)| Statement::Expr(exp))
 }
 
 fn for_<I>() -> impl Parser<Input = I, Output = Statement>
@@ -173,11 +185,12 @@ parser! {
     pub fn statement[I]()(I) -> Statement
     where [I: Stream<Item = char>]
     {
-        choice((fn_(), let_(), for_(), assign()))
+        choice((fn_(), let_(), for_(), assign(), expr_statement()))
     }
 }
 
 mod test {
+    use crate::expr::bin_op::*;
     use crate::statement::*;
 
     #[test]
@@ -221,6 +234,21 @@ mod test {
                 Statement::Assign(Assign(
                     Id(String::from("abc")),
                     Expr::Unary(Uni::String(String::from("aaa")))
+                )),
+                ""
+            ))
+        );
+    }
+
+    #[test]
+    fn expr_statement_test() {
+        assert_eq!(
+            statement().easy_parse(r#"1 + 2;"#),
+            Ok((
+                Statement::Expr(Expr::Binary(
+                    Box::new(Expr::Unary(Uni::Number(1))),
+                    BinOpKind::Add,
+                    Box::new(Expr::Unary(Uni::Number(2))),
                 )),
                 ""
             ))
