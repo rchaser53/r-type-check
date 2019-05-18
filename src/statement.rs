@@ -10,12 +10,19 @@ use crate::expr::*;
 #[derive(Debug, PartialEq)]
 pub enum Statement {
     LetExpr(Id, Expr),
-    Assign(Id, Expr),
+    Assign(Assign),
     Fn(Id, Args, Vec<Box<Statement>>),
+    For(ForCondition, Vec<Box<Statement>>),
 }
 
 #[derive(Debug, PartialEq)]
+pub struct Assign(Id, Expr);
+
+#[derive(Debug, PartialEq)]
 pub struct Args(Vec<Expr>);
+
+#[derive(Debug, PartialEq)]
+pub struct ForCondition(Assign, Assign, Assign);
 
 fn let_<I>() -> impl Parser<Input = I, Output = Statement>
 where
@@ -40,7 +47,46 @@ where
         })
 }
 
-fn assign<I>() -> impl Parser<Input = I, Output = Statement>
+fn for_<I>() -> impl Parser<Input = I, Output = Statement>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    string("for")
+        .skip(spaces())
+        .and(for_condition())
+        .skip(spaces())
+        .and(token('{'))
+        .skip(spaces())
+        .and(many(statement()))
+        .skip(spaces())
+        .and(token('}'))
+        .map(
+            |((((_, cond), _), stetements_), _): ((((_, ForCondition), _), Vec<Statement>), _)| {
+                Statement::For(cond, stetements_.into_iter().map(|s| Box::new(s)).collect())
+            },
+        )
+}
+
+fn for_condition<I>() -> impl Parser<Input = I, Output = ForCondition>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    token('(')
+        .skip(spaces())
+        .and(assign_())
+        .skip(spaces())
+        .and(assign_())
+        .skip(spaces())
+        .and(assign_())
+        .skip(spaces())
+        .and(token(')'))
+        .skip(spaces())
+        .map(|((((_, first), limit), iterate), _)| ForCondition(first, limit, iterate))
+}
+
+fn assign_<I>() -> impl Parser<Input = I, Output = Assign>
 where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
@@ -55,10 +101,18 @@ where
         .skip(spaces())
         .map(|((unary_, value), _)| {
             if let Uni::Id(id_) = unary_ {
-                return Statement::Assign(id_, value);
+                return Assign(id_, value);
             };
             panic!("should come Uni::Id. actual: {:?}", unary_);
         })
+}
+
+fn assign<I>() -> impl Parser<Input = I, Output = Statement>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    assign_().map(|assign| Statement::Assign(assign))
 }
 
 fn args<I>() -> impl Parser<Input = I, Output = Args>
@@ -119,7 +173,7 @@ parser! {
     pub fn statement[I]()(I) -> Statement
     where [I: Stream<Item = char>]
     {
-        choice((fn_(), let_(), assign()))
+        choice((fn_(), let_(), for_(), assign()))
     }
 }
 
@@ -164,10 +218,10 @@ mod test {
         assert_eq!(
             statement().easy_parse(r#"abc = "aaa";"#),
             Ok((
-                Statement::Assign(
+                Statement::Assign(Assign(
                     Id(String::from("abc")),
                     Expr::Unary(Uni::String(String::from("aaa")))
-                ),
+                )),
                 ""
             ))
         );
