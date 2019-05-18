@@ -10,6 +10,7 @@ use crate::expr::*;
 #[derive(Debug, PartialEq)]
 pub enum Statement {
     LetExpr(Id, Expr),
+    Assign(Id, Expr),
     Fn(Id, Args, Vec<Box<Statement>>),
 }
 
@@ -34,6 +35,27 @@ where
         .map(|(((_, unary_), value), _)| {
             if let Uni::Id(id_) = unary_ {
                 return Statement::LetExpr(id_, value);
+            };
+            panic!("should come Uni::Id. actual: {:?}", unary_);
+        })
+}
+
+fn assign<I>() -> impl Parser<Input = I, Output = Statement>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    word()
+        .skip(spaces())
+        .skip(token('='))
+        .skip(spaces())
+        .and(expr_())
+        .skip(spaces())
+        .and(token(';'))
+        .skip(spaces())
+        .map(|((unary_, value), _)| {
+            if let Uni::Id(id_) = unary_ {
+                return Statement::Assign(id_, value);
             };
             panic!("should come Uni::Id. actual: {:?}", unary_);
         })
@@ -97,7 +119,7 @@ parser! {
     pub fn statement[I]()(I) -> Statement
     where [I: Stream<Item = char>]
     {
-        choice((let_(), fn_()))
+        choice((fn_(), let_(), assign()))
     }
 }
 
@@ -131,6 +153,20 @@ mod test {
                         BinOpKind::Mul,
                         Box::new(Expr::Unary(Uni::Number(4))),
                     ),
+                ),
+                ""
+            ))
+        );
+    }
+
+    #[test]
+    fn assign_test() {
+        assert_eq!(
+            statement().easy_parse(r#"abc = "aaa";"#),
+            Ok((
+                Statement::Assign(
+                    Id(String::from("abc")),
+                    Expr::Unary(Uni::String(String::from("aaa")))
                 ),
                 ""
             ))
