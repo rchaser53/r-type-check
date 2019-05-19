@@ -1,7 +1,7 @@
 use combine::error::ParseError;
 use combine::parser::char::{char, digit, letter, spaces};
 use combine::stream::Stream;
-use combine::{between, choice, many1, parser, sep_by, Parser};
+use combine::{between, choice, many1, parser, sep_by, token, Parser};
 
 #[derive(Debug, PartialEq)]
 pub struct Id(pub String);
@@ -13,6 +13,7 @@ pub enum Uni {
     String(String),
     Number(i32),
     Boolean(Boolean),
+    Field(Vec<Box<Uni>>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -28,6 +29,26 @@ where
 {
     let skip_spaces = || spaces().silent();
     choice((word_(), array(), string(), integer())).skip(skip_spaces())
+}
+
+pub fn field<I>() -> impl Parser<Input = I, Output = Uni>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    let skip_spaces = || spaces().silent();
+    sep_by(word(), token('.'))
+        .skip(skip_spaces())
+        .map(|words: Vec<Uni>| {
+            let fields = words
+                .into_iter()
+                .map(|word| match word {
+                    Uni::Id(_) => Box::new(word),
+                    _ => panic!("should come here Id. but actual: {:?}", word),
+                })
+                .collect();
+            Uni::Field(fields)
+        })
 }
 
 pub fn word_<I>() -> impl Parser<Input = I, Output = Uni>
