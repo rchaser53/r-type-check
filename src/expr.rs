@@ -7,7 +7,7 @@ pub mod bin_op;
 use bin_op::{bin_op as bin_op_, BinOpKind};
 
 pub mod uni;
-use uni::{uni as create_uni, word_, Uni};
+use uni::{field, uni as create_uni, word_, Uni};
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
@@ -125,7 +125,8 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    word_()
+    attempt(field())
+        .or(word_())
         .skip(spaces())
         .and(token('('))
         .skip(spaces())
@@ -136,11 +137,9 @@ where
         )
         .skip(spaces())
         .and(token(')'))
-        .map(|(((fn_name, _), args), _)| {
-            match fn_name {
-                Uni::Id(_) | Uni::Field(_) => Expr::Call(fn_name, args),
-                _ => panic!("should come Uni::Id. actual: {:?}", fn_name),
-            }
+        .map(|(((fn_name, _), args), _)| match fn_name {
+            Uni::Id(_) | Uni::Field(_) => Expr::Call(fn_name, args),
+            _ => panic!("should come Uni::Id. actual: {:?}", fn_name),
         })
 }
 
@@ -204,6 +203,20 @@ mod test {
             Ok((
                 Expr::Call(
                     Uni::Id(Id(String::from("ab"))),
+                    vec![
+                        Box::new(Expr::Unary(Uni::Id(Id(String::from("cde"))))),
+                        Box::new(Expr::Unary(Uni::Id(Id(String::from("fgh")))))
+                    ]
+                ),
+                ""
+            ))
+        );
+
+        assert_eq!(
+            expr().easy_parse(r#"ab.field( cde , fgh )"#),
+            Ok((
+                Expr::Call(
+                    Uni::Field(vec![Id(String::from("ab")), Id(String::from("field"))]),
                     vec![
                         Box::new(Expr::Unary(Uni::Id(Id(String::from("cde"))))),
                         Box::new(Expr::Unary(Uni::Id(Id(String::from("fgh")))))
