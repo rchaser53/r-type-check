@@ -7,13 +7,13 @@ pub mod bin_op;
 use bin_op::{bin_op as bin_op_, BinOpKind};
 
 pub mod uni;
-use uni::{uni as create_uni, word_, Id, Uni};
+use uni::{uni as create_uni, word_, Uni};
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
     Unary(Uni),
     Binary(Box<Expr>, BinOpKind, Box<Expr>),
-    Call(Id, Vec<Box<Expr>>),
+    Call(Uni, Vec<Box<Expr>>),
 }
 
 pub fn expr_<I>() -> impl Parser<Input = I, Output = Expr>
@@ -137,10 +137,10 @@ where
         .skip(spaces())
         .and(token(')'))
         .map(|(((fn_name, _), args), _)| {
-            if let Uni::Id(id_) = fn_name {
-                return Expr::Call(id_, args);
-            };
-            panic!("should come Uni::Id. actual: {:?}", fn_name);
+            match fn_name {
+                Uni::Id(_) | Uni::Field(_) => Expr::Call(fn_name, args),
+                _ => panic!("should come Uni::Id. actual: {:?}", fn_name),
+            }
         })
 }
 
@@ -185,14 +185,14 @@ mod test {
     fn call_test() {
         assert_eq!(
             expr().easy_parse(r#"ab()"#),
-            Ok((Expr::Call(Id(String::from("ab")), vec![]), ""))
+            Ok((Expr::Call(Uni::Id(Id(String::from("ab"))), vec![]), ""))
         );
 
         assert_eq!(
             expr().easy_parse(r#"ab( cde )"#),
             Ok((
                 Expr::Call(
-                    Id(String::from("ab")),
+                    Uni::Id(Id(String::from("ab"))),
                     vec![Box::new(Expr::Unary(Uni::Id(Id(String::from("cde")))))]
                 ),
                 ""
@@ -203,7 +203,7 @@ mod test {
             expr().easy_parse(r#"ab( cde , fgh )"#),
             Ok((
                 Expr::Call(
-                    Id(String::from("ab")),
+                    Uni::Id(Id(String::from("ab"))),
                     vec![
                         Box::new(Expr::Unary(Uni::Id(Id(String::from("cde"))))),
                         Box::new(Expr::Unary(Uni::Id(Id(String::from("fgh")))))
