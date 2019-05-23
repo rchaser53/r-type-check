@@ -13,6 +13,7 @@ pub enum Statement {
     Assign(Assign),
     Fn(Id, Args, Vec<Box<Statement>>),
     For(ForCondition, Vec<Box<Statement>>),
+    If(Box<Statement>, Vec<Statement>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -23,6 +24,64 @@ pub struct Args(Vec<Expr>);
 
 #[derive(Debug, PartialEq)]
 pub struct ForCondition(Box<Statement>, Box<Statement>, Box<Statement>);
+
+#[derive(Debug, PartialEq)]
+pub struct IfCondition(Box<Statement>);
+
+fn if_condition<I>() -> impl Parser<Input = I, Output = IfCondition>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    token('(')
+        .skip(spaces())
+        .and(expr_statement())
+        .skip(spaces())
+        .and(token(')'))
+        .skip(spaces())
+        .map(|((_, cond), _)| IfCondition(Box::new(cond)))
+}
+
+fn for_condition<I>() -> impl Parser<Input = I, Output = ForCondition>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    token('(')
+        .skip(spaces())
+        .and(let_())
+        .skip(spaces())
+        .and(expr_statement())
+        .skip(spaces())
+        .and(expr_statement())
+        .skip(spaces())
+        .and(token(')'))
+        .skip(spaces())
+        .map(|((((_, first), limit), iterate), _)| {
+            ForCondition(Box::new(first), Box::new(limit), Box::new(iterate))
+        })
+}
+
+fn assign_<I>() -> impl Parser<Input = I, Output = Assign>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    word()
+        .skip(spaces())
+        .skip(token('='))
+        .skip(spaces())
+        .and(expr_())
+        .skip(spaces())
+        .and(token(';'))
+        .skip(spaces())
+        .map(|((unary_, value), _)| {
+            if let Uni::Id(id_) = unary_ {
+                return Assign(id_, value);
+            };
+            panic!("should come Uni::Id. actual: {:?}", unary_);
+        })
+}
 
 fn let_<I>() -> impl Parser<Input = I, Output = Statement>
 where
@@ -78,47 +137,6 @@ where
                 Statement::For(cond, stetements_.into_iter().map(|s| Box::new(s)).collect())
             },
         )
-}
-
-fn for_condition<I>() -> impl Parser<Input = I, Output = ForCondition>
-where
-    I: Stream<Item = char>,
-    I::Error: ParseError<I::Item, I::Range, I::Position>,
-{
-    token('(')
-        .skip(spaces())
-        .and(let_())
-        .skip(spaces())
-        .and(expr_statement())
-        .skip(spaces())
-        .and(expr_statement())
-        .skip(spaces())
-        .and(token(')'))
-        .skip(spaces())
-        .map(|((((_, first), limit), iterate), _)| {
-            ForCondition(Box::new(first), Box::new(limit), Box::new(iterate))
-        })
-}
-
-fn assign_<I>() -> impl Parser<Input = I, Output = Assign>
-where
-    I: Stream<Item = char>,
-    I::Error: ParseError<I::Item, I::Range, I::Position>,
-{
-    word()
-        .skip(spaces())
-        .skip(token('='))
-        .skip(spaces())
-        .and(expr_())
-        .skip(spaces())
-        .and(token(';'))
-        .skip(spaces())
-        .map(|((unary_, value), _)| {
-            if let Uni::Id(id_) = unary_ {
-                return Assign(id_, value);
-            };
-            panic!("should come Uni::Id. actual: {:?}", unary_);
-        })
 }
 
 fn assign<I>() -> impl Parser<Input = I, Output = Statement>
@@ -196,39 +214,6 @@ mod test {
     use crate::statement::*;
 
     #[test]
-    fn let_test() {
-        assert_eq!(
-            statement().easy_parse(r#"let abc = "aaa";"#),
-            Ok((
-                Statement::LetExpr(
-                    Id(String::from("abc")),
-                    Expr::Unary(Uni::String(String::from("aaa")))
-                ),
-                ""
-            ))
-        );
-
-        assert_eq!(
-            statement().easy_parse(r#"let abc = (1 + 3) * 4;"#),
-            Ok((
-                Statement::LetExpr(
-                    Id(String::from("abc")),
-                    Expr::Binary(
-                        Box::new(Expr::Binary(
-                            Box::new(Expr::Unary(Uni::Number(1))),
-                            BinOpKind::Add,
-                            Box::new(Expr::Unary(Uni::Number(3))),
-                        )),
-                        BinOpKind::Mul,
-                        Box::new(Expr::Unary(Uni::Number(4))),
-                    ),
-                ),
-                ""
-            ))
-        );
-    }
-
-    #[test]
     fn for_condition_test() {
         assert_eq!(
             for_condition().easy_parse(r#"(let i = 0; i < 10; i + 1;)"#),
@@ -278,6 +263,54 @@ mod test {
                     BinOpKind::Add,
                     Box::new(Expr::Unary(Uni::Number(2))),
                 )),
+                ""
+            ))
+        );
+    }
+
+    #[test]
+    fn if_condition_test() {
+        assert_eq!(
+            if_condition().easy_parse(r#"(10 > x;)"#),
+            Ok((
+                IfCondition(Box::new(Statement::Expr(Expr::Binary(
+                    Box::new(Expr::Unary(Uni::Number(10))),
+                    BinOpKind::Gt,
+                    Box::new(Expr::Unary(Uni::Id(Id(String::from("x")))))
+                )))),
+                ""
+            ))
+        );
+    }
+
+    #[test]
+    fn let_test() {
+        assert_eq!(
+            statement().easy_parse(r#"let abc = "aaa";"#),
+            Ok((
+                Statement::LetExpr(
+                    Id(String::from("abc")),
+                    Expr::Unary(Uni::String(String::from("aaa")))
+                ),
+                ""
+            ))
+        );
+
+        assert_eq!(
+            statement().easy_parse(r#"let abc = (1 + 3) * 4;"#),
+            Ok((
+                Statement::LetExpr(
+                    Id(String::from("abc")),
+                    Expr::Binary(
+                        Box::new(Expr::Binary(
+                            Box::new(Expr::Unary(Uni::Number(1))),
+                            BinOpKind::Add,
+                            Box::new(Expr::Unary(Uni::Number(3))),
+                        )),
+                        BinOpKind::Mul,
+                        Box::new(Expr::Unary(Uni::Number(4))),
+                    ),
+                ),
                 ""
             ))
         );
