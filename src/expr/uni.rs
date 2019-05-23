@@ -14,6 +14,7 @@ pub enum Uni {
     Number(i32),
     Boolean(Boolean),
     Field(Vec<Id>),
+    HashMap(Vec<(Id, Box<Uni>)>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -30,6 +31,31 @@ where
     let skip_spaces = || spaces().silent();
 
     choice((attempt(field()).or(word_()), array(), string(), integer())).skip(skip_spaces())
+}
+
+#[derive(Debug, PartialEq)]
+pub struct HashSet(Id, Box<Uni>);
+
+pub fn hash_set<I>() -> impl Parser<Input = I, Output = HashSet>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    let skip_spaces = || spaces().silent();
+    let hash_set_ = || {
+        word()
+            .skip(skip_spaces())
+            .and(token(':'))
+            .skip(skip_spaces())
+            .and(uni())
+            .skip(skip_spaces())
+            .map(|((w, _), u)| match w {
+                Uni::Id(id) => HashSet(id, Box::new(u)),
+                _ => panic!("should come here Id. but actual: {:?}", w),
+            })
+    };
+
+    attempt(hash_set_().and(token(',')).map(|(h, _)| h)).or(hash_set_())
 }
 
 pub fn field<I>() -> impl Parser<Input = I, Output = Uni>
@@ -118,6 +144,14 @@ parser! {
 
 mod test {
     use crate::expr::uni::*;
+
+    #[test]
+    fn hash_set_test() {
+        assert_eq!(
+            hash_set().easy_parse(r#"abc: 32"#),
+            Ok((HashSet(Id(String::from("abc")), Box::new(Uni::Number(32))), ""))
+        );
+    }
 
     #[test]
     fn boolean_test() {
