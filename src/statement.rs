@@ -242,7 +242,7 @@ parser! {
     pub fn statement[I]()(I) -> Statement
     where [I: Stream<Item = char>]
     {
-        choice((fn_(), if_(), let_(), for_(), assign(), expr_statement()))
+        choice((attempt(fn_()).or(for_()), if_(), let_(), assign(), expr_statement()))
     }
 }
 
@@ -305,6 +305,42 @@ mod test {
                         BinOpKind::Lt,
                         Box::new(Expr::Unary(Uni::Number(10)))
                     ))),),
+                    vec![Box::new(Statement::LetExpr(
+                        Id(String::from("abc")),
+                        Expr::Unary(Uni::String(String::from("aaa")))
+                    ))]
+                ),
+                ""
+            ))
+        );
+    }
+
+    #[test]
+    fn for_test() {
+        assert_eq!(
+            statement().easy_parse(
+                r#"for (let i = 0; i < 10; i + 1;) {
+              let abc = "aaa";
+            }"#
+            ),
+            Ok((
+                Statement::For(
+                    ForCondition(
+                        Box::new(Statement::LetExpr(
+                            Id(String::from("i")),
+                            Expr::Unary(Uni::Number(0)),
+                        )),
+                        Box::new(Statement::Expr(Expr::Binary(
+                            Box::new(Expr::Unary(Uni::Id(Id(String::from("i"))))),
+                            BinOpKind::Lt,
+                            Box::new(Expr::Unary(Uni::Number(10)))
+                        ))),
+                        Box::new(Statement::Expr(Expr::Binary(
+                            Box::new(Expr::Unary(Uni::Id(Id(String::from("i"))))),
+                            BinOpKind::Add,
+                            Box::new(Expr::Unary(Uni::Number(1)))
+                        )))
+                    ),
                     vec![Box::new(Statement::LetExpr(
                         Id(String::from("abc")),
                         Expr::Unary(Uni::String(String::from("aaa")))
