@@ -53,7 +53,7 @@ where
         .skip(spaces())
         .and(expr_statement())
         .skip(spaces())
-        .and(expr_statement())
+        .and(expr_statement_no_semicolon())
         .skip(spaces())
         .and(token(')'))
         .skip(spaces())
@@ -253,7 +253,7 @@ mod test {
     #[test]
     fn for_condition_test() {
         assert_eq!(
-            for_condition().easy_parse(r#"(let i = 0; i < 10; i + 1;)"#),
+            for_condition().easy_parse(r#"(let i = 0; i < 10; i + 1)"#),
             Ok((
                 ForCondition(
                     Box::new(Statement::LetExpr(
@@ -319,7 +319,7 @@ mod test {
     fn for_test() {
         assert_eq!(
             statement().easy_parse(
-                r#"for (let i = 0; i < 10; i + 1;) {
+                r#"for (let i = 0; i < 10; i + 1) {
               let abc = "aaa";
             }"#
             ),
