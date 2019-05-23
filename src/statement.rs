@@ -35,7 +35,7 @@ where
 {
     token('(')
         .skip(spaces())
-        .and(expr_statement())
+        .and(expr_statement_no_semicolon())
         .skip(spaces())
         .and(token(')'))
         .skip(spaces())
@@ -111,11 +111,27 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
+    attempt(expr_statement_with_semicolon()).or(expr_statement_no_semicolon())
+}
+
+fn expr_statement_with_semicolon<I>() -> impl Parser<Input = I, Output = Statement>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
     expr()
         .skip(spaces())
         .and(token(';'))
         .skip(spaces())
         .map(|(exp, _)| Statement::Expr(exp))
+}
+
+fn expr_statement_no_semicolon<I>() -> impl Parser<Input = I, Output = Statement>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    expr().skip(spaces()).map(|exp| Statement::Expr(exp))
 }
 
 fn for_<I>() -> impl Parser<Input = I, Output = Statement>
@@ -271,7 +287,7 @@ mod test {
     #[test]
     fn if_condition_test() {
         assert_eq!(
-            if_condition().easy_parse(r#"(10 > x;)"#),
+            if_condition().easy_parse(r#"(10 > x)"#),
             Ok((
                 IfCondition(Box::new(Statement::Expr(Expr::Binary(
                     Box::new(Expr::Unary(Uni::Number(10))),
