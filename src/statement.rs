@@ -13,7 +13,7 @@ pub enum Statement {
     Assign(Assign),
     Fn(Id, Args, Vec<Box<Statement>>),
     For(ForCondition, Vec<Box<Statement>>),
-    If(Box<Statement>, Vec<Statement>),
+    If(IfCondition, Vec<Box<Statement>>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -134,6 +134,27 @@ where
     expr().skip(spaces()).map(|exp| Statement::Expr(exp))
 }
 
+fn if_<I>() -> impl Parser<Input = I, Output = Statement>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    string("if")
+        .skip(spaces())
+        .and(if_condition())
+        .skip(spaces())
+        .and(token('{'))
+        .skip(spaces())
+        .and(many(statement()))
+        .skip(spaces())
+        .and(token('}'))
+        .map(
+            |((((_, cond), _), stetements_), _): ((((_, IfCondition), _), Vec<Statement>), _)| {
+                Statement::If(cond, stetements_.into_iter().map(|s| Box::new(s)).collect())
+            },
+        )
+}
+
 fn for_<I>() -> impl Parser<Input = I, Output = Statement>
 where
     I: Stream<Item = char>,
@@ -221,7 +242,7 @@ parser! {
     pub fn statement[I]()(I) -> Statement
     where [I: Stream<Item = char>]
     {
-        choice((fn_(), let_(), for_(), assign(), expr_statement()))
+        choice((fn_(), if_(), let_(), for_(), assign(), expr_statement()))
     }
 }
 
@@ -264,6 +285,31 @@ mod test {
                     Id(String::from("abc")),
                     Expr::Unary(Uni::String(String::from("aaa")))
                 )),
+                ""
+            ))
+        );
+    }
+
+    #[test]
+    fn if_test() {
+        assert_eq!(
+            statement().easy_parse(
+                r#"if (i < 10) {
+              let abc = "aaa";
+            }"#
+            ),
+            Ok((
+                Statement::If(
+                    IfCondition(Box::new(Statement::Expr(Expr::Binary(
+                        Box::new(Expr::Unary(Uni::Id(Id(String::from("i"))))),
+                        BinOpKind::Lt,
+                        Box::new(Expr::Unary(Uni::Number(10)))
+                    ))),),
+                    vec![Box::new(Statement::LetExpr(
+                        Id(String::from("abc")),
+                        Expr::Unary(Uni::String(String::from("aaa")))
+                    ))]
+                ),
                 ""
             ))
         );
