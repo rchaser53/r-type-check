@@ -14,6 +14,7 @@ pub enum Statement {
     Fn(Id, Args, Vec<Box<Statement>>),
     For(ForCondition, Vec<Box<Statement>>),
     If(IfCondition, Vec<Box<Statement>>),
+    Return(Box<Statement>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -27,6 +28,14 @@ pub struct ForCondition(Box<Statement>, Box<Statement>, Box<Statement>);
 
 #[derive(Debug, PartialEq)]
 pub struct IfCondition(Box<Statement>);
+
+parser! {
+    pub fn statement[I]()(I) -> Statement
+    where [I: Stream<Item = char>]
+    {
+        choice((attempt(fn_()).or(for_()), return_(), if_(), let_(), assign(), expr_statement()))
+    }
+}
 
 fn if_condition<I>() -> impl Parser<Input = I, Output = IfCondition>
 where
@@ -81,6 +90,18 @@ where
             };
             panic!("should come Uni::Id. actual: {:?}", unary_);
         })
+}
+
+fn return_<I>() -> impl Parser<Input = I, Output = Statement>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    string("return")
+        .skip(spaces())
+        .and(expr_statement())
+        .skip(spaces())
+        .map(|(_, value)| Statement::Return(Box::new(value)))
 }
 
 fn let_<I>() -> impl Parser<Input = I, Output = Statement>
@@ -238,14 +259,6 @@ where
         )
 }
 
-parser! {
-    pub fn statement[I]()(I) -> Statement
-    where [I: Stream<Item = char>]
-    {
-        choice((attempt(fn_()).or(for_()), if_(), let_(), assign(), expr_statement()))
-    }
-}
-
 mod test {
     use crate::expr::bin_op::*;
     use crate::statement::*;
@@ -285,6 +298,19 @@ mod test {
                     Id(String::from("abc")),
                     Expr::Unary(Uni::String(String::from("aaa")))
                 )),
+                ""
+            ))
+        );
+    }
+
+    #[test]
+    fn return_test() {
+        assert_eq!(
+            statement().easy_parse(r#"return "aaa";"#),
+            Ok((
+                Statement::Return(Box::new(Statement::Expr(Expr::Unary(Uni::String(
+                    String::from("aaa")
+                ))))),
                 ""
             ))
         );
