@@ -9,7 +9,7 @@ pub mod bin_op;
 use bin_op::{bin_op as bin_op_, BinOpKind};
 
 pub mod uni;
-use uni::{field, uni as create_uni, word_, Id, Uni};
+use uni::{field, uni as create_uni, word, word_, Id, Uni};
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
@@ -44,27 +44,24 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     string_skip_spaces("fn")
-        .and(skip_spaces(unary()))
+        .and(skip_spaces(word()))
         .and(skip_spaces(args()))
         .and(token_skip_spaces('{'))
         .and(skip_spaces(many(statement())))
         .and(token_skip_spaces('}'))
         .map(
-            |(((((_, id), args), _), stetements_), _): (
-                ((((_, Expr), Args), _), Vec<Statement>),
+            |(((((_, unary_), args), _), stetements_), _): (
+                ((((_, Uni), Args), _), Vec<Statement>),
                 _,
-            )| match id {
-                Expr::Unary(unary_) => {
-                    if let Uni::Id(id_) = unary_ {
-                        return Expr::Fn(
-                            id_,
-                            args,
-                            stetements_.into_iter().map(|s| Box::new(s)).collect(),
-                        );
-                    };
-                    panic!("should come Uni::Id. actual: {:?}", unary_);
-                }
-                _ => panic!("should come Id. actual: {:?}", id),
+            )| {
+                if let Uni::Id(id_) = unary_ {
+                    return Expr::Fn(
+                        id_,
+                        args,
+                        stetements_.into_iter().map(|s| Box::new(s)).collect(),
+                    );
+                };
+                panic!("should come Uni::Id. actual: {:?}", unary_);
             },
         )
 }
@@ -84,7 +81,7 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    create_uni().map(Expr::Unary)
+    attempt(call()).or(create_uni().map(Expr::Unary))
 }
 
 pub fn try_paren_with_binary<I>() -> impl Parser<Input = I, Output = Expr>
@@ -192,8 +189,9 @@ parser! {
     pub fn expr[I]()(I) -> Expr
     where [I: Stream<Item = char>]
     {
-        attempt(call())
-          .or(expr_())
+        // attempt(call())
+          // .or(expr_())
+          expr_()
     }
 }
 
@@ -266,6 +264,21 @@ mod test {
                         Box::new(Expr::Unary(Uni::Id(Id(String::from("cde"))))),
                         Box::new(Expr::Unary(Uni::Id(Id(String::from("fgh")))))
                     ]
+                ),
+                ""
+            ))
+        );
+    }
+
+    #[test]
+    fn call_binary() {
+        assert_eq!(
+            expr().easy_parse(r#"abc() * 3"#),
+            Ok((
+                Expr::Binary(
+                    Box::new(Expr::Call(Uni::Id(Id(String::from("abc"))), vec![])),
+                    BinOpKind::Mul,
+                    Box::new(Expr::Unary(Uni::Number(3))),
                 ),
                 ""
             ))
