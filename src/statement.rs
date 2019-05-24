@@ -1,6 +1,6 @@
 use combine::error::ParseError;
 use combine::stream::Stream;
-use combine::{attempt, choice, many, parser, sep_by, Parser};
+use combine::{attempt, choice, many, parser, Parser};
 
 use crate::expr::uni::*;
 use crate::expr::*;
@@ -12,7 +12,6 @@ pub enum Statement {
     LetExpr(Id, Expr),
     Expr(Expr),
     Assign(Assign),
-    Fn(Id, Args, Vec<Box<Statement>>),
     For(ForCondition, Vec<Box<Statement>>),
     If(IfCondition, Vec<Box<Statement>>),
     Return(Box<Statement>),
@@ -20,9 +19,6 @@ pub enum Statement {
 
 #[derive(Debug, PartialEq)]
 pub struct Assign(Id, Expr);
-
-#[derive(Debug, PartialEq)]
-pub struct Args(Vec<Expr>);
 
 #[derive(Debug, PartialEq)]
 pub struct ForCondition(Box<Statement>, Box<Statement>, Box<Statement>);
@@ -34,7 +30,7 @@ parser! {
     pub fn statement[I]()(I) -> Statement
     where [I: Stream<Item = char>]
     {
-        choice((attempt(fn_()).or(for_()), return_(), if_(), let_(), assign(), expr_statement()))
+        choice((for_(), return_(), if_(), let_(), assign(), expr_statement()))
     }
 }
 
@@ -175,53 +171,6 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     assign_().map(|assign| Statement::Assign(assign))
-}
-
-fn args<I>() -> impl Parser<Input = I, Output = Args>
-where
-    I: Stream<Item = char>,
-    I::Error: ParseError<I::Item, I::Range, I::Position>,
-{
-    attempt(
-        token_skip_spaces('(')
-            .and(skip_spaces(sep_by(unary(), token_skip_spaces(','))).map(|exps| Args(exps)))
-            .and(token_skip_spaces(')'))
-            .map(|((_, exps), _)| exps),
-    )
-    .or(token_skip_spaces('(')
-        .and(token_skip_spaces(')'))
-        .map(|_| Args(vec![])))
-}
-
-fn fn_<I>() -> impl Parser<Input = I, Output = Statement>
-where
-    I: Stream<Item = char>,
-    I::Error: ParseError<I::Item, I::Range, I::Position>,
-{
-    string_skip_spaces("fn")
-        .and(skip_spaces(unary()))
-        .and(skip_spaces(args()))
-        .and(token_skip_spaces('{'))
-        .and(skip_spaces(many(statement())))
-        .and(token_skip_spaces('}'))
-        .map(
-            |(((((_, id), args), _), stetements_), _): (
-                ((((_, Expr), Args), _), Vec<Statement>),
-                _,
-            )| match id {
-                Expr::Unary(unary_) => {
-                    if let Uni::Id(id_) = unary_ {
-                        return Statement::Fn(
-                            id_,
-                            args,
-                            stetements_.into_iter().map(|s| Box::new(s)).collect(),
-                        );
-                    };
-                    panic!("should come Uni::Id. actual: {:?}", unary_);
-                }
-                _ => panic!("should come Id. actual: {:?}", id),
-            },
-        )
 }
 
 mod test {
@@ -399,66 +348,6 @@ mod test {
                         BinOpKind::Mul,
                         Box::new(Expr::Unary(Uni::Number(4))),
                     ),
-                ),
-                ""
-            ))
-        );
-    }
-
-    #[test]
-    fn fn_test() {
-        let input = r#"fn def() {
-          let abc = "aaa";
-        }"#;
-        assert_eq!(
-            statement().easy_parse(input),
-            Ok((
-                Statement::Fn(
-                    Id(String::from("def")),
-                    Args(vec![]),
-                    vec![Box::new(Statement::LetExpr(
-                        Id(String::from("abc")),
-                        Expr::Unary(Uni::String(String::from("aaa")))
-                    ))]
-                ),
-                ""
-            ))
-        );
-
-        let input = r#"fn def( a ) {
-          let abc = "aaa";
-        }"#;
-        assert_eq!(
-            statement().easy_parse(input),
-            Ok((
-                Statement::Fn(
-                    Id(String::from("def")),
-                    Args(vec![Expr::Unary(Uni::Id(Id(String::from("a")))),]),
-                    vec![Box::new(Statement::LetExpr(
-                        Id(String::from("abc")),
-                        Expr::Unary(Uni::String(String::from("aaa")))
-                    ))]
-                ),
-                ""
-            ))
-        );
-
-        let input = r#"fn def( a, b ) {
-          let abc = "aaa";
-        }"#;
-        assert_eq!(
-            statement().easy_parse(input),
-            Ok((
-                Statement::Fn(
-                    Id(String::from("def")),
-                    Args(vec![
-                        Expr::Unary(Uni::Id(Id(String::from("a")))),
-                        Expr::Unary(Uni::Id(Id(String::from("b"))))
-                    ]),
-                    vec![Box::new(Statement::LetExpr(
-                        Id(String::from("abc")),
-                        Expr::Unary(Uni::String(String::from("aaa")))
-                    ))]
                 ),
                 ""
             ))

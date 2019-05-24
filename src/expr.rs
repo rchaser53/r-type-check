@@ -2,19 +2,71 @@ use combine::error::ParseError;
 use combine::stream::Stream;
 use combine::{attempt, many, parser, sep_by, Parser};
 
-use crate::utils::{skip_spaces, token_skip_spaces};
+use crate::statement::*;
+use crate::utils::{skip_spaces, string_skip_spaces, token_skip_spaces};
 
 pub mod bin_op;
 use bin_op::{bin_op as bin_op_, BinOpKind};
 
 pub mod uni;
-use uni::{field, uni as create_uni, word_, Uni};
+use uni::{field, uni as create_uni, word_, Id, Uni};
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
     Unary(Uni),
     Binary(Box<Expr>, BinOpKind, Box<Expr>),
     Call(Uni, Vec<Box<Expr>>),
+    Fn(Id, Args, Vec<Box<Statement>>),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Args(Vec<Expr>);
+
+fn args<I>() -> impl Parser<Input = I, Output = Args>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    attempt(
+        token_skip_spaces('(')
+            .and(skip_spaces(sep_by(unary(), token_skip_spaces(','))).map(|exps| Args(exps)))
+            .and(token_skip_spaces(')'))
+            .map(|((_, exps), _)| exps),
+    )
+    .or(token_skip_spaces('(')
+        .and(token_skip_spaces(')'))
+        .map(|_| Args(vec![])))
+}
+
+fn fn_<I>() -> impl Parser<Input = I, Output = Expr>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    string_skip_spaces("fn")
+        .and(skip_spaces(unary()))
+        .and(skip_spaces(args()))
+        .and(token_skip_spaces('{'))
+        .and(skip_spaces(many(statement())))
+        .and(token_skip_spaces('}'))
+        .map(
+            |(((((_, id), args), _), stetements_), _): (
+                ((((_, Expr), Args), _), Vec<Statement>),
+                _,
+            )| match id {
+                Expr::Unary(unary_) => {
+                    if let Uni::Id(id_) = unary_ {
+                        return Expr::Fn(
+                            id_,
+                            args,
+                            stetements_.into_iter().map(|s| Box::new(s)).collect(),
+                        );
+                    };
+                    panic!("should come Uni::Id. actual: {:?}", unary_);
+                }
+                _ => panic!("should come Id. actual: {:?}", id),
+            },
+        )
 }
 
 pub fn expr_<I>() -> impl Parser<Input = I, Output = Expr>
@@ -22,7 +74,9 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    attempt(handle_op(try_paren_with_binary())).or(try_binary())
+    attempt(fn_())
+        .or(handle_op(try_paren_with_binary()))
+        .or(try_binary())
 }
 
 pub fn unary<I>() -> impl Parser<Input = I, Output = Expr>
@@ -361,6 +415,66 @@ mod test {
                     )),
                     BinOpKind::Mul,
                     Box::new(Expr::Unary(Uni::Number(3))),
+                ),
+                ""
+            ))
+        );
+    }
+
+    #[test]
+    fn fn_test() {
+        let input = r#"fn def() {
+          let abc = "aaa";
+        }"#;
+        assert_eq!(
+            expr().easy_parse(input),
+            Ok((
+                Expr::Fn(
+                    Id(String::from("def")),
+                    Args(vec![]),
+                    vec![Box::new(Statement::LetExpr(
+                        Id(String::from("abc")),
+                        Expr::Unary(Uni::String(String::from("aaa")))
+                    ))]
+                ),
+                ""
+            ))
+        );
+
+        let input = r#"fn def( a ) {
+          let abc = "aaa";
+        }"#;
+        assert_eq!(
+            expr().easy_parse(input),
+            Ok((
+                Expr::Fn(
+                    Id(String::from("def")),
+                    Args(vec![Expr::Unary(Uni::Id(Id(String::from("a")))),]),
+                    vec![Box::new(Statement::LetExpr(
+                        Id(String::from("abc")),
+                        Expr::Unary(Uni::String(String::from("aaa")))
+                    ))]
+                ),
+                ""
+            ))
+        );
+
+        let input = r#"fn def( a, b ) {
+          let abc = "aaa";
+        }"#;
+        assert_eq!(
+            expr().easy_parse(input),
+            Ok((
+                Expr::Fn(
+                    Id(String::from("def")),
+                    Args(vec![
+                        Expr::Unary(Uni::Id(Id(String::from("a")))),
+                        Expr::Unary(Uni::Id(Id(String::from("b"))))
+                    ]),
+                    vec![Box::new(Statement::LetExpr(
+                        Id(String::from("abc")),
+                        Expr::Unary(Uni::String(String::from("aaa")))
+                    ))]
                 ),
                 ""
             ))
