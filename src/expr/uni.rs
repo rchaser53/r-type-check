@@ -1,7 +1,7 @@
 use combine::error::ParseError;
 use combine::parser::char::{char, digit, letter, spaces};
 use combine::stream::Stream;
-use combine::{attempt, between, choice, many1, parser, sep_by, sep_by1, token, Parser};
+use combine::{attempt, between, choice, many, many1, parser, sep_by, sep_by1, token, Parser};
 
 #[derive(Debug, PartialEq)]
 pub struct Id(pub String);
@@ -14,7 +14,7 @@ pub enum Uni {
     Number(i32),
     Boolean(Boolean),
     Field(Vec<Id>),
-    HashMap(Vec<(Id, Box<Uni>)>),
+    HashMap(Vec<HashSet>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -23,6 +23,9 @@ pub enum Boolean {
     False,
 }
 
+#[derive(Debug, PartialEq)]
+pub struct HashSet(Id, Box<Uni>);
+
 pub fn uni_<I>() -> impl Parser<Input = I, Output = Uni>
 where
     I: Stream<Item = char>,
@@ -30,11 +33,29 @@ where
 {
     let skip_spaces = || spaces().silent();
 
-    choice((attempt(field()).or(word_()), array(), string(), integer())).skip(skip_spaces())
+    choice((
+        attempt(field()).or(word_()),
+        hash_map(),
+        array(),
+        string(),
+        integer(),
+    ))
+    .skip(skip_spaces())
 }
 
-#[derive(Debug, PartialEq)]
-pub struct HashSet(Id, Box<Uni>);
+pub fn hash_map<I>() -> impl Parser<Input = I, Output = Uni>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    let skip_spaces = || spaces().silent();
+    token('{')
+        .skip(skip_spaces())
+        .and(many(hash_set()))
+        .skip(skip_spaces())
+        .and(token('}'))
+        .map(|((_, hs), _)| Uni::HashMap(hs))
+}
 
 pub fn hash_set<I>() -> impl Parser<Input = I, Output = HashSet>
 where
@@ -146,10 +167,39 @@ mod test {
     use crate::expr::uni::*;
 
     #[test]
+    fn hash_map_test() {
+        assert_eq!(
+            uni().easy_parse(
+                r#"{
+            }"#
+            ),
+            Ok((Uni::HashMap(vec![]), ""))
+        );
+
+        assert_eq!(
+            uni().easy_parse(
+                r#"{
+              abc: 32
+            }"#
+            ),
+            Ok((
+                Uni::HashMap(vec![HashSet(
+                    Id(String::from("abc")),
+                    Box::new(Uni::Number(32))
+                ),]),
+                ""
+            ))
+        );
+    }
+
+    #[test]
     fn hash_set_test() {
         assert_eq!(
             hash_set().easy_parse(r#"abc: 32"#),
-            Ok((HashSet(Id(String::from("abc")), Box::new(Uni::Number(32))), ""))
+            Ok((
+                HashSet(Id(String::from("abc")), Box::new(Uni::Number(32))),
+                ""
+            ))
         );
     }
 
