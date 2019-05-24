@@ -1,7 +1,9 @@
 use combine::error::ParseError;
-use combine::parser::char::{char, digit, letter, spaces};
+use combine::parser::char::{char, digit, letter};
 use combine::stream::Stream;
 use combine::{attempt, between, choice, many, many1, parser, sep_by, sep_by1, token, Parser};
+
+use crate::utils::skip_spaces;
 
 #[derive(Debug, PartialEq)]
 pub struct Id(pub String);
@@ -31,16 +33,13 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    let skip_spaces = || spaces().silent();
-
-    choice((
+    skip_spaces(choice((
         attempt(field()).or(word_()),
         hash_map(),
         array(),
         string(),
         integer(),
-    ))
-    .skip(skip_spaces())
+    )))
 }
 
 pub fn hash_map<I>() -> impl Parser<Input = I, Output = Uni>
@@ -48,12 +47,9 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    let skip_spaces = || spaces().silent();
-    token('{')
-        .skip(skip_spaces())
-        .and(many(hash_set()))
-        .skip(skip_spaces())
-        .and(token('}'))
+    skip_spaces(token('{'))
+        .and(skip_spaces(many(hash_set())))
+        .and(skip_spaces(token('}')))
         .map(|((_, hs), _)| Uni::HashMap(hs))
 }
 
@@ -62,26 +58,17 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    let skip_spaces = || spaces().silent();
     let hash_set_ = || {
-        word()
-            .skip(skip_spaces())
-            .and(token(':'))
-            .skip(skip_spaces())
-            .and(uni())
-            .skip(skip_spaces())
+        skip_spaces(word())
+            .and(skip_spaces(token(':')))
+            .and(skip_spaces(uni()))
             .map(|((w, _), u)| match w {
                 Uni::Id(id) => HashSet(id, Box::new(u)),
                 _ => panic!("should come here Id. but actual: {:?}", w),
             })
     };
 
-    attempt(
-        hash_set_()
-            .and(token(',').skip(skip_spaces()))
-            .map(|(h, _)| h),
-    )
-    .or(hash_set_().skip(skip_spaces()))
+    attempt(hash_set_().and(skip_spaces(token(','))).map(|(h, _)| h)).or(skip_spaces(hash_set_()))
 }
 
 pub fn field<I>() -> impl Parser<Input = I, Output = Uni>
@@ -89,24 +76,21 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    let skip_spaces = || spaces().silent();
-    sep_by1(word(), token('.'))
-        .skip(skip_spaces())
-        .map(|mut words: Vec<Uni>| {
-            let length = words.len();
-            if length > 1 {
-                let fields = words
-                    .into_iter()
-                    .map(|word| match word {
-                        Uni::Id(id) => id,
-                        _ => panic!("should come here Id. but actual: {:?}", word),
-                    })
-                    .collect();
-                Uni::Field(fields)
-            } else {
-                words.pop().unwrap()
-            }
-        })
+    skip_spaces(sep_by1(word(), token('.'))).map(|mut words: Vec<Uni>| {
+        let length = words.len();
+        if length > 1 {
+            let fields = words
+                .into_iter()
+                .map(|word| match word {
+                    Uni::Id(id) => id,
+                    _ => panic!("should come here Id. but actual: {:?}", word),
+                })
+                .collect();
+            Uni::Field(fields)
+        } else {
+            words.pop().unwrap()
+        }
+    })
 }
 
 pub fn word_<I>() -> impl Parser<Input = I, Output = Uni>
@@ -126,8 +110,7 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    let skip_spaces = || spaces().silent();
-    let lex_char = |c| char(c).skip(skip_spaces());
+    let lex_char = |c| skip_spaces(char(c));
     let comma_list = sep_by(uni(), lex_char(','));
     between(lex_char('['), lex_char(']'), comma_list).map(Uni::Array)
 }
@@ -137,8 +120,7 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    let skip_spaces = || spaces().silent();
-    let lex_char = |c| char(c).skip(skip_spaces());
+    let lex_char = |c| skip_spaces(char(c));
     between(lex_char('"'), lex_char('"'), many1(letter())).map(Uni::String)
 }
 

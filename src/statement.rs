@@ -1,10 +1,12 @@
 use combine::error::ParseError;
-use combine::parser::char::{spaces, string};
+use combine::parser::char::string;
 use combine::stream::Stream;
 use combine::{attempt, choice, many, parser, sep_by, token, Parser};
 
 use crate::expr::uni::*;
 use crate::expr::*;
+
+use crate::utils::skip_spaces;
 
 #[derive(Debug, PartialEq)]
 pub enum Statement {
@@ -42,12 +44,9 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    token('(')
-        .skip(spaces())
-        .and(expr_statement_no_semicolon())
-        .skip(spaces())
-        .and(token(')'))
-        .skip(spaces())
+    skip_spaces(token('('))
+        .and(skip_spaces(expr_statement_no_semicolon()))
+        .and(skip_spaces(token(')')))
         .map(|((_, cond), _)| IfCondition(Box::new(cond)))
 }
 
@@ -56,16 +55,11 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    token('(')
-        .skip(spaces())
-        .and(let_())
-        .skip(spaces())
-        .and(expr_statement())
-        .skip(spaces())
-        .and(expr_statement_no_semicolon())
-        .skip(spaces())
-        .and(token(')'))
-        .skip(spaces())
+    skip_spaces(token('('))
+        .and(skip_spaces(let_()))
+        .and(skip_spaces(expr_statement()))
+        .and(skip_spaces(expr_statement_no_semicolon()))
+        .and(skip_spaces(token(')')))
         .map(|((((_, first), limit), iterate), _)| {
             ForCondition(Box::new(first), Box::new(limit), Box::new(iterate))
         })
@@ -76,14 +70,10 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    word()
-        .skip(spaces())
-        .and(token('='))
-        .skip(spaces())
-        .and(expr_())
-        .skip(spaces())
-        .and(token(';'))
-        .skip(spaces())
+    skip_spaces(word())
+        .and(skip_spaces(token('=')))
+        .and(skip_spaces(expr_()))
+        .and(skip_spaces(token(';')))
         .map(|(((unary_, _), value), _)| {
             if let Uni::Id(id_) = unary_ {
                 return Assign(id_, value);
@@ -97,10 +87,8 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    string("return")
-        .skip(spaces())
-        .and(expr_statement())
-        .skip(spaces())
+    skip_spaces(string("return"))
+        .and(skip_spaces(expr_statement()))
         .map(|(_, value)| Statement::Return(Box::new(value)))
 }
 
@@ -109,16 +97,11 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    string("let")
-        .skip(spaces())
-        .and(word())
-        .skip(spaces())
-        .and(token('='))
-        .skip(spaces())
-        .and(expr_())
-        .skip(spaces())
-        .and(token(';'))
-        .skip(spaces())
+    skip_spaces(string("let"))
+        .and(skip_spaces(word()))
+        .and(skip_spaces(token('=')))
+        .and(skip_spaces(expr_()))
+        .and(skip_spaces(token(';')))
         .map(|((((_, unary_), _), value), _)| {
             if let Uni::Id(id_) = unary_ {
                 return Statement::LetExpr(id_, value);
@@ -140,10 +123,8 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    expr()
-        .skip(spaces())
-        .and(token(';'))
-        .skip(spaces())
+    skip_spaces(expr())
+        .and(skip_spaces(token(';')))
         .map(|(exp, _)| Statement::Expr(exp))
 }
 
@@ -152,7 +133,7 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    expr().skip(spaces()).map(|exp| Statement::Expr(exp))
+    skip_spaces(expr()).map(|exp| Statement::Expr(exp))
 }
 
 fn if_<I>() -> impl Parser<Input = I, Output = Statement>
@@ -160,15 +141,11 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    string("if")
-        .skip(spaces())
-        .and(if_condition())
-        .skip(spaces())
-        .and(token('{'))
-        .skip(spaces())
-        .and(many(statement()))
-        .skip(spaces())
-        .and(token('}'))
+    skip_spaces(string("if"))
+        .and(skip_spaces(if_condition()))
+        .and(skip_spaces(token('{')))
+        .and(skip_spaces(many(statement())))
+        .and(skip_spaces(token('}')))
         .map(
             |((((_, cond), _), stetements_), _): ((((_, IfCondition), _), Vec<Statement>), _)| {
                 Statement::If(cond, stetements_.into_iter().map(|s| Box::new(s)).collect())
@@ -181,15 +158,11 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    string("for")
-        .skip(spaces())
-        .and(for_condition())
-        .skip(spaces())
-        .and(token('{'))
-        .skip(spaces())
-        .and(many(statement()))
-        .skip(spaces())
-        .and(token('}'))
+    skip_spaces(string("for"))
+        .and(skip_spaces(for_condition()))
+        .and(skip_spaces(token('{')))
+        .and(skip_spaces(many(statement())))
+        .and(skip_spaces(token('}')))
         .map(
             |((((_, cond), _), stetements_), _): ((((_, ForCondition), _), Vec<Statement>), _)| {
                 Statement::For(cond, stetements_.into_iter().map(|s| Box::new(s)).collect())
@@ -211,16 +184,13 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     attempt(
-        token('(')
-            .skip(spaces())
-            .and(sep_by(unary(), token(',').skip(spaces())).map(|exps| Args(exps)))
-            .skip(spaces())
-            .and(token(')'))
+        skip_spaces(token('('))
+            .and(skip_spaces(sep_by(unary(), skip_spaces(token(',')))).map(|exps| Args(exps)))
+            .and(skip_spaces(token(')')))
             .map(|((_, exps), _)| exps),
     )
-    .or(token('(')
-        .skip(spaces())
-        .and(token(')'))
+    .or(skip_spaces(token('('))
+        .and(skip_spaces(token(')')))
         .map(|_| Args(vec![])))
 }
 
@@ -229,21 +199,17 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    string("fn")
-        .skip(spaces())
-        .and(unary())
-        .skip(spaces())
-        .and(args())
-        .skip(spaces())
-        .skip(token('{'))
-        .skip(spaces())
-        .and(many(statement()))
-        .skip(spaces())
-        .and(token('}'))
-        .skip(spaces())
+    skip_spaces(string("fn"))
+        .and(skip_spaces(unary()))
+        .and(skip_spaces(args()))
+        .and(skip_spaces(token('{')))
+        .and(skip_spaces(many(statement())))
+        .and(skip_spaces(token('}')))
         .map(
-            |((((_, id), args), stetements_), _): ((((_, Expr), Args), Vec<Statement>), _)| match id
-            {
+            |(((((_, id), args), _), stetements_), _): (
+                ((((_, Expr), Args), _), Vec<Statement>),
+                _,
+            )| match id {
                 Expr::Unary(unary_) => {
                     if let Uni::Id(id_) = unary_ {
                         return Statement::Fn(

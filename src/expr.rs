@@ -1,7 +1,8 @@
 use combine::error::ParseError;
-use combine::parser::char::spaces;
 use combine::stream::Stream;
 use combine::{attempt, many, parser, sep_by, token, Parser};
+
+use crate::utils::skip_spaces;
 
 pub mod bin_op;
 use bin_op::{bin_op as bin_op_, BinOpKind};
@@ -37,12 +38,9 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    token('(')
-        .skip(spaces())
-        .and(try_binary())
-        .skip(spaces())
-        .and(token(')'))
-        .skip(spaces())
+    skip_spaces(token('('))
+        .and(skip_spaces(try_binary()))
+        .and(skip_spaces(token(')')))
         .map(|((_, exp), _)| exp)
 }
 
@@ -53,13 +51,11 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    input
-        .skip(spaces())
-        .and(
-            attempt(many(bin_op_().skip(spaces()).and(unary())))
-                .or(many(bin_op_().skip(spaces()).and(expr()))),
-        )
-        .skip(spaces())
+    skip_spaces(input)
+        .and(skip_spaces(
+            attempt(many(skip_spaces(bin_op_()).and(unary())))
+                .or(many(skip_spaces(bin_op_()).and(expr()))),
+        ))
         .map(|(left, mut right_pairs): (Expr, Vec<(BinOpKind, Expr)>)| {
             match right_pairs.len() {
                 0 => return left,
@@ -125,18 +121,13 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    attempt(field())
-        .or(word_())
-        .skip(spaces())
-        .and(token('('))
-        .skip(spaces())
+    skip_spaces(attempt(field()).or(word_()))
+        .and(skip_spaces(token('(')))
         .and(
-            sep_by(expr().skip(spaces()), token(',').skip(spaces()))
-                .skip(spaces())
+            skip_spaces(sep_by(skip_spaces(expr()), skip_spaces(token(','))))
                 .map(|exps: Vec<Expr>| exps.into_iter().map(|exp| Box::new(exp)).collect()),
         )
-        .skip(spaces())
-        .and(token(')'))
+        .and(skip_spaces(token(')')))
         .map(|(((fn_name, _), args), _)| match fn_name {
             Uni::Id(_) | Uni::Field(_) => Expr::Call(fn_name, args),
             _ => panic!("should come Uni::Id. actual: {:?}", fn_name),
