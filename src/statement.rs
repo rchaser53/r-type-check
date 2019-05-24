@@ -1,12 +1,11 @@
 use combine::error::ParseError;
-use combine::parser::char::string;
 use combine::stream::Stream;
 use combine::{attempt, choice, many, parser, sep_by, Parser};
 
 use crate::expr::uni::*;
 use crate::expr::*;
 
-use crate::utils::{skip_spaces, token_skip_spaces};
+use crate::utils::{skip_spaces, string_skip_spaces, token_skip_spaces};
 
 #[derive(Debug, PartialEq)]
 pub enum Statement {
@@ -87,7 +86,7 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    skip_spaces(string("return"))
+    string_skip_spaces("return")
         .and(skip_spaces(expr_statement()))
         .map(|(_, value)| Statement::Return(Box::new(value)))
 }
@@ -97,7 +96,7 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    skip_spaces(string("let"))
+    string_skip_spaces("let")
         .and(skip_spaces(word()))
         .and(token_skip_spaces('='))
         .and(skip_spaces(expr_()))
@@ -141,7 +140,7 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    skip_spaces(string("if"))
+    string_skip_spaces("if")
         .and(skip_spaces(if_condition()))
         .and(token_skip_spaces('{'))
         .and(skip_spaces(many(statement())))
@@ -158,7 +157,7 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    skip_spaces(string("for"))
+    string_skip_spaces("for")
         .and(skip_spaces(for_condition()))
         .and(token_skip_spaces('{'))
         .and(skip_spaces(many(statement())))
@@ -199,7 +198,7 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    skip_spaces(string("fn"))
+    string_skip_spaces("fn")
         .and(skip_spaces(unary()))
         .and(skip_spaces(args()))
         .and(token_skip_spaces('{'))

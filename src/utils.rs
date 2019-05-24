@@ -1,5 +1,5 @@
 use combine::error::ParseError;
-use combine::parser::char::spaces;
+use combine::parser::char::{spaces, string};
 use combine::stream::Stream;
 use combine::{token, Parser};
 
@@ -20,4 +20,12 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     skip_spaces(token(c))
+}
+
+pub fn string_skip_spaces<I>(input: &'static str) -> impl Parser<Input = I, Output = &'static str>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    skip_spaces(string(input))
 }
