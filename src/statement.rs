@@ -113,13 +113,13 @@ where
         .skip(spaces())
         .and(word())
         .skip(spaces())
-        .skip(token('='))
+        .and(token('='))
         .skip(spaces())
         .and(expr_())
         .skip(spaces())
         .and(token(';'))
         .skip(spaces())
-        .map(|(((_, unary_), value), _)| {
+        .map(|((((_, unary_), _), value), _)| {
             if let Uni::Id(id_) = unary_ {
                 return Statement::LetExpr(id_, value);
             };
