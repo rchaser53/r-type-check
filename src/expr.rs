@@ -283,6 +283,40 @@ mod test {
                 ""
             ))
         );
+
+        assert_eq!(
+            expr().easy_parse(r#"abc( def ) * 3"#),
+            Ok((
+                Expr::Binary(
+                    Box::new(Expr::Call(
+                        Uni::Id(Id(String::from("abc"))),
+                        vec![Box::new(Expr::Unary(Uni::Id(Id(String::from("def"))))),]
+                    )),
+                    BinOpKind::Mul,
+                    Box::new(Expr::Unary(Uni::Number(3))),
+                ),
+                ""
+            ))
+        );
+
+        assert_eq!(
+            expr().easy_parse(r#"(abc( def ) + 1) * 2"#),
+            Ok((
+                Expr::Binary(
+                    Box::new(Expr::Binary(
+                        Box::new(Expr::Call(
+                            Uni::Id(Id(String::from("abc"))),
+                            vec![Box::new(Expr::Unary(Uni::Id(Id(String::from("def"))))),]
+                        )),
+                        BinOpKind::Add,
+                        Box::new(Expr::Unary(Uni::Number(1))),
+                    )),
+                    BinOpKind::Mul,
+                    Box::new(Expr::Unary(Uni::Number(2))),
+                ),
+                ""
+            ))
+        );
     }
 
     #[test]
