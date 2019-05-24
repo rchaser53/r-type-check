@@ -76,7 +76,12 @@ where
             })
     };
 
-    attempt(hash_set_().and(token(',')).map(|(h, _)| h)).or(hash_set_())
+    attempt(
+        hash_set_()
+            .and(token(',').skip(skip_spaces()))
+            .map(|(h, _)| h),
+    )
+    .or(hash_set_().skip(skip_spaces()))
 }
 
 pub fn field<I>() -> impl Parser<Input = I, Output = Uni>
@@ -187,6 +192,25 @@ mod test {
                     Id(String::from("abc")),
                     Box::new(Uni::Number(32))
                 ),]),
+                ""
+            ))
+        );
+
+        assert_eq!(
+            uni().easy_parse(
+                r#"{
+              abc: 32,
+              def: "defvalue",
+            }"#
+            ),
+            Ok((
+                Uni::HashMap(vec![
+                    HashSet(Id(String::from("abc")), Box::new(Uni::Number(32))),
+                    HashSet(
+                        Id(String::from("def")),
+                        Box::new(Uni::String(String::from("defvalue")))
+                    ),
+                ]),
                 ""
             ))
         );
