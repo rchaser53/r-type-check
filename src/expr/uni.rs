@@ -1,9 +1,9 @@
 use combine::error::ParseError;
 use combine::parser::char::{char, digit, letter};
 use combine::stream::Stream;
-use combine::{attempt, between, choice, many, many1, parser, sep_by, sep_by1, token, Parser};
+use combine::{attempt, between, choice, many, many1, parser, sep_by, sep_by1, Parser};
 
-use crate::utils::skip_spaces;
+use crate::utils::{skip_spaces, token_skip_spaces};
 
 #[derive(Debug, PartialEq)]
 pub struct Id(pub String);
@@ -47,9 +47,9 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    skip_spaces(token('{'))
+    token_skip_spaces('{')
         .and(skip_spaces(many(hash_set())))
-        .and(skip_spaces(token('}')))
+        .and(token_skip_spaces('}'))
         .map(|((_, hs), _)| Uni::HashMap(hs))
 }
 
@@ -60,7 +60,7 @@ where
 {
     let hash_set_ = || {
         skip_spaces(word())
-            .and(skip_spaces(token(':')))
+            .and(token_skip_spaces(':'))
             .and(skip_spaces(uni()))
             .map(|((w, _), u)| match w {
                 Uni::Id(id) => HashSet(id, Box::new(u)),
@@ -68,7 +68,7 @@ where
             })
     };
 
-    attempt(hash_set_().and(skip_spaces(token(','))).map(|(h, _)| h)).or(skip_spaces(hash_set_()))
+    attempt(hash_set_().and(token_skip_spaces(',')).map(|(h, _)| h)).or(skip_spaces(hash_set_()))
 }
 
 pub fn field<I>() -> impl Parser<Input = I, Output = Uni>
@@ -76,7 +76,7 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    skip_spaces(sep_by1(word(), token('.'))).map(|mut words: Vec<Uni>| {
+    skip_spaces(sep_by1(word(), token_skip_spaces('.'))).map(|mut words: Vec<Uni>| {
         let length = words.len();
         if length > 1 {
             let fields = words

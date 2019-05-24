@@ -1,8 +1,8 @@
 use combine::error::ParseError;
 use combine::stream::Stream;
-use combine::{attempt, many, parser, sep_by, token, Parser};
+use combine::{attempt, many, parser, sep_by, Parser};
 
-use crate::utils::skip_spaces;
+use crate::utils::{skip_spaces, token_skip_spaces};
 
 pub mod bin_op;
 use bin_op::{bin_op as bin_op_, BinOpKind};
@@ -38,9 +38,9 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    skip_spaces(token('('))
+    token_skip_spaces('(')
         .and(skip_spaces(try_binary()))
-        .and(skip_spaces(token(')')))
+        .and(token_skip_spaces(')'))
         .map(|((_, exp), _)| exp)
 }
 
@@ -122,12 +122,12 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     skip_spaces(attempt(field()).or(word_()))
-        .and(skip_spaces(token('(')))
+        .and(token_skip_spaces('('))
         .and(
-            skip_spaces(sep_by(skip_spaces(expr()), skip_spaces(token(','))))
+            skip_spaces(sep_by(skip_spaces(expr()), token_skip_spaces(',')))
                 .map(|exps: Vec<Expr>| exps.into_iter().map(|exp| Box::new(exp)).collect()),
         )
-        .and(skip_spaces(token(')')))
+        .and(token_skip_spaces(')'))
         .map(|(((fn_name, _), args), _)| match fn_name {
             Uni::Id(_) | Uni::Field(_) => Expr::Call(fn_name, args),
             _ => panic!("should come Uni::Id. actual: {:?}", fn_name),

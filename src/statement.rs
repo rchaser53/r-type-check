@@ -1,12 +1,12 @@
 use combine::error::ParseError;
 use combine::parser::char::string;
 use combine::stream::Stream;
-use combine::{attempt, choice, many, parser, sep_by, token, Parser};
+use combine::{attempt, choice, many, parser, sep_by, Parser};
 
 use crate::expr::uni::*;
 use crate::expr::*;
 
-use crate::utils::skip_spaces;
+use crate::utils::{skip_spaces, token_skip_spaces};
 
 #[derive(Debug, PartialEq)]
 pub enum Statement {
@@ -44,9 +44,9 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    skip_spaces(token('('))
+    token_skip_spaces('(')
         .and(skip_spaces(expr_statement_no_semicolon()))
-        .and(skip_spaces(token(')')))
+        .and(token_skip_spaces(')'))
         .map(|((_, cond), _)| IfCondition(Box::new(cond)))
 }
 
@@ -55,11 +55,11 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    skip_spaces(token('('))
+    token_skip_spaces('(')
         .and(skip_spaces(let_()))
         .and(skip_spaces(expr_statement()))
         .and(skip_spaces(expr_statement_no_semicolon()))
-        .and(skip_spaces(token(')')))
+        .and(token_skip_spaces(')'))
         .map(|((((_, first), limit), iterate), _)| {
             ForCondition(Box::new(first), Box::new(limit), Box::new(iterate))
         })
@@ -71,9 +71,9 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     skip_spaces(word())
-        .and(skip_spaces(token('=')))
+        .and(token_skip_spaces('='))
         .and(skip_spaces(expr_()))
-        .and(skip_spaces(token(';')))
+        .and(token_skip_spaces(';'))
         .map(|(((unary_, _), value), _)| {
             if let Uni::Id(id_) = unary_ {
                 return Assign(id_, value);
@@ -99,9 +99,9 @@ where
 {
     skip_spaces(string("let"))
         .and(skip_spaces(word()))
-        .and(skip_spaces(token('=')))
+        .and(token_skip_spaces('='))
         .and(skip_spaces(expr_()))
-        .and(skip_spaces(token(';')))
+        .and(token_skip_spaces(';'))
         .map(|((((_, unary_), _), value), _)| {
             if let Uni::Id(id_) = unary_ {
                 return Statement::LetExpr(id_, value);
@@ -124,7 +124,7 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     skip_spaces(expr())
-        .and(skip_spaces(token(';')))
+        .and(token_skip_spaces(';'))
         .map(|(exp, _)| Statement::Expr(exp))
 }
 
@@ -143,9 +143,9 @@ where
 {
     skip_spaces(string("if"))
         .and(skip_spaces(if_condition()))
-        .and(skip_spaces(token('{')))
+        .and(token_skip_spaces('{'))
         .and(skip_spaces(many(statement())))
-        .and(skip_spaces(token('}')))
+        .and(token_skip_spaces('}'))
         .map(
             |((((_, cond), _), stetements_), _): ((((_, IfCondition), _), Vec<Statement>), _)| {
                 Statement::If(cond, stetements_.into_iter().map(|s| Box::new(s)).collect())
@@ -160,9 +160,9 @@ where
 {
     skip_spaces(string("for"))
         .and(skip_spaces(for_condition()))
-        .and(skip_spaces(token('{')))
+        .and(token_skip_spaces('{'))
         .and(skip_spaces(many(statement())))
-        .and(skip_spaces(token('}')))
+        .and(token_skip_spaces('}'))
         .map(
             |((((_, cond), _), stetements_), _): ((((_, ForCondition), _), Vec<Statement>), _)| {
                 Statement::For(cond, stetements_.into_iter().map(|s| Box::new(s)).collect())
@@ -184,13 +184,13 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     attempt(
-        skip_spaces(token('('))
-            .and(skip_spaces(sep_by(unary(), skip_spaces(token(',')))).map(|exps| Args(exps)))
-            .and(skip_spaces(token(')')))
+        token_skip_spaces('(')
+            .and(skip_spaces(sep_by(unary(), token_skip_spaces(','))).map(|exps| Args(exps)))
+            .and(token_skip_spaces(')'))
             .map(|((_, exps), _)| exps),
     )
-    .or(skip_spaces(token('('))
-        .and(skip_spaces(token(')')))
+    .or(token_skip_spaces('(')
+        .and(token_skip_spaces(')'))
         .map(|_| Args(vec![])))
 }
 
@@ -202,9 +202,9 @@ where
     skip_spaces(string("fn"))
         .and(skip_spaces(unary()))
         .and(skip_spaces(args()))
-        .and(skip_spaces(token('{')))
+        .and(token_skip_spaces('{'))
         .and(skip_spaces(many(statement())))
-        .and(skip_spaces(token('}')))
+        .and(token_skip_spaces('}'))
         .map(
             |(((((_, id), args), _), stetements_), _): (
                 ((((_, Expr), Args), _), Vec<Statement>),

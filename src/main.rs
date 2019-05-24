@@ -5,4 +5,6 @@ extern crate combine;
 
 pub mod expr;
 pub mod statement;
+pub mod utils;
+
 fn main() {}
