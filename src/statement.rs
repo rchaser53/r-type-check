@@ -13,7 +13,7 @@ pub enum Statement {
     Expr(Expr),
     Assign(Assign),
     For(ForCondition, Vec<Box<Statement>>),
-    If(IfCondition, Vec<Box<Statement>>),
+    If(Vec<(IfCondition, Vec<Box<Statement>>)>),
     Return(Box<Statement>),
 }
 
@@ -143,7 +143,10 @@ where
         .and(token_skip_spaces('}'))
         .map(
             |((((_, cond), _), stetements_), _): ((((_, IfCondition), _), Vec<Statement>), _)| {
-                Statement::If(cond, stetements_.into_iter().map(|s| Box::new(s)).collect())
+                Statement::If(vec![(
+                    cond,
+                    stetements_.into_iter().map(|s| Box::new(s)).collect(),
+                )])
             },
         )
 }
@@ -239,7 +242,7 @@ mod test {
             }"#
             ),
             Ok((
-                Statement::If(
+                Statement::If(vec![(
                     IfCondition(Box::new(Statement::Expr(Expr::Binary(
                         Box::new(Expr::Unary(Uni::Id(Id(String::from("i"))))),
                         BinOpKind::Lt,
@@ -249,7 +252,7 @@ mod test {
                         Id(String::from("abc")),
                         Expr::Unary(Uni::String(String::from("aaa")))
                     ))]
-                ),
+                )]),
                 ""
             ))
         );
