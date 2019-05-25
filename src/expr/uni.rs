@@ -1,5 +1,5 @@
 use combine::error::ParseError;
-use combine::parser::char::{char, digit, letter};
+use combine::parser::char::{digit, letter};
 use combine::stream::Stream;
 use combine::{attempt, between, choice, many, many1, parser, sep_by, sep_by1, Parser};
 
@@ -17,7 +17,7 @@ pub enum Uni {
     Boolean(Boolean),
     Field(Vec<Id>),
     HashMap(Vec<HashSet>),
-    Null
+    Null,
 }
 
 #[derive(Debug, PartialEq)]
@@ -117,9 +117,8 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    let lex_char = |c| skip_spaces(char(c));
-    let comma_list = sep_by(uni(), lex_char(','));
-    between(lex_char('['), lex_char(']'), comma_list).map(Uni::Array)
+    let comma_list = sep_by(uni(), token_skip_spaces(','));
+    between(token_skip_spaces('['), token_skip_spaces(']'), comma_list).map(Uni::Array)
 }
 
 pub fn string<I>() -> impl Parser<Input = I, Output = Uni>
@@ -127,8 +126,12 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    let lex_char = |c| skip_spaces(char(c));
-    between(lex_char('"'), lex_char('"'), many1(letter())).map(Uni::String)
+    between(
+        token_skip_spaces('"'),
+        token_skip_spaces('"'),
+        many1(letter()),
+    )
+    .map(Uni::String)
 }
 
 pub fn integer<I>() -> impl Parser<Input = I, Output = Uni>
