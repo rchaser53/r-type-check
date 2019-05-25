@@ -137,33 +137,30 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     create_if(string_skip_spaces("if"))
-        .map(|(cond, stetements_)| Statement::If(vec![(cond, stetements_)]))
+        .and(many(else_if_()))
+        .map(
+            |((cond, stetements_), mut elses): (
+                (IfCondition, Vec<Box<Statement>>),
+                Vec<(IfCondition, Vec<Box<Statement>>)>,
+            )| {
+                let mut if_vecs = vec![(cond, stetements_)];
+                if_vecs.append(&mut elses);
+                Statement::If(if_vecs)
+            },
+        )
 }
 
-fn else_if_<I>() -> impl Parser<Input = I, Output = Statement>
+fn else_if_<I>() -> impl Parser<Input = I, Output = (IfCondition, Vec<Box<Statement>>)>
 where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    attempt(
-        create_if(
-            string_skip_spaces("else")
-                .and(string_skip_spaces("if"))
-                .map(|(_, whatever)| whatever),
-        )
-        .map(|(cond, stetements_)| Statement::If(vec![(cond, stetements_)])),
-    )
-    .or(
-        create_if(string_skip_spaces("else")).map(|(_, stetements_)| {
-            Statement::If(vec![(
-                // IfCondition is always true in the case of 'else'
-                IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
-                    Boolean::True,
-                ))))),
-                stetements_,
-            )])
-        }),
-    )
+    attempt(create_if(
+        string_skip_spaces("else")
+            .and(string_skip_spaces("if"))
+            .map(|(_, whatever)| whatever),
+    ))
+    .or(create_if(string_skip_spaces("else")))
 }
 
 fn create_if<I, T>(
