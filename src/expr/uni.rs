@@ -3,7 +3,7 @@ use combine::parser::char::{char, digit, letter};
 use combine::stream::Stream;
 use combine::{attempt, between, choice, many, many1, parser, sep_by, sep_by1, Parser};
 
-use crate::utils::{skip_spaces, token_skip_spaces};
+use crate::utils::{skip_spaces, string_skip_spaces, token_skip_spaces};
 
 #[derive(Debug, PartialEq)]
 pub struct Id(pub String);
@@ -17,6 +17,7 @@ pub enum Uni {
     Boolean(Boolean),
     Field(Vec<Id>),
     HashMap(Vec<HashSet>),
+    Null
 }
 
 #[derive(Debug, PartialEq)]
@@ -93,16 +94,22 @@ where
     })
 }
 
+pub fn preserved<I>() -> impl Parser<Input = I, Output = Uni>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    attempt(string_skip_spaces("true").map(|_| Uni::Boolean(Boolean::True)))
+        .or(string_skip_spaces("false").map(|_| Uni::Boolean(Boolean::False)))
+        .or(string_skip_spaces("null").map(|_| Uni::Null))
+}
+
 pub fn word_<I>() -> impl Parser<Input = I, Output = Uni>
 where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    many1(letter()).map(|e: String| match e.as_ref() {
-        "true" => return Uni::Boolean(Boolean::True),
-        "false" => return Uni::Boolean(Boolean::False),
-        _ => Uni::Id(Id(e.into())),
-    })
+    attempt(preserved()).or(many1(letter()).map(|e: String| Uni::Id(Id(e.into()))))
 }
 
 pub fn array<I>() -> impl Parser<Input = I, Output = Uni>
