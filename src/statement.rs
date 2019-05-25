@@ -145,12 +145,25 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    create_if(
-        string_skip_spaces("else")
-            .and(string_skip_spaces("if"))
-            .map(|(_, whatever)| whatever),
+    attempt(
+        create_if(
+            string_skip_spaces("else")
+                .and(string_skip_spaces("if"))
+                .map(|(_, whatever)| whatever),
+        )
+        .map(|(cond, stetements_)| Statement::If(vec![(cond, stetements_)])),
     )
-    .map(|(cond, stetements_)| Statement::If(vec![(cond, stetements_)]))
+    .or(
+        create_if(string_skip_spaces("else")).map(|(_, stetements_)| {
+            Statement::If(vec![(
+                // IfCondition is always true in the case of 'else'
+                IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
+                    Boolean::True,
+                ))))),
+                stetements_,
+            )])
+        }),
+    )
 }
 
 fn create_if<I, T>(
