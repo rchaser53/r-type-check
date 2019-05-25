@@ -136,17 +136,24 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    string_skip_spaces("if")
+    create_if("if").map(|(cond, stetements_)| Statement::If(vec![(cond, stetements_)]))
+}
+
+fn create_if<I>(
+    input: &'static str,
+) -> impl Parser<Input = I, Output = (IfCondition, Vec<Box<Statement>>)>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    string_skip_spaces(input)
         .and(skip_spaces(if_condition()))
         .and(token_skip_spaces('{'))
         .and(skip_spaces(many(statement())))
         .and(token_skip_spaces('}'))
         .map(
             |((((_, cond), _), stetements_), _): ((((_, IfCondition), _), Vec<Statement>), _)| {
-                Statement::If(vec![(
-                    cond,
-                    stetements_.into_iter().map(|s| Box::new(s)).collect(),
-                )])
+                (cond, stetements_.into_iter().map(|s| Box::new(s)).collect())
             },
         )
 }
