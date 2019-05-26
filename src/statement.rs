@@ -335,6 +335,43 @@ mod test {
                 ""
             ))
         );
+
+        assert_eq!(
+            statement().easy_parse(
+                r#"if (i < 10) {
+              let abc = "aaa";
+            } else if (j > 100) {
+              let def = "bbb";
+            }"#
+            ),
+            Ok((
+                Statement::If(vec![
+                    (
+                        IfCondition(Box::new(Statement::Expr(Expr::Binary(
+                            Box::new(Expr::Unary(Uni::Id(Id(String::from("i"))))),
+                            BinOpKind::Lt,
+                            Box::new(Expr::Unary(Uni::Number(10)))
+                        ))),),
+                        vec![Box::new(Statement::LetExpr(
+                            Id(String::from("abc")),
+                            Expr::Unary(Uni::String(String::from("aaa")))
+                        ))]
+                    ),
+                    (
+                        IfCondition(Box::new(Statement::Expr(Expr::Binary(
+                            Box::new(Expr::Unary(Uni::Id(Id(String::from("j"))))),
+                            BinOpKind::Gt,
+                            Box::new(Expr::Unary(Uni::Number(100)))
+                        ))),),
+                        vec![Box::new(Statement::LetExpr(
+                            Id(String::from("def")),
+                            Expr::Unary(Uni::String(String::from("bbb")))
+                        ))]
+                    )
+                ]),
+                ""
+            ))
+        );
     }
 
     #[test]
