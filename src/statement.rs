@@ -160,7 +160,20 @@ where
             .and(string_skip_spaces("if"))
             .map(|(_, whatever)| whatever),
     ))
-    .or(create_if(string_skip_spaces("else")))
+    .or(string_skip_spaces("else")
+        .and(token_skip_spaces('{'))
+        .and(skip_spaces(many(statement())))
+        .and(token_skip_spaces('}'))
+        .map(
+            |(((_, _), stetements_), _): (((_, _), Vec<Statement>), _)| {
+                (
+                    IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
+                        Boolean::True,
+                    ))))),
+                    stetements_.into_iter().map(|s| Box::new(s)).collect(),
+                )
+            },
+        ))
 }
 
 fn create_if<I, T>(
@@ -284,6 +297,41 @@ mod test {
                         Expr::Unary(Uni::String(String::from("aaa")))
                     ))]
                 )]),
+                ""
+            ))
+        );
+
+        assert_eq!(
+            statement().easy_parse(
+                r#"if (i < 10) {
+              let abc = "aaa";
+            } else {
+              let def = "bbb";
+            }"#
+            ),
+            Ok((
+                Statement::If(vec![
+                    (
+                        IfCondition(Box::new(Statement::Expr(Expr::Binary(
+                            Box::new(Expr::Unary(Uni::Id(Id(String::from("i"))))),
+                            BinOpKind::Lt,
+                            Box::new(Expr::Unary(Uni::Number(10)))
+                        ))),),
+                        vec![Box::new(Statement::LetExpr(
+                            Id(String::from("abc")),
+                            Expr::Unary(Uni::String(String::from("aaa")))
+                        ))]
+                    ),
+                    (
+                        IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
+                            Boolean::True
+                        ),)))),
+                        vec![Box::new(Statement::LetExpr(
+                            Id(String::from("def")),
+                            Expr::Unary(Uni::String(String::from("bbb")))
+                        ))]
+                    )
+                ]),
                 ""
             ))
         );
