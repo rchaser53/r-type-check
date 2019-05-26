@@ -153,27 +153,53 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    many(
-        attempt(create_if(
+    attempt(
+        many(create_if(
             string_skip_spaces("else")
                 .and(string_skip_spaces("if"))
                 .map(|(_, whatever)| whatever),
         ))
-        .or(string_skip_spaces("else")
-            .and(token_skip_spaces('{'))
-            .and(skip_spaces(many(statement())))
-            .and(token_skip_spaces('}'))
-            .map(
-                |(((_, _), stetements_), _): (((_, _), Vec<Statement>), _)| {
-                    (
-                        IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
-                            Boolean::True,
-                        ))))),
-                        stetements_.into_iter().map(|s| Box::new(s)).collect(),
-                    )
-                },
-            )),
+        .and(
+            string_skip_spaces("else")
+                .and(token_skip_spaces('{'))
+                .and(skip_spaces(many(statement())))
+                .and(token_skip_spaces('}'))
+                .map(|(((_, _), statements_), _)| statements_),
+        )
+        .map(
+            |(mut else_ifs, statements_): (
+                Vec<(IfCondition, Vec<Box<Statement>>)>,
+                Vec<Statement>,
+            )| {
+                else_ifs.push((
+                    IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
+                        Boolean::True,
+                    ))))),
+                    statements_.into_iter().map(|s| Box::new(s)).collect(),
+                ));
+                else_ifs
+            },
+        ),
     )
+    .or(attempt(many(create_if(
+        string_skip_spaces("else")
+            .and(string_skip_spaces("if"))
+            .map(|(_, whatever)| whatever),
+    )))
+    .or(string_skip_spaces("else")
+        .and(token_skip_spaces('{'))
+        .and(skip_spaces(many(statement())))
+        .and(token_skip_spaces('}'))
+        .map(
+            |(((_, _), statements_), _): (((_, _), Vec<Statement>), _)| {
+                vec![(
+                    IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
+                        Boolean::True,
+                    ))))),
+                    statements_.into_iter().map(|s| Box::new(s)).collect(),
+                )]
+            },
+        )))
 }
 
 fn create_if<I, T>(
