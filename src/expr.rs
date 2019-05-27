@@ -1,6 +1,6 @@
 use combine::error::ParseError;
 use combine::stream::Stream;
-use combine::{attempt, many, parser, sep_by, Parser};
+use combine::{attempt, between, many, parser, sep_by, Parser};
 
 use crate::statement::*;
 use crate::utils::{skip_spaces, string_skip_spaces, token_skip_spaces};
@@ -45,11 +45,13 @@ where
     string_skip_spaces("fn")
         .with(skip_spaces(word()))
         .and(skip_spaces(args()))
-        .and(token_skip_spaces('{'))
-        .and(skip_spaces(many(statement())))
-        .skip(token_skip_spaces('}'))
+        .and(between(
+            token_skip_spaces('{'),
+            token_skip_spaces('}'),
+            many(statement()),
+        ))
         .map(
-            |(((unary_, args), _), stetements_): (((Uni, Args), _), Vec<Statement>)| {
+            |((unary_, args), stetements_): ((Uni, Args), Vec<Statement>)| {
                 if let Uni::Id(id_) = unary_ {
                     return Expr::Fn(
                         id_,
@@ -85,9 +87,7 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    token_skip_spaces('(')
-        .with(skip_spaces(try_binary()))
-        .skip(token_skip_spaces(')'))
+    between(token_skip_spaces('('), token_skip_spaces(')'), try_binary())
 }
 
 pub fn handle_op<I>(
@@ -168,13 +168,13 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     skip_spaces(attempt(field()).or(word_()))
-        .and(token_skip_spaces('('))
-        .and(
+        .and(between(
+            token_skip_spaces('('),
+            token_skip_spaces(')'),
             skip_spaces(sep_by(skip_spaces(expr()), token_skip_spaces(',')))
                 .map(|exps: Vec<Expr>| exps.into_iter().map(|exp| Box::new(exp)).collect()),
-        )
-        .skip(token_skip_spaces(')'))
-        .map(|((fn_name, _), args)| match fn_name {
+        ))
+        .map(|(fn_name, args)| match fn_name {
             Uni::Id(_) | Uni::Field(_) => Expr::Call(fn_name, args),
             _ => panic!("should come Uni::Id. actual: {:?}", fn_name),
         })
@@ -184,8 +184,6 @@ parser! {
     pub fn expr[I]()(I) -> Expr
     where [I: Stream<Item = char>]
     {
-        // attempt(call())
-          // .or(expr_())
           expr_()
     }
 }

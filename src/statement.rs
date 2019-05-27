@@ -1,6 +1,6 @@
 use combine::error::ParseError;
 use combine::stream::Stream;
-use combine::{attempt, choice, many, parser, Parser};
+use combine::{attempt, between, choice, many, parser, Parser};
 
 use crate::expr::uni::*;
 use crate::expr::*;
@@ -39,10 +39,12 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    token_skip_spaces('(')
-        .with(skip_spaces(expr_statement_no_semicolon()))
-        .skip(token_skip_spaces(')'))
-        .map(|cond| IfCondition(Box::new(cond)))
+    between(
+        token_skip_spaces('('),
+        token_skip_spaces(')'),
+        expr_statement_no_semicolon(),
+    )
+    .map(|cond| IfCondition(Box::new(cond)))
 }
 
 fn for_condition<I>() -> impl Parser<Input = I, Output = ForCondition>
@@ -50,14 +52,16 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    token_skip_spaces('(')
-        .with(skip_spaces(let_()))
-        .and(skip_spaces(expr_statement()))
-        .and(skip_spaces(expr_statement_no_semicolon()))
-        .skip(token_skip_spaces(')'))
-        .map(|((first, limit), iterate)| {
-            ForCondition(Box::new(first), Box::new(limit), Box::new(iterate))
-        })
+    between(
+        token_skip_spaces('('),
+        token_skip_spaces(')'),
+        skip_spaces(let_())
+            .and(skip_spaces(expr_statement()))
+            .and(skip_spaces(expr_statement_no_semicolon())),
+    )
+    .map(|((first, limit), iterate)| {
+        ForCondition(Box::new(first), Box::new(limit), Box::new(iterate))
+    })
 }
 
 fn assign_<I>() -> impl Parser<Input = I, Output = Assign>
@@ -157,13 +161,11 @@ where
         many(create_if(
             string_skip_spaces("else").with(string_skip_spaces("if")),
         ))
-        .and(
-            string_skip_spaces("else")
-                .and(token_skip_spaces('{'))
-                .with(skip_spaces(many(statement())))
-                .and(token_skip_spaces('}'))
-                .map(|(statements_, _)| statements_),
-        )
+        .and(string_skip_spaces("else").with(between(
+            token_skip_spaces('{'),
+            token_skip_spaces('}'),
+            many(statement()),
+        )))
         .map(
             |(mut else_ifs, statements_): (
                 Vec<(IfCondition, Vec<Box<Statement>>)>,
@@ -183,10 +185,12 @@ where
         string_skip_spaces("else").with(string_skip_spaces("if")),
     )))
     .or(string_skip_spaces("else")
-        .and(token_skip_spaces('{'))
-        .with(skip_spaces(many(statement())))
-        .and(token_skip_spaces('}'))
-        .map(|(statements_, _): (Vec<Statement>, _)| {
+        .with(between(
+            token_skip_spaces('{'),
+            token_skip_spaces('}'),
+            many(statement()),
+        ))
+        .map(|statements_: Vec<Statement>| {
             vec![(
                 IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
                     Boolean::True,
@@ -205,14 +209,14 @@ where
 {
     input
         .with(skip_spaces(if_condition()))
-        .and(token_skip_spaces('{'))
-        .and(skip_spaces(many(statement())))
-        .skip(token_skip_spaces('}'))
-        .map(
-            |((cond, _), stetements_): ((IfCondition, _), Vec<Statement>)| {
-                (cond, stetements_.into_iter().map(|s| Box::new(s)).collect())
-            },
-        )
+        .and(between(
+            token_skip_spaces('{'),
+            token_skip_spaces('}'),
+            many(statement()),
+        ))
+        .map(|(cond, stetements_): (IfCondition, Vec<Statement>)| {
+            (cond, stetements_.into_iter().map(|s| Box::new(s)).collect())
+        })
 }
 
 fn for_<I>() -> impl Parser<Input = I, Output = Statement>
@@ -222,14 +226,14 @@ where
 {
     string_skip_spaces("for")
         .with(skip_spaces(for_condition()))
-        .and(token_skip_spaces('{'))
-        .and(skip_spaces(many(statement())))
-        .and(token_skip_spaces('}'))
-        .map(
-            |(((cond, _), stetements_), _): (((ForCondition, _), Vec<Statement>), _)| {
-                Statement::For(cond, stetements_.into_iter().map(|s| Box::new(s)).collect())
-            },
-        )
+        .and(between(
+            token_skip_spaces('{'),
+            token_skip_spaces('}'),
+            many(statement()),
+        ))
+        .map(|(cond, stetements_): (ForCondition, Vec<Statement>)| {
+            Statement::For(cond, stetements_.into_iter().map(|s| Box::new(s)).collect())
+        })
 }
 
 fn assign<I>() -> impl Parser<Input = I, Output = Statement>
