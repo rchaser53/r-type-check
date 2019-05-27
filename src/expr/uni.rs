@@ -49,9 +49,9 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     token_skip_spaces('{')
-        .and(skip_spaces(many(hash_set())))
-        .and(token_skip_spaces('}'))
-        .map(|((_, hs), _)| Uni::HashMap(hs))
+        .with(skip_spaces(many(hash_set())))
+        .skip(token_skip_spaces('}'))
+        .map(|hs| Uni::HashMap(hs))
 }
 
 pub fn hash_set<I>() -> impl Parser<Input = I, Output = HashSet>
@@ -69,7 +69,7 @@ where
             })
     };
 
-    attempt(hash_set_().and(token_skip_spaces(',')).map(|(h, _)| h)).or(skip_spaces(hash_set_()))
+    attempt(hash_set_().skip(token_skip_spaces(','))).or(skip_spaces(hash_set_()))
 }
 
 pub fn field<I>() -> impl Parser<Input = I, Output = Uni>

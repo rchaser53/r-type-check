@@ -40,9 +40,9 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     token_skip_spaces('(')
-        .and(skip_spaces(expr_statement_no_semicolon()))
-        .and(token_skip_spaces(')'))
-        .map(|((_, cond), _)| IfCondition(Box::new(cond)))
+        .with(skip_spaces(expr_statement_no_semicolon()))
+        .skip(token_skip_spaces(')'))
+        .map(|cond| IfCondition(Box::new(cond)))
 }
 
 fn for_condition<I>() -> impl Parser<Input = I, Output = ForCondition>
@@ -51,11 +51,11 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     token_skip_spaces('(')
-        .and(skip_spaces(let_()))
+        .with(skip_spaces(let_()))
         .and(skip_spaces(expr_statement()))
         .and(skip_spaces(expr_statement_no_semicolon()))
-        .and(token_skip_spaces(')'))
-        .map(|((((_, first), limit), iterate), _)| {
+        .skip(token_skip_spaces(')'))
+        .map(|((first, limit), iterate)| {
             ForCondition(Box::new(first), Box::new(limit), Box::new(iterate))
         })
 }
@@ -68,8 +68,8 @@ where
     skip_spaces(word())
         .and(token_skip_spaces('='))
         .and(skip_spaces(expr_()))
-        .and(token_skip_spaces(';'))
-        .map(|(((unary_, _), value), _)| {
+        .skip(token_skip_spaces(';'))
+        .map(|((unary_, _), value)| {
             if let Uni::Id(id_) = unary_ {
                 return Assign(id_, value);
             };
@@ -83,8 +83,8 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     string_skip_spaces("return")
-        .and(skip_spaces(expr_statement()))
-        .map(|(_, value)| Statement::Return(Box::new(value)))
+        .with(skip_spaces(expr_statement()))
+        .map(|value| Statement::Return(Box::new(value)))
 }
 
 fn let_<I>() -> impl Parser<Input = I, Output = Statement>
@@ -93,11 +93,11 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     string_skip_spaces("let")
-        .and(skip_spaces(word()))
+        .with(skip_spaces(word()))
         .and(token_skip_spaces('='))
         .and(skip_spaces(expr_()))
-        .and(token_skip_spaces(';'))
-        .map(|((((_, unary_), _), value), _)| {
+        .skip(token_skip_spaces(';'))
+        .map(|((unary_, _), value)| {
             if let Uni::Id(id_) = unary_ {
                 return Statement::LetExpr(id_, value);
             };
@@ -119,8 +119,8 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     skip_spaces(expr())
-        .and(token_skip_spaces(';'))
-        .map(|(exp, _)| Statement::Expr(exp))
+        .skip(token_skip_spaces(';'))
+        .map(|exp| Statement::Expr(exp))
 }
 
 fn expr_statement_no_semicolon<I>() -> impl Parser<Input = I, Output = Statement>
@@ -155,16 +155,14 @@ where
 {
     attempt(
         many(create_if(
-            string_skip_spaces("else")
-                .and(string_skip_spaces("if"))
-                .map(|(_, whatever)| whatever),
+            string_skip_spaces("else").with(string_skip_spaces("if")),
         ))
         .and(
             string_skip_spaces("else")
                 .and(token_skip_spaces('{'))
-                .and(skip_spaces(many(statement())))
+                .with(skip_spaces(many(statement())))
                 .and(token_skip_spaces('}'))
-                .map(|(((_, _), statements_), _)| statements_),
+                .map(|(statements_, _)| statements_),
         )
         .map(
             |(mut else_ifs, statements_): (
@@ -182,24 +180,20 @@ where
         ),
     )
     .or(attempt(many(create_if(
-        string_skip_spaces("else")
-            .and(string_skip_spaces("if"))
-            .map(|(_, whatever)| whatever),
+        string_skip_spaces("else").with(string_skip_spaces("if")),
     )))
     .or(string_skip_spaces("else")
         .and(token_skip_spaces('{'))
-        .and(skip_spaces(many(statement())))
+        .with(skip_spaces(many(statement())))
         .and(token_skip_spaces('}'))
-        .map(
-            |(((_, _), statements_), _): (((_, _), Vec<Statement>), _)| {
-                vec![(
-                    IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
-                        Boolean::True,
-                    ))))),
-                    statements_.into_iter().map(|s| Box::new(s)).collect(),
-                )]
-            },
-        )))
+        .map(|(statements_, _): (Vec<Statement>, _)| {
+            vec![(
+                IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
+                    Boolean::True,
+                ))))),
+                statements_.into_iter().map(|s| Box::new(s)).collect(),
+            )]
+        })))
 }
 
 fn create_if<I, T>(
@@ -210,12 +204,12 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     input
-        .and(skip_spaces(if_condition()))
+        .with(skip_spaces(if_condition()))
         .and(token_skip_spaces('{'))
         .and(skip_spaces(many(statement())))
-        .and(token_skip_spaces('}'))
+        .skip(token_skip_spaces('}'))
         .map(
-            |((((_, cond), _), stetements_), _): ((((_, IfCondition), _), Vec<Statement>), _)| {
+            |((cond, _), stetements_): ((IfCondition, _), Vec<Statement>)| {
                 (cond, stetements_.into_iter().map(|s| Box::new(s)).collect())
             },
         )
@@ -227,12 +221,12 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     string_skip_spaces("for")
-        .and(skip_spaces(for_condition()))
+        .with(skip_spaces(for_condition()))
         .and(token_skip_spaces('{'))
         .and(skip_spaces(many(statement())))
         .and(token_skip_spaces('}'))
         .map(
-            |((((_, cond), _), stetements_), _): ((((_, ForCondition), _), Vec<Statement>), _)| {
+            |(((cond, _), stetements_), _): (((ForCondition, _), Vec<Statement>), _)| {
                 Statement::For(cond, stetements_.into_iter().map(|s| Box::new(s)).collect())
             },
         )

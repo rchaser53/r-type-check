@@ -29,9 +29,8 @@ where
 {
     attempt(
         token_skip_spaces('(')
-            .and(skip_spaces(sep_by(unary(), token_skip_spaces(','))).map(|exps| Args(exps)))
-            .and(token_skip_spaces(')'))
-            .map(|((_, exps), _)| exps),
+            .with(skip_spaces(sep_by(unary(), token_skip_spaces(','))).map(|exps| Args(exps)))
+            .skip(token_skip_spaces(')')),
     )
     .or(token_skip_spaces('(')
         .and(token_skip_spaces(')'))
@@ -44,16 +43,13 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     string_skip_spaces("fn")
-        .and(skip_spaces(word()))
+        .with(skip_spaces(word()))
         .and(skip_spaces(args()))
         .and(token_skip_spaces('{'))
         .and(skip_spaces(many(statement())))
-        .and(token_skip_spaces('}'))
+        .skip(token_skip_spaces('}'))
         .map(
-            |(((((_, unary_), args), _), stetements_), _): (
-                ((((_, Uni), Args), _), Vec<Statement>),
-                _,
-            )| {
+            |(((unary_, args), _), stetements_): (((Uni, Args), _), Vec<Statement>)| {
                 if let Uni::Id(id_) = unary_ {
                     return Expr::Fn(
                         id_,
@@ -90,9 +86,8 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     token_skip_spaces('(')
-        .and(skip_spaces(try_binary()))
-        .and(token_skip_spaces(')'))
-        .map(|((_, exp), _)| exp)
+        .with(skip_spaces(try_binary()))
+        .skip(token_skip_spaces(')'))
 }
 
 pub fn handle_op<I>(
@@ -178,8 +173,8 @@ where
             skip_spaces(sep_by(skip_spaces(expr()), token_skip_spaces(',')))
                 .map(|exps: Vec<Expr>| exps.into_iter().map(|exp| Box::new(exp)).collect()),
         )
-        .and(token_skip_spaces(')'))
-        .map(|(((fn_name, _), args), _)| match fn_name {
+        .skip(token_skip_spaces(')'))
+        .map(|((fn_name, _), args)| match fn_name {
             Uni::Id(_) | Uni::Field(_) => Expr::Call(fn_name, args),
             _ => panic!("should come Uni::Id. actual: {:?}", fn_name),
         })
