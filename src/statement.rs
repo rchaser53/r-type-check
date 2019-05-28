@@ -152,6 +152,35 @@ where
     )
 }
 
+fn else_<I>() -> impl Parser<Input = I, Output = Statement>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    attempt(string_skip_spaces("else"))
+        .with(between(
+            token_skip_spaces('{'),
+            token_skip_spaces('}'),
+            many(statement()),
+        ))
+        .map(|statements_: Vec<Statement>| {
+            Statement::If(vec![(
+                IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
+                    Boolean::True,
+                ))))),
+                statements_.into_iter().map(|s| Box::new(s)).collect(),
+            )])
+        })
+        .or(string_skip_spaces("else").map(|_| {
+            Statement::If(vec![(
+                IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
+                    Boolean::True,
+                ))))),
+                vec![],
+            )])
+        }))
+}
+
 fn else_if_<I>() -> impl Parser<Input = I, Output = Vec<(IfCondition, Vec<Box<Statement>>)>>
 where
     I: Stream<Item = char>,
@@ -547,25 +576,3 @@ mod test {
         );
     }
 }
-
-// fn try_else_if_<I>(
-//   mut inputs: Vec<(IfCondition, Vec<Box<Statement>>)>
-// ) -> impl Parser<Input = I, Output = Vec<(IfCondition, Vec<Box<Statement>>)>>
-// where
-//     I: Stream<Item = char>,
-//     I::Error: ParseError<I::Item, I::Range, I::Position>,
-// {
-//     attempt(
-//         create_if(
-//             string_skip_spaces("else").with(string_skip_spaces("if"))
-//         )
-//     )
-//     .or(
-//         create_if(
-//             string_skip_spaces("else")
-//         ) 
-//     ).map(|a| {
-//             inputs.push(a);
-//             inputs
-//     })
-// }
