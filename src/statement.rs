@@ -1,6 +1,6 @@
 use combine::error::ParseError;
 use combine::stream::Stream;
-use combine::{attempt, between, choice, many, parser, Parser};
+use combine::{attempt, between, choice, look_ahead, many, parser, Parser};
 
 use crate::expr::uni::*;
 use crate::expr::*;
@@ -547,3 +547,25 @@ mod test {
         );
     }
 }
+
+// fn try_else_if_<I>(
+//   mut inputs: Vec<(IfCondition, Vec<Box<Statement>>)>
+// ) -> impl Parser<Input = I, Output = Vec<(IfCondition, Vec<Box<Statement>>)>>
+// where
+//     I: Stream<Item = char>,
+//     I::Error: ParseError<I::Item, I::Range, I::Position>,
+// {
+//     attempt(
+//         create_if(
+//             string_skip_spaces("else").with(string_skip_spaces("if"))
+//         )
+//     )
+//     .or(
+//         create_if(
+//             string_skip_spaces("else")
+//         ) 
+//     ).map(|a| {
+//             inputs.push(a);
+//             inputs
+//     })
+// }
