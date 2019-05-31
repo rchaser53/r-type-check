@@ -152,33 +152,55 @@ where
     )
 }
 
-fn else_<I>() -> impl Parser<Input = I, Output = Statement>
+type IfCombination = (IfCondition, Vec<Box<Statement>>);
+fn if_else_<I>() -> impl Parser<Input = I, Output = Statement>
 where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    attempt(string_skip_spaces("else"))
-        .with(between(
-            token_skip_spaces('{'),
-            token_skip_spaces('}'),
-            many(statement()),
-        ))
-        .map(|statements_: Vec<Statement>| {
-            Statement::If(vec![(
-                IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
-                    Boolean::True,
-                ))))),
-                statements_.into_iter().map(|s| Box::new(s)).collect(),
-            )])
-        })
-        .or(string_skip_spaces("else").map(|_| {
-            Statement::If(vec![(
-                IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
-                    Boolean::True,
-                ))))),
-                vec![],
-            )])
+    attempt(
+        create_if(string_skip_spaces("if"))
+            .and(create_if(
+                string_skip_spaces("else").skip(string_skip_spaces("if")),
+            ))
+            .map(
+                |((if_condition, if_statements), (else_condition, else_statements)): (
+                    IfCombination,
+                    IfCombination,
+                )| {
+                    Statement::If(vec![
+                        (if_condition, if_statements),
+                        (else_condition, else_statements),
+                    ])
+                },
+            ),
+    )
+    .or(create_if(string_skip_spaces("if"))
+        .skip(string_skip_spaces("else"))
+        .map(|(if_condition, if_statements): IfCombination| {
+            Statement::If(vec![
+                (if_condition, if_statements),
+                (
+                    IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
+                        Boolean::True,
+                    ))))),
+                    vec![],
+                ),
+            ])
         }))
+    .or(create_if(string_skip_spaces("if")).map(
+        |(if_condition, if_statements): IfCombination| {
+            Statement::If(vec![
+                (if_condition, if_statements),
+                (
+                    IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
+                        Boolean::True,
+                    ))))),
+                    vec![],
+                ),
+            ])
+        },
+    ))
 }
 
 fn else_if_<I>() -> impl Parser<Input = I, Output = Vec<(IfCondition, Vec<Box<Statement>>)>>
