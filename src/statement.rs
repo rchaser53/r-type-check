@@ -1,6 +1,7 @@
 use combine::error::ParseError;
+use combine::parser::choice::optional;
 use combine::stream::Stream;
-use combine::{attempt, between, choice, look_ahead, many, parser, Parser};
+use combine::{attempt, between, choice, many, parser, Parser};
 
 use crate::expr::uni::*;
 use crate::expr::*;
@@ -158,49 +159,48 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    attempt(
-        create_if(string_skip_spaces("if"))
-            .and(create_if(
-                string_skip_spaces("else").skip(string_skip_spaces("if")),
-            ))
-            .map(
-                |((if_condition, if_statements), (else_condition, else_statements)): (
-                    IfCombination,
-                    IfCombination,
-                )| {
+    create_if(string_skip_spaces("if"))
+        .and(optional(
+            string_skip_spaces("else")
+                .with(optional(
+                    string_skip_spaces("if").with(skip_spaces(if_condition())),
+                ))
+                .and(between(
+                    token_skip_spaces('{'),
+                    token_skip_spaces('}'),
+                    many(statement()),
+                ))
+                .map(
+                    |(else_condition, else_statements): (Option<IfCondition>, Vec<Statement>)| {
+                        let else_condition = if let Some(cond) = else_condition {
+                            cond
+                        } else {
+                            IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
+                                Boolean::True,
+                            )))))
+                        };
+                        (
+                            else_condition,
+                            else_statements.into_iter().map(|s| Box::new(s)).collect(),
+                        )
+                    },
+                ),
+        ))
+        .map(
+            |((if_condition, if_statements), else_combination): (
+                IfCombination,
+                Option<IfCombination>,
+            )| {
+                if let Some((else_condition, else_statements)) = else_combination {
                     Statement::If(vec![
                         (if_condition, if_statements),
                         (else_condition, else_statements),
                     ])
-                },
-            ),
-    )
-    .or(create_if(string_skip_spaces("if"))
-        .skip(string_skip_spaces("else"))
-        .map(|(if_condition, if_statements): IfCombination| {
-            Statement::If(vec![
-                (if_condition, if_statements),
-                (
-                    IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
-                        Boolean::True,
-                    ))))),
-                    vec![],
-                ),
-            ])
-        }))
-    .or(create_if(string_skip_spaces("if")).map(
-        |(if_condition, if_statements): IfCombination| {
-            Statement::If(vec![
-                (if_condition, if_statements),
-                (
-                    IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
-                        Boolean::True,
-                    ))))),
-                    vec![],
-                ),
-            ])
-        },
-    ))
+                } else {
+                    Statement::If(vec![(if_condition, if_statements)])
+                }
+            },
+        )
 }
 
 fn else_if_<I>() -> impl Parser<Input = I, Output = Vec<(IfCondition, Vec<Box<Statement>>)>>
@@ -441,56 +441,6 @@ mod test {
                         vec![Box::new(Statement::LetExpr(
                             Id(String::from("def")),
                             Expr::Unary(Uni::String(String::from("bbb")))
-                        ))]
-                    )
-                ]),
-                ""
-            ))
-        );
-
-        assert_eq!(
-            statement().easy_parse(
-                r#"if (i < 10) {
-              let abc = "aaa";
-            } else if (j > 100) {
-              let def = "bbb";
-            } else if (k == 1000) {
-              let ghi = "ccc";
-            }"#
-            ),
-            Ok((
-                Statement::If(vec![
-                    (
-                        IfCondition(Box::new(Statement::Expr(Expr::Binary(
-                            Box::new(Expr::Unary(Uni::Id(Id(String::from("i"))))),
-                            BinOpKind::Lt,
-                            Box::new(Expr::Unary(Uni::Number(10)))
-                        ))),),
-                        vec![Box::new(Statement::LetExpr(
-                            Id(String::from("abc")),
-                            Expr::Unary(Uni::String(String::from("aaa")))
-                        ))]
-                    ),
-                    (
-                        IfCondition(Box::new(Statement::Expr(Expr::Binary(
-                            Box::new(Expr::Unary(Uni::Id(Id(String::from("j"))))),
-                            BinOpKind::Gt,
-                            Box::new(Expr::Unary(Uni::Number(100)))
-                        ))),),
-                        vec![Box::new(Statement::LetExpr(
-                            Id(String::from("def")),
-                            Expr::Unary(Uni::String(String::from("bbb")))
-                        ))]
-                    ),
-                    (
-                        IfCondition(Box::new(Statement::Expr(Expr::Binary(
-                            Box::new(Expr::Unary(Uni::Id(Id(String::from("k"))))),
-                            BinOpKind::Eq,
-                            Box::new(Expr::Unary(Uni::Number(1000)))
-                        ))),),
-                        vec![Box::new(Statement::LetExpr(
-                            Id(String::from("ghi")),
-                            Expr::Unary(Uni::String(String::from("ccc")))
                         ))]
                     )
                 ]),
