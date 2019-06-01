@@ -5,7 +5,7 @@ use combine::{attempt, between, choice, many, parser, Parser};
 
 use crate::expr::uni::*;
 use crate::expr::*;
-
+use crate::types::*;
 use crate::utils::{skip_spaces, string_skip_spaces, token_skip_spaces};
 
 #[derive(Debug, PartialEq)]
@@ -99,10 +99,15 @@ where
 {
     string_skip_spaces("let")
         .with(skip_spaces(word()))
-        .and(token_skip_spaces('='))
-        .and(skip_spaces(expr_()))
+        .and(optional(string_skip_spaces(":").with(skip_spaces(word()))))
+        .and(token_skip_spaces('=').with(skip_spaces(expr_())))
         .skip(token_skip_spaces(';'))
-        .map(|((unary_, _), value)| {
+        .map(|((unary_, type_), value)| {
+            if let Some(type_) = type_ {
+                let mut map = TYPE_MAP.lock().unwrap();
+                map.insert(type_.to_string(), type_);
+            }
+
             if let Uni::Id(id_) = unary_ {
                 return Statement::LetExpr(id_, value);
             };
@@ -519,6 +524,17 @@ mod test {
     fn let_test() {
         assert_eq!(
             statement().easy_parse(r#"let abc = "aaa";"#),
+            Ok((
+                Statement::LetExpr(
+                    Id(String::from("abc")),
+                    Expr::Unary(Uni::String(String::from("aaa")))
+                ),
+                ""
+            ))
+        );
+
+        assert_eq!(
+            statement().easy_parse(r#"let abc: number = "aaa";"#),
             Ok((
                 Statement::LetExpr(
                     Id(String::from("abc")),
