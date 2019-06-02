@@ -1,8 +1,10 @@
 use combine::error::ParseError;
+use combine::parser::choice::optional;
 use combine::stream::Stream;
 use combine::{attempt, between, many, parser, sep_by, Parser};
 
 use crate::statement::*;
+use crate::types::*;
 use crate::utils::{skip_spaces, string_skip_spaces, token_skip_spaces};
 
 pub mod bin_op;
@@ -20,7 +22,7 @@ pub enum Expr {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Args(Vec<Expr>);
+pub struct Args(Vec<Uni>);
 
 fn args<I>() -> impl Parser<Input = I, Output = Args>
 where
@@ -29,7 +31,7 @@ where
 {
     attempt(
         token_skip_spaces('(')
-            .with(skip_spaces(sep_by(unary(), token_skip_spaces(','))).map(|exps| Args(exps)))
+            .with(skip_spaces(sep_by(word(), token_skip_spaces(','))).map(|unis| Args(unis)))
             .skip(token_skip_spaces(')')),
     )
     .or(token_skip_spaces('(')
@@ -489,7 +491,7 @@ mod test {
             Ok((
                 Expr::Fn(
                     Id(String::from("def")),
-                    Args(vec![Expr::Unary(Uni::Id(Id(String::from("a")))),]),
+                    Args(vec![Uni::Id(Id(String::from("a"))),]),
                     vec![Box::new(Statement::LetExpr(
                         Id(String::from("abc")),
                         Expr::Unary(Uni::String(String::from("aaa")))
@@ -508,8 +510,8 @@ mod test {
                 Expr::Fn(
                     Id(String::from("def")),
                     Args(vec![
-                        Expr::Unary(Uni::Id(Id(String::from("a")))),
-                        Expr::Unary(Uni::Id(Id(String::from("b"))))
+                        Uni::Id(Id(String::from("a"))),
+                        Uni::Id(Id(String::from("b")))
                     ]),
                     vec![Box::new(Statement::LetExpr(
                         Id(String::from("abc")),
