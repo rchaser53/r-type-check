@@ -22,7 +22,11 @@ pub enum Expr {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Args(Vec<Uni>);
+pub struct Args(Vec<(Id, Id)>);
+
+pub fn create_none_type_id() -> Id {
+    Id(String::from("None"))
+}
 
 fn args<I>() -> impl Parser<Input = I, Output = Args>
 where
@@ -31,7 +35,22 @@ where
 {
     attempt(
         token_skip_spaces('(')
-            .with(skip_spaces(sep_by(word(), token_skip_spaces(','))).map(|unis| Args(unis)))
+            .with(
+                skip_spaces(sep_by(
+                    word().and(optional(string_skip_spaces(":").with(skip_spaces(word())))),
+                    token_skip_spaces(','),
+                ))
+                .map(|unis: Vec<(Uni, Option<Uni>)>| {
+                    let args = unis
+                        .into_iter()
+                        .map(|(uni, word)| match word {
+                            Some(word_uni) => (uni.id(), word_uni.id()),
+                            None => (uni.id(), create_none_type_id()),
+                        })
+                        .collect();
+                    Args(args)
+                }),
+            )
             .skip(token_skip_spaces(')')),
     )
     .or(token_skip_spaces('(')
@@ -54,14 +73,11 @@ where
         ))
         .map(
             |((unary_, args), stetements_): ((Uni, Args), Vec<Statement>)| {
-                if let Uni::Id(id_) = unary_ {
-                    return Expr::Fn(
-                        id_,
-                        args,
-                        stetements_.into_iter().map(|s| Box::new(s)).collect(),
-                    );
-                };
-                panic!("should come Uni::Id. actual: {:?}", unary_);
+                Expr::Fn(
+                    unary_.id(),
+                    args,
+                    stetements_.into_iter().map(|s| Box::new(s)).collect(),
+                )
             },
         )
 }
@@ -491,7 +507,9 @@ mod test {
             Ok((
                 Expr::Fn(
                     Id(String::from("def")),
-                    Args(vec![Uni::Id(Id(String::from("a"))),]),
+                    Args(vec![
+                      (Id(String::from("a")), create_none_type_id())
+                    ]),
                     vec![Box::new(Statement::LetExpr(
                         Id(String::from("abc")),
                         Expr::Unary(Uni::String(String::from("aaa")))
@@ -510,8 +528,8 @@ mod test {
                 Expr::Fn(
                     Id(String::from("def")),
                     Args(vec![
-                        Uni::Id(Id(String::from("a"))),
-                        Uni::Id(Id(String::from("b")))
+                        (Id(String::from("a")), create_none_type_id()),
+                        (Id(String::from("b")), create_none_type_id())
                     ]),
                     vec![Box::new(Statement::LetExpr(
                         Id(String::from("abc")),
