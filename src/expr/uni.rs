@@ -5,7 +5,7 @@ use combine::{attempt, between, choice, many, many1, parser, sep_by, sep_by1, Pa
 
 use crate::utils::{skip_spaces, string_skip_spaces, token_skip_spaces};
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Id(pub String);
 
 #[derive(Debug, PartialEq)]
@@ -31,6 +31,13 @@ impl Uni {
             Uni::Field(ids) => "field".to_string(),
             Uni::HashMap(hash_sets) => "hash_map".to_string(),
             Uni::Null => "null".to_string(),
+        }
+    }
+
+    pub fn id(&self) -> Id {
+        match self {
+            Uni::Id(id) => id.clone(),
+            _ => panic!("should use id only Uni::Id. actual:{:?}", self),
         }
     }
 }
