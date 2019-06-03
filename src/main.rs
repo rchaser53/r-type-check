@@ -6,9 +6,9 @@ extern crate lazy_static;
 #[macro_use]
 extern crate combine;
 
+pub mod ast;
 pub mod expr;
 pub mod statement;
-pub mod ast;
 pub mod types;
 pub mod utils;
 

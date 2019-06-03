@@ -481,7 +481,7 @@ mod test {
     #[test]
     fn fn_test() {
         let input = r#"fn def() {
-          let abc = "aaa";
+          let abc = "aaa" in
         }"#;
         assert_eq!(
             expr().easy_parse(input),
@@ -489,7 +489,7 @@ mod test {
                 Expr::Fn(
                     Id(String::from("def")),
                     Args(vec![]),
-                    vec![Box::new(Statement::LetExpr(
+                    vec![Box::new(Statement::LetS(
                         Id(String::from("abc")),
                         Expr::Unary(Uni::String(String::from("aaa")))
                     ))]
@@ -499,7 +499,7 @@ mod test {
         );
 
         let input = r#"fn def( a ) {
-          let abc = "aaa";
+          let abc = "aaa" in
         }"#;
         assert_eq!(
             expr().easy_parse(input),
@@ -507,7 +507,7 @@ mod test {
                 Expr::Fn(
                     Id(String::from("def")),
                     Args(vec![(Id(String::from("a")), create_none_type_id())]),
-                    vec![Box::new(Statement::LetExpr(
+                    vec![Box::new(Statement::LetS(
                         Id(String::from("abc")),
                         Expr::Unary(Uni::String(String::from("aaa")))
                     ))]
@@ -517,7 +517,7 @@ mod test {
         );
 
         let input = r#"fn def( a, b ) {
-          let abc = "aaa";
+          let abc = "aaa" in
         }"#;
         assert_eq!(
             expr().easy_parse(input),
@@ -528,7 +528,7 @@ mod test {
                         (Id(String::from("a")), create_none_type_id()),
                         (Id(String::from("b")), create_none_type_id())
                     ]),
-                    vec![Box::new(Statement::LetExpr(
+                    vec![Box::new(Statement::LetS(
                         Id(String::from("abc")),
                         Expr::Unary(Uni::String(String::from("aaa")))
                     ))]
