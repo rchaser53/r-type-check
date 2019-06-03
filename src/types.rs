@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use crate::expr::uni::*;
-use crate::expr::*;
 
 #[derive(Debug, PartialEq)]
 pub enum _TypeKind {

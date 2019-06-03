@@ -11,6 +11,7 @@ use crate::utils::{skip_spaces, string_skip_spaces, token_skip_spaces};
 #[derive(Debug, PartialEq)]
 pub enum Statement {
     LetExpr(Id, Expr),
+    LetS(Id, Expr),
     Expr(Expr),
     Assign(Assign),
     For(ForCondition, Vec<Box<Statement>>),
@@ -113,6 +114,18 @@ where
             };
             panic!("should come Uni::Id. actual: {:?}", unary_);
         })
+}
+
+fn lets<I>() -> impl Parser<Input = I, Output = Statement>
+where
+    I: Stream<Item = char>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    string_skip_spaces("let")
+        .with(skip_spaces(word()))
+        .and(token_skip_spaces('=').with(skip_spaces(expr_())))
+        .skip(string_skip_spaces("in"))
+        .map(|(unary_, value)| Statement::LetExpr(unary_.id(), value))
 }
 
 fn expr_statement<I>() -> impl Parser<Input = I, Output = Statement>

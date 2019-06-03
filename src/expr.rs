@@ -4,7 +4,6 @@ use combine::stream::Stream;
 use combine::{attempt, between, many, parser, sep_by, Parser};
 
 use crate::statement::*;
-use crate::types::*;
 use crate::utils::{skip_spaces, string_skip_spaces, token_skip_spaces};
 
 pub mod bin_op;
@@ -507,9 +506,7 @@ mod test {
             Ok((
                 Expr::Fn(
                     Id(String::from("def")),
-                    Args(vec![
-                      (Id(String::from("a")), create_none_type_id())
-                    ]),
+                    Args(vec![(Id(String::from("a")), create_none_type_id())]),
                     vec![Box::new(Statement::LetExpr(
                         Id(String::from("abc")),
                         Expr::Unary(Uni::String(String::from("aaa")))
