@@ -20,7 +20,7 @@ pub enum Statement {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Assign(Id, Expr);
+pub struct Assign(pub Id, pub Expr);
 
 #[derive(Debug, PartialEq)]
 pub struct ForCondition(Box<Statement>, Box<Statement>, Box<Statement>);

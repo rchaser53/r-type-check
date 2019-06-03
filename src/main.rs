@@ -8,6 +8,7 @@ extern crate combine;
 
 pub mod expr;
 pub mod statement;
+pub mod ast;
 pub mod types;
 pub mod utils;
 
