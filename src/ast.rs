@@ -43,4 +43,25 @@ def = 456;"#;
             ))
         );
     }
+
+    #[test]
+    fn lets_test() {
+        let input = r#"
+let abc = 123 in
+def = 456;"#;
+        assert_eq!(
+            ast().easy_parse(input),
+            Ok((
+                vec![Statement::Let(
+                    Id(String::from("abc")),
+                    Expr::Unary(Uni::Number(123)),
+                    vec![Box::new(Statement::Assign(Assign(
+                        Id(String::from("def")),
+                        Expr::Unary(Uni::Number(456))
+                    )))]
+                ),],
+                ""
+            ))
+        );
+    }
 }

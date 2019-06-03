@@ -10,7 +10,7 @@ use crate::utils::{skip_spaces, string_skip_spaces, token_skip_spaces};
 
 #[derive(Debug, PartialEq)]
 pub enum Statement {
-    LetS(Id, Expr),
+    Let(Id, Expr, Vec<Box<Statement>>),
     Expr(Expr),
     Assign(Assign),
     For(ForCondition, Vec<Box<Statement>>),
@@ -48,23 +48,6 @@ where
     .map(|cond| IfCondition(Box::new(cond)))
 }
 
-// fn for_condition<I>() -> impl Parser<Input = I, Output = ForCondition>
-// where
-//     I: Stream<Item = char>,
-//     I::Error: ParseError<I::Item, I::Range, I::Position>,
-// {
-//     between(
-//         token_skip_spaces('('),
-//         token_skip_spaces(')'),
-//         skip_spaces(let_())
-//             .and(skip_spaces(expr_statement()))
-//             .and(skip_spaces(expr_statement_no_semicolon())),
-//     )
-//     .map(|((first, limit), iterate)| {
-//         ForCondition(Box::new(first), Box::new(limit), Box::new(iterate))
-//     })
-// }
-
 fn assign_<I>() -> impl Parser<Input = I, Output = Assign>
 where
     I: Stream<Item = char>,
@@ -99,9 +82,21 @@ where
 {
     string_skip_spaces("let")
         .with(skip_spaces(word()))
-        .and(token_skip_spaces('=').with(skip_spaces(expr_())))
-        .skip(string_skip_spaces("in"))
-        .map(|(unary_, value)| Statement::LetS(unary_.id(), value))
+        .and(
+            token_skip_spaces('=')
+                .with(skip_spaces(expr_()))
+                .skip(string_skip_spaces("in")),
+        )
+        .and(many(statement()))
+        .map(
+            |((unary_, value), statements): ((Uni, Expr), Vec<Statement>)| {
+                Statement::Let(
+                    unary_.id(),
+                    value,
+                    statements.into_iter().map(|s| Box::new(s)).collect(),
+                )
+            },
+        )
 }
 
 fn expr_statement<I>() -> impl Parser<Input = I, Output = Statement>
@@ -289,6 +284,23 @@ where
 //         })
 // }
 
+// fn for_condition<I>() -> impl Parser<Input = I, Output = ForCondition>
+// where
+//     I: Stream<Item = char>,
+//     I::Error: ParseError<I::Item, I::Range, I::Position>,
+// {
+//     between(
+//         token_skip_spaces('('),
+//         token_skip_spaces(')'),
+//         skip_spaces(let_())
+//             .and(skip_spaces(expr_statement()))
+//             .and(skip_spaces(expr_statement_no_semicolon())),
+//     )
+//     .map(|((first, limit), iterate)| {
+//         ForCondition(Box::new(first), Box::new(limit), Box::new(iterate))
+//     })
+// }
+
 mod test {
     use crate::expr::bin_op::*;
     use crate::statement::*;
@@ -335,9 +347,10 @@ mod test {
                         BinOpKind::Lt,
                         Box::new(Expr::Unary(Uni::Number(10)))
                     ))),),
-                    vec![Box::new(Statement::LetS(
+                    vec![Box::new(Statement::Let(
                         Id(String::from("abc")),
-                        Expr::Unary(Uni::String(String::from("aaa")))
+                        Expr::Unary(Uni::String(String::from("aaa"))),
+                        vec![],
                     ))]
                 )]),
                 ""
@@ -360,18 +373,20 @@ mod test {
                             BinOpKind::Lt,
                             Box::new(Expr::Unary(Uni::Number(10)))
                         ))),),
-                        vec![Box::new(Statement::LetS(
+                        vec![Box::new(Statement::Let(
                             Id(String::from("abc")),
-                            Expr::Unary(Uni::String(String::from("aaa")))
+                            Expr::Unary(Uni::String(String::from("aaa"))),
+                            vec![],
                         ))]
                     ),
                     (
                         IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
                             Boolean::True
                         ),)))),
-                        vec![Box::new(Statement::LetS(
+                        vec![Box::new(Statement::Let(
                             Id(String::from("def")),
-                            Expr::Unary(Uni::String(String::from("bbb")))
+                            Expr::Unary(Uni::String(String::from("bbb"))),
+                            vec![],
                         ))]
                     )
                 ]),
@@ -395,9 +410,10 @@ mod test {
                             BinOpKind::Lt,
                             Box::new(Expr::Unary(Uni::Number(10)))
                         ))),),
-                        vec![Box::new(Statement::LetS(
+                        vec![Box::new(Statement::Let(
                             Id(String::from("abc")),
-                            Expr::Unary(Uni::String(String::from("aaa")))
+                            Expr::Unary(Uni::String(String::from("aaa"))),
+                            vec![],
                         ))]
                     ),
                     (
@@ -406,9 +422,10 @@ mod test {
                             BinOpKind::Gt,
                             Box::new(Expr::Unary(Uni::Number(100)))
                         ))),),
-                        vec![Box::new(Statement::LetS(
+                        vec![Box::new(Statement::Let(
                             Id(String::from("def")),
-                            Expr::Unary(Uni::String(String::from("bbb")))
+                            Expr::Unary(Uni::String(String::from("bbb"))),
+                            vec![],
                         ))]
                     )
                 ]),
@@ -452,9 +469,10 @@ mod test {
         assert_eq!(
             statement().easy_parse(r#"let abc = "aaa" in"#),
             Ok((
-                Statement::LetS(
+                Statement::Let(
                     Id(String::from("abc")),
-                    Expr::Unary(Uni::String(String::from("aaa")))
+                    Expr::Unary(Uni::String(String::from("aaa"))),
+                    vec![],
                 ),
                 ""
             ))
@@ -463,7 +481,7 @@ mod test {
         assert_eq!(
             statement().easy_parse(r#"let abc = (1 + 3) * 4 in"#),
             Ok((
-                Statement::LetS(
+                Statement::Let(
                     Id(String::from("abc")),
                     Expr::Binary(
                         Box::new(Expr::Binary(
@@ -474,6 +492,7 @@ mod test {
                         BinOpKind::Mul,
                         Box::new(Expr::Unary(Uni::Number(4))),
                     ),
+                    vec![],
                 ),
                 ""
             ))

@@ -489,9 +489,10 @@ mod test {
                 Expr::Fn(
                     Id(String::from("def")),
                     Args(vec![]),
-                    vec![Box::new(Statement::LetS(
+                    vec![Box::new(Statement::Let(
                         Id(String::from("abc")),
-                        Expr::Unary(Uni::String(String::from("aaa")))
+                        Expr::Unary(Uni::String(String::from("aaa"))),
+                        vec![],
                     ))]
                 ),
                 ""
@@ -507,9 +508,10 @@ mod test {
                 Expr::Fn(
                     Id(String::from("def")),
                     Args(vec![(Id(String::from("a")), create_none_type_id())]),
-                    vec![Box::new(Statement::LetS(
+                    vec![Box::new(Statement::Let(
                         Id(String::from("abc")),
-                        Expr::Unary(Uni::String(String::from("aaa")))
+                        Expr::Unary(Uni::String(String::from("aaa"))),
+                        vec![],
                     ))]
                 ),
                 ""
@@ -528,9 +530,10 @@ mod test {
                         (Id(String::from("a")), create_none_type_id()),
                         (Id(String::from("b")), create_none_type_id())
                     ]),
-                    vec![Box::new(Statement::LetS(
+                    vec![Box::new(Statement::Let(
                         Id(String::from("abc")),
-                        Expr::Unary(Uni::String(String::from("aaa")))
+                        Expr::Unary(Uni::String(String::from("aaa"))),
+                        vec![],
                     ))]
                 ),
                 ""
