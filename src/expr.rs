@@ -16,7 +16,7 @@ use uni::{field, uni as create_uni, word, word_, Id, Uni};
 pub enum Expr {
     Unary(Uni),
     Binary(Box<Expr>, BinOpKind, Box<Expr>),
-    Call(Uni, Vec<Box<Expr>>),
+    Call(Vec<Id>, Vec<Box<Expr>>),
     Fn(Id, Args, Vec<Box<Statement>>),
 }
 
@@ -192,7 +192,8 @@ where
                 .map(|exps: Vec<Expr>| exps.into_iter().map(|exp| Box::new(exp)).collect()),
         ))
         .map(|(fn_name, args)| match fn_name {
-            Uni::Id(_) | Uni::Field(_) => Expr::Call(fn_name, args),
+            Uni::Id(id) => Expr::Call(vec![id], args),
+            Uni::Field(fields) => Expr::Call(fields, args),
             _ => panic!("should come Uni::Id. actual: {:?}", fn_name),
         })
 }
@@ -237,14 +238,14 @@ mod test {
     fn call_test() {
         assert_eq!(
             expr().easy_parse(r#"ab()"#),
-            Ok((Expr::Call(Uni::Id(Id(String::from("ab"))), vec![]), ""))
+            Ok((Expr::Call(vec![Id(String::from("ab"))], vec![]), ""))
         );
 
         assert_eq!(
             expr().easy_parse(r#"ab( cde )"#),
             Ok((
                 Expr::Call(
-                    Uni::Id(Id(String::from("ab"))),
+                    vec![Id(String::from("ab"))],
                     vec![Box::new(Expr::Unary(Uni::Id(Id(String::from("cde")))))]
                 ),
                 ""
@@ -255,7 +256,7 @@ mod test {
             expr().easy_parse(r#"ab( cde , fgh )"#),
             Ok((
                 Expr::Call(
-                    Uni::Id(Id(String::from("ab"))),
+                    vec![Id(String::from("ab"))],
                     vec![
                         Box::new(Expr::Unary(Uni::Id(Id(String::from("cde"))))),
                         Box::new(Expr::Unary(Uni::Id(Id(String::from("fgh")))))
@@ -269,7 +270,7 @@ mod test {
             expr().easy_parse(r#"ab.field( cde , fgh )"#),
             Ok((
                 Expr::Call(
-                    Uni::Field(vec![Id(String::from("ab")), Id(String::from("field"))]),
+                    vec![Id(String::from("ab")), Id(String::from("field"))],
                     vec![
                         Box::new(Expr::Unary(Uni::Id(Id(String::from("cde"))))),
                         Box::new(Expr::Unary(Uni::Id(Id(String::from("fgh")))))
@@ -286,7 +287,7 @@ mod test {
             expr().easy_parse(r#"abc() * 3"#),
             Ok((
                 Expr::Binary(
-                    Box::new(Expr::Call(Uni::Id(Id(String::from("abc"))), vec![])),
+                    Box::new(Expr::Call(vec![Id(String::from("abc"))], vec![])),
                     BinOpKind::Mul,
                     Box::new(Expr::Unary(Uni::Number(3))),
                 ),
@@ -299,7 +300,7 @@ mod test {
             Ok((
                 Expr::Binary(
                     Box::new(Expr::Call(
-                        Uni::Id(Id(String::from("abc"))),
+                        vec![Id(String::from("abc"))],
                         vec![Box::new(Expr::Unary(Uni::Id(Id(String::from("def"))))),]
                     )),
                     BinOpKind::Mul,
@@ -315,7 +316,7 @@ mod test {
                 Expr::Binary(
                     Box::new(Expr::Binary(
                         Box::new(Expr::Call(
-                            Uni::Id(Id(String::from("abc"))),
+                            vec![Id(String::from("abc"))],
                             vec![Box::new(Expr::Unary(Uni::Id(Id(String::from("def"))))),]
                         )),
                         BinOpKind::Add,
