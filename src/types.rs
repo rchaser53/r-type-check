@@ -4,10 +4,11 @@ use std::sync::Mutex;
 use crate::expr::uni::*;
 
 #[derive(Debug, PartialEq)]
-pub enum _TypeKind {
+pub enum TypeKind {
     Int,
     String,
     Boolean,
+    Undefined(Vec<Id>),
 }
 
 lazy_static! {

@@ -5,8 +5,14 @@ use combine::{attempt, between, choice, many, many1, parser, sep_by, sep_by1, Pa
 
 use crate::utils::{skip_spaces, string_skip_spaces, token_skip_spaces};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Hash)]
 pub struct Id(pub String);
+impl PartialEq for Id {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+impl Eq for Id {}
 
 #[derive(Debug, PartialEq)]
 pub enum Uni {
