@@ -50,22 +50,22 @@ pub fn resolve_binary(left: Expr, op: BinOpKind, right: Expr) -> TypeResult {
         (Expr::Binary(l_left, l_op, l_right), Expr::Binary(r_left, r_op, r_right)) => {
             let l_resolved = resolve_binary(*l_left, l_op, *l_right);
             let r_resolved = resolve_binary(*r_left, r_op, *r_right);
-            TypeResult::Binary(Box::new(l_resolved), op, Box::new(r_resolved))
+            resolve_type_result_with_op(l_resolved, op, r_resolved)
         }
         (Expr::Binary(l_left, l_op, l_right), Expr::Unary(right)) => {
             let l_resolved = resolve_binary(*l_left, l_op, *l_right);
             let r_resolved = resolve_type(right);
-            TypeResult::Binary(Box::new(l_resolved), op, Box::new(r_resolved))
+            resolve_type_result_with_op(l_resolved, op, r_resolved)
         }
         (Expr::Unary(left), Expr::Binary(r_left, r_op, r_right)) => {
             let l_resolved = resolve_type(left);
             let r_resolved = resolve_binary(*r_left, r_op, *r_right);
-            TypeResult::Binary(Box::new(l_resolved), op, Box::new(r_resolved))
+            resolve_type_result_with_op(l_resolved, op, r_resolved)
         }
         (Expr::Unary(left), Expr::Unary(right)) => {
             let l_resolved = resolve_type(left);
             let r_resolved = resolve_type(right);
-            TypeResult::Binary(Box::new(l_resolved), op, Box::new(r_resolved))
+            resolve_type_result_with_op(l_resolved, op, r_resolved)
         }
         _ => unimplemented!(),
     }
@@ -81,5 +81,25 @@ pub fn resolve_type(uni: Uni) -> TypeResult {
         Uni::Array(_) => unimplemented!(),
         Uni::HashMap(_) => unimplemented!(),
         Uni::Null => unimplemented!(),
+    }
+}
+
+pub fn resolve_type_result_with_op(
+    left: TypeResult,
+    op: BinOpKind,
+    right: TypeResult,
+) -> TypeResult {
+    match (left, right) {
+        (TypeResult::Resolved(left), TypeResult::Resolved(right)) => {
+            if (left == right) {
+                TypeResult::Resolved(left)
+            } else {
+                TypeResult::Err(format!("type error: left:{:?} right:{:?}", left, right))
+            }
+        }
+        (TypeResult::Uni(_), TypeResult::Resolved(_)) => unimplemented!(),
+        (TypeResult::Resolved(_), TypeResult::Uni(_)) => unimplemented!(),
+        (TypeResult::Uni(_), TypeResult::Uni(_)) => unimplemented!(),
+        _ => unimplemented!(),
     }
 }
