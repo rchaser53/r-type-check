@@ -477,6 +477,26 @@ mod test {
                 ""
             ))
         );
+
+        assert_eq!(
+            expr().easy_parse(r#"(1 + 2) * (3 * 4)"#),
+            Ok((
+                Expr::Binary(
+                    Box::new(Expr::Binary(
+                        Box::new(Expr::Unary(Uni::Number(1))),
+                        BinOpKind::Add,
+                        Box::new(Expr::Unary(Uni::Number(2))),
+                    )),
+                    BinOpKind::Mul,
+                    Box::new(Expr::Binary(
+                        Box::new(Expr::Unary(Uni::Number(3))),
+                        BinOpKind::Mul,
+                        Box::new(Expr::Unary(Uni::Number(4))),
+                    )),
+                ),
+                ""
+            ))
+        );
     }
 
     #[test]
