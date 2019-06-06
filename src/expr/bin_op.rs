@@ -1,9 +1,11 @@
+use std::fmt;
+
 use combine::error::ParseError;
 use combine::parser::char::string;
 use combine::stream::Stream;
 use combine::{choice, parser, Parser};
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub enum BinOpKind {
     Add, // +
     Sub, // -
@@ -33,6 +35,25 @@ impl BinOpKind {
             BinOpKind::Ge => 1,
             BinOpKind::Gt => 1,
         }
+    }
+}
+
+impl fmt::Debug for BinOpKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let result = match self {
+            BinOpKind::Add => "+",
+            BinOpKind::Sub => "-",
+            BinOpKind::Mul => "*",
+            BinOpKind::Div => "/",
+            BinOpKind::Shr => "%",
+            BinOpKind::Eq => "==",
+            BinOpKind::Lt => "<",
+            BinOpKind::Le => "<=",
+            BinOpKind::Ne => "!=",
+            BinOpKind::Ge => ">=",
+            BinOpKind::Gt => ">",
+        };
+        write!(f, "{}", result)
     }
 }
 
