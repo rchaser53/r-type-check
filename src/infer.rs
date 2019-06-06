@@ -1,3 +1,5 @@
+use combine::{attempt, between, choice, many, parser, Parser};
+
 use std::collections::HashMap;
 
 use crate::expr::bin_op::*;
@@ -22,15 +24,18 @@ pub struct UniType(Id, TypeKind);
 pub fn infer(statements: Vec<Statement>) -> Result<(), String> {
     for statement in statements {
         let mut type_map: TypeMap = HashMap::new();
-        match statement {
+        let result = match statement {
             Statement::Let(id, exp, bodys) => {
                 let right_type = resolve_expr(exp);
-                type_map.insert(id.clone(), right_type);
+                let result = type_map.insert(id.clone(), right_type);
+                result.unwrap()
             }
-            Statement::Expr(expr) => {
-                resolve_expr(expr);
-            }
+            Statement::Expr(expr) => resolve_expr(expr),
             _ => unimplemented!(),
+        };
+
+        if let TypeResult::Err(err_str) = result {
+            return Err(err_str);
         }
     }
     Ok(())
@@ -91,15 +96,40 @@ pub fn resolve_type_result_with_op(
 ) -> TypeResult {
     match (left, right) {
         (TypeResult::Resolved(left), TypeResult::Resolved(right)) => {
+            dbg!(&left);
+            dbg!(&right);
             if (left == right) {
                 TypeResult::Resolved(left)
             } else {
-                TypeResult::Err(format!("type error: left:{:?} right:{:?}", left, right))
+                TypeResult::Err(create_type_mismatch_err(left, right))
             }
         }
         (TypeResult::Uni(_), TypeResult::Resolved(_)) => unimplemented!(),
         (TypeResult::Resolved(_), TypeResult::Uni(_)) => unimplemented!(),
         (TypeResult::Uni(_), TypeResult::Uni(_)) => unimplemented!(),
         _ => unimplemented!(),
+    }
+}
+
+fn create_type_mismatch_err(left: TypeKind, right: TypeKind) -> String {
+    format!("type error: left:{:?} right:{:?}", left, right)
+}
+
+mod test {
+    use crate::ast::*;
+    use crate::infer::*;
+    use crate::statement::*;
+
+    #[test]
+    fn binary_type_mismatch() {
+        let input = r#"123 + "abc""#;
+        if let Ok((statements, _)) = ast().easy_parse(input) {
+            assert_eq!(
+                infer(statements),
+                Err(create_type_mismatch_err(TypeKind::Int, TypeKind::String))
+            );
+        } else {
+            panic!("should not come here");
+        }
     }
 }
