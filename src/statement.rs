@@ -31,7 +31,15 @@ parser! {
     pub fn statement[I]()(I) -> Statement
     where [I: Stream<Item = char>]
     {
-        choice((return_(), if_(), let_(), assign(), expr_statement()))
+        choice(
+            (
+                attempt(return_()),
+                attempt(if_()),
+                attempt(let_()),
+                attempt(assign()),
+                attempt(expr_statement())
+            )
+        )
     }
 }
 
@@ -467,12 +475,20 @@ mod test {
     #[test]
     fn let_test() {
         assert_eq!(
-            statement().easy_parse(r#"let abc = "aaa" in"#),
+            statement().easy_parse(
+                r#"let abc = "aaa" in
+              abc + "def";
+            "#
+            ),
             Ok((
                 Statement::Let(
                     Id(String::from("abc")),
                     Expr::Unary(Uni::String(String::from("aaa"))),
-                    vec![],
+                    vec![Box::new(Statement::Expr(Expr::Binary(
+                        Box::new(Expr::Unary(Uni::Id(Id(String::from("abc"))))),
+                        BinOpKind::Add,
+                        Box::new(Expr::Unary(Uni::String(String::from("def")))),
+                    ))),],
                 ),
                 ""
             ))
