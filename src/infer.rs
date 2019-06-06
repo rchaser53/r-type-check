@@ -96,12 +96,13 @@ pub fn resolve_type_result_with_op(
 ) -> TypeResult {
     match (left, right) {
         (TypeResult::Resolved(left), TypeResult::Resolved(right)) => {
-            dbg!(&left);
-            dbg!(&right);
             if (left == right) {
-                TypeResult::Resolved(left)
+                match resolve_op(&left, op, &right) {
+                    Ok(_) => TypeResult::Resolved(left),
+                    Err(err_str) => TypeResult::Err(err_str),
+                }
             } else {
-                TypeResult::Err(create_type_mismatch_err(left, right))
+                TypeResult::Err(create_type_mismatch_err(&left, &right))
             }
         }
         (TypeResult::Uni(_), TypeResult::Resolved(_)) => unimplemented!(),
@@ -111,12 +112,38 @@ pub fn resolve_type_result_with_op(
     }
 }
 
-fn create_type_mismatch_err(left: TypeKind, right: TypeKind) -> String {
-    format!("type error: left:{:?} right:{:?}", left, right)
+pub fn resolve_op(left: &TypeKind, op: BinOpKind, right: &TypeKind) -> Result<(), String> {
+    match left {
+        TypeKind::Boolean => match op {
+            BinOpKind::Eq | BinOpKind::Ne => Ok(()),
+            _ => Err(create_cannot_use_op_err(left, op, right)),
+        },
+        TypeKind::Int => Ok(()),
+        TypeKind::String => match op {
+            BinOpKind::Add => Ok(()),
+            _ => Err(create_cannot_use_op_err(left, op, right)),
+        },
+        _ => panic!(
+            "resolve_op: should not come here. left:{:?} op:{:?} right:{:?}",
+            left, op, right
+        ),
+    }
+}
+
+fn create_type_mismatch_err(left: &TypeKind, right: &TypeKind) -> String {
+    format!("type is mismatch: left:{:?} right:{:?}", left, right)
+}
+
+fn create_cannot_use_op_err(left: &TypeKind, op: BinOpKind, right: &TypeKind) -> String {
+    format!(
+        "cannot use op: left:{:?} op:{:?} right:{:?}",
+        left, op, right
+    )
 }
 
 mod test {
     use crate::ast::*;
+    use crate::expr::bin_op::*;
     use crate::infer::*;
     use crate::statement::*;
 
@@ -126,7 +153,24 @@ mod test {
         if let Ok((statements, _)) = ast().easy_parse(input) {
             assert_eq!(
                 infer(statements),
-                Err(create_type_mismatch_err(TypeKind::Int, TypeKind::String))
+                Err(create_type_mismatch_err(&TypeKind::Int, &TypeKind::String))
+            );
+        } else {
+            panic!("should not come here");
+        }
+    }
+
+    #[test]
+    fn binary_op_mismatch() {
+        let input = r#""def" - "abc""#;
+        if let Ok((statements, _)) = ast().easy_parse(input) {
+            assert_eq!(
+                infer(statements),
+                Err(create_cannot_use_op_err(
+                    &TypeKind::String,
+                    BinOpKind::Sub,
+                    &TypeKind::String
+                ))
             );
         } else {
             panic!("should not come here");
