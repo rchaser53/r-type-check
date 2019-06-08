@@ -95,7 +95,14 @@ where
                 .with(skip_spaces(expr_()))
                 .skip(string_skip_spaces("in")),
         )
-        .and(many(statement()))
+        .and(
+            attempt(between(
+                token_skip_spaces('('),
+                token_skip_spaces(')'),
+                many(statement()),
+            ))
+            .or(many(statement())),
+        )
         .map(
             |((unary_, value), statements): ((Uni, Expr), Vec<Statement>)| {
                 Statement::Let(
@@ -468,7 +475,10 @@ mod test {
         );
 
         assert_statement!(
-            r#"let abc = (1 + 3) * 4 in"#,
+            r#"let abc = (1 + 3) * 4 in (
+              abc = abc + 2;
+              return abc;
+            )"#,
             Statement::Let(
                 Id(String::from("abc")),
                 Expr::Binary(
@@ -480,7 +490,19 @@ mod test {
                     BinOpKind::Mul,
                     Box::new(Expr::Unary(Uni::Number(4))),
                 ),
-                vec![],
+                vec![
+                    Box::new(Statement::Assign(Assign(
+                        Id(String::from("abc")),
+                        Expr::Binary(
+                            Box::new(Expr::Unary(Uni::Id(Id(String::from("abc"))))),
+                            BinOpKind::Add,
+                            Box::new(Expr::Unary(Uni::Number(2))),
+                        )
+                    )),),
+                    Box::new(Statement::Return(Box::new(Statement::Expr(Expr::Unary(
+                        Uni::Id(Id(String::from("abc")))
+                    )))))
+                ],
             )
         );
     }
