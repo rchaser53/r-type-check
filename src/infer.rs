@@ -8,6 +8,7 @@ use crate::expr::*;
 use crate::statement::*;
 use crate::types::*;
 
+#[derive(Clone)]
 pub struct TypeMap(HashMap<Id, TypeResult>);
 impl TypeMap {
     pub fn new() -> Self {
@@ -115,8 +116,18 @@ pub fn resolve_expr(exp: Expr, type_map: &mut TypeMap) -> TypeResult {
     match exp {
         Expr::Unary(uni) => resolve_type(uni, type_map),
         Expr::Binary(left, op, right) => resolve_binary(*left, op, *right, type_map),
+        Expr::Fn(id, args, body) => {
+            let mut fn_type_map = TypeMap::new();
+            for arg in args {
+                fn_type_map.insert(arg.clone(), TypeResult::Unknown(arg));
+            }
+            match infer(body.into_iter().map(|boxed| *boxed).collect(), &mut fn_type_map) {
+                // TBD: temporary implement
+                Ok(()) => TypeResult::Unknown(id),
+                Err(err_str) => TypeResult::Err(err_str),
+            }
+        },
         Expr::Call(ids, _) => unreachable!(),
-        Expr::Fn(_, _, _) => unreachable!(),
     }
 }
 
