@@ -180,49 +180,45 @@ mod test {
     use crate::infer::*;
     use crate::statement::*;
 
+    macro_rules! assert_infer {
+        ($input: expr, $expected: expr) => {
+            let mut type_map = TypeMap::new();
+            if let Ok((statements, _)) = ast().easy_parse($input) {
+                assert_eq!(infer(statements, &mut type_map), $expected);
+            } else {
+                panic!("should not come here");
+            }
+        };
+    }
+
     #[test]
     fn let_insert_type() {
         let input = r#"let abc = 123 in (
           abc + 456;
         )"#;
-        let mut type_map = TypeMap::new();
-        if let Ok((statements, _)) = ast().easy_parse(input) {
-            assert_eq!(infer(statements, &mut type_map), Ok(()));
-        } else {
-            panic!("should not come here");
-        }
+        assert_infer!(input, Ok(()));
     }
 
     #[test]
     fn binary_type_mismatch() {
         let input = r#"123 + "abc""#;
-        let mut type_map = TypeMap::new();
-        if let Ok((statements, _)) = ast().easy_parse(input) {
-            assert_eq!(
-                infer(statements, &mut type_map),
-                Err(create_type_mismatch_err(&TypeKind::Int, &TypeKind::String))
-            );
-        } else {
-            panic!("should not come here");
-        }
+        assert_infer!(
+            input,
+            Err(create_type_mismatch_err(&TypeKind::Int, &TypeKind::String))
+        );
     }
 
     #[test]
     fn binary_op_mismatch() {
         let input = r#""def" - "abc""#;
-        let mut type_map = TypeMap::new();
-        if let Ok((statements, _)) = ast().easy_parse(input) {
-            assert_eq!(
-                infer(statements, &mut type_map),
-                Err(create_cannot_use_op_err(
-                    &TypeKind::String,
-                    BinOpKind::Sub,
-                    &TypeKind::String
-                ))
-            );
-        } else {
-            panic!("should not come here");
-        }
+        assert_infer!(
+            input,
+            Err(create_cannot_use_op_err(
+                &TypeKind::String,
+                BinOpKind::Sub,
+                &TypeKind::String
+            ))
+        );
     }
 
     #[test]
