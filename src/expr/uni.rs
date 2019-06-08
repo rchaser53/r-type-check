@@ -1,7 +1,7 @@
 use combine::error::ParseError;
 use combine::parser::char::{digit, letter};
 use combine::stream::Stream;
-use combine::{attempt, between, choice, many, many1, parser, sep_by, sep_by1, Parser};
+use combine::{attempt, between, choice, many, many1, none_of, parser, sep_by, sep_by1, Parser};
 
 use crate::utils::{skip_spaces, string_skip_spaces, token_skip_spaces};
 
@@ -166,7 +166,7 @@ where
     between(
         token_skip_spaces('"'),
         token_skip_spaces('"'),
-        many1(letter()),
+        many(none_of("\"".chars())),
     )
     .map(Uni::String)
 }
@@ -229,7 +229,7 @@ mod test {
             uni().easy_parse(
                 r#"{
               abc: 32,
-              def: "defvalue",
+              def: "def_value!",
             }"#
             ),
             Ok((
@@ -237,7 +237,7 @@ mod test {
                     HashSet(Id(String::from("abc")), Box::new(Uni::Number(32))),
                     HashSet(
                         Id(String::from("def")),
-                        Box::new(Uni::String(String::from("defvalue")))
+                        Box::new(Uni::String(String::from("def_value!")))
                     ),
                 ]),
                 ""
