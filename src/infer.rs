@@ -1,6 +1,7 @@
 use combine::Parser;
 use std::collections::HashMap;
 
+use crate::error::*;
 use crate::expr::bin_op::*;
 use crate::expr::uni::*;
 use crate::expr::*;
@@ -43,6 +44,7 @@ pub fn infer(statements: Vec<Statement>, mut type_map: &mut TypeMap) -> Result<(
                 return infer(unboxed_bodys, type_map);
             }
             Statement::Expr(expr) => resolve_expr(expr, &mut type_map),
+            Statement::Assign(Assign(id, expr)) => resolve_assign(id, expr, &mut type_map),
             _ => unimplemented!(),
         };
 
@@ -51,6 +53,22 @@ pub fn infer(statements: Vec<Statement>, mut type_map: &mut TypeMap) -> Result<(
         }
     }
     Ok(())
+}
+
+pub fn resolve_assign(id: Id, exp: Expr, type_map: &mut TypeMap) -> TypeResult {
+    let right_type = resolve_expr(exp, type_map);
+
+    let left_type = if let Some(left_type) = type_map.try_get(&id) {
+        match left_type {
+            TypeResult::Resolved(_) => return type_map.insert(id, right_type).unwrap(),
+            TypeResult::Err(_) => return left_type.clone(),
+            _ => left_type,
+        }
+    } else {
+        return TypeResult::Err(create_not_initialized_err(&id));
+    };
+
+    type_map.insert(id, right_type).unwrap()
 }
 
 pub fn resolve_expr(exp: Expr, type_map: &mut TypeMap) -> TypeResult {
@@ -154,17 +172,6 @@ pub fn resolve_op(
             left, op, right
         ),
     }
-}
-
-fn create_type_mismatch_err(left: &TypeKind, right: &TypeKind) -> String {
-    format!("type is mismatch: left:{:?} right:{:?}", left, right)
-}
-
-fn create_cannot_use_op_err(left: &TypeKind, op: BinOpKind, right: &TypeKind) -> String {
-    format!(
-        "cannot use op: left:{:?} op:{:?} right:{:?}",
-        left, op, right
-    )
 }
 
 mod test {

@@ -7,6 +7,7 @@ extern crate lazy_static;
 extern crate combine;
 
 pub mod ast;
+pub mod error;
 pub mod expr;
 pub mod infer;
 pub mod statement;
