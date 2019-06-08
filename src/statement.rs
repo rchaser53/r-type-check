@@ -5,7 +5,6 @@ use combine::{attempt, between, choice, easy, many, parser, Parser};
 
 use crate::expr::uni::*;
 use crate::expr::*;
-use crate::types::*;
 use crate::utils::{skip_spaces, string_skip_spaces, token_skip_spaces};
 
 #[derive(Debug, PartialEq)]

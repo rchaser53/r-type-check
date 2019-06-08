@@ -1,5 +1,4 @@
-use combine::{attempt, between, choice, many, parser, Parser};
-
+use combine::Parser;
 use std::collections::HashMap;
 
 use crate::expr::bin_op::*;
@@ -21,16 +20,16 @@ pub enum TypeResult {
 #[derive(Debug, PartialEq)]
 pub struct UniType(Id, TypeKind);
 
-pub fn infer(statements: Vec<Statement>) -> Result<(), String> {
+pub fn infer(statements: Vec<Statement>, mut type_map: &mut TypeMap) -> Result<(), String> {
     for statement in statements {
-        let mut type_map: TypeMap = HashMap::new();
         let result = match statement {
             Statement::Let(id, exp, bodys) => {
-                let right_type = resolve_expr(exp);
-                let result = type_map.insert(id.clone(), right_type);
-                result.unwrap()
+                let right_type = resolve_expr(exp, &mut type_map);
+                type_map.insert(id.clone(), right_type);
+                let unboxed_bodys = bodys.into_iter().map(|statement| *statement).collect();
+                return infer(unboxed_bodys, type_map);
             }
-            Statement::Expr(expr) => resolve_expr(expr),
+            Statement::Expr(expr) => resolve_expr(expr, &mut type_map),
             _ => unimplemented!(),
         };
 
@@ -41,42 +40,42 @@ pub fn infer(statements: Vec<Statement>) -> Result<(), String> {
     Ok(())
 }
 
-pub fn resolve_expr(exp: Expr) -> TypeResult {
+pub fn resolve_expr(exp: Expr, type_map: &TypeMap) -> TypeResult {
     match exp {
-        Expr::Unary(uni) => resolve_type(uni),
-        Expr::Binary(left, op, right) => resolve_binary(*left, op, *right),
+        Expr::Unary(uni) => resolve_type(uni, type_map),
+        Expr::Binary(left, op, right) => resolve_binary(*left, op, *right, type_map),
         Expr::Call(ids, _) => unreachable!(),
         Expr::Fn(_, _, _) => unreachable!(),
     }
 }
 
-pub fn resolve_binary(left: Expr, op: BinOpKind, right: Expr) -> TypeResult {
+pub fn resolve_binary(left: Expr, op: BinOpKind, right: Expr, type_map: &TypeMap) -> TypeResult {
     match (left, right) {
         (Expr::Binary(l_left, l_op, l_right), Expr::Binary(r_left, r_op, r_right)) => {
-            let l_resolved = resolve_binary(*l_left, l_op, *l_right);
-            let r_resolved = resolve_binary(*r_left, r_op, *r_right);
-            resolve_type_result_with_op(l_resolved, op, r_resolved)
+            let l_resolved = resolve_binary(*l_left, l_op, *l_right, type_map);
+            let r_resolved = resolve_binary(*r_left, r_op, *r_right, type_map);
+            resolve_type_result_with_op(l_resolved, op, r_resolved, type_map)
         }
         (Expr::Binary(l_left, l_op, l_right), Expr::Unary(right)) => {
-            let l_resolved = resolve_binary(*l_left, l_op, *l_right);
-            let r_resolved = resolve_type(right);
-            resolve_type_result_with_op(l_resolved, op, r_resolved)
+            let l_resolved = resolve_binary(*l_left, l_op, *l_right, type_map);
+            let r_resolved = resolve_type(right, type_map);
+            resolve_type_result_with_op(l_resolved, op, r_resolved, type_map)
         }
         (Expr::Unary(left), Expr::Binary(r_left, r_op, r_right)) => {
-            let l_resolved = resolve_type(left);
-            let r_resolved = resolve_binary(*r_left, r_op, *r_right);
-            resolve_type_result_with_op(l_resolved, op, r_resolved)
+            let l_resolved = resolve_type(left, type_map);
+            let r_resolved = resolve_binary(*r_left, r_op, *r_right, type_map);
+            resolve_type_result_with_op(l_resolved, op, r_resolved, type_map)
         }
         (Expr::Unary(left), Expr::Unary(right)) => {
-            let l_resolved = resolve_type(left);
-            let r_resolved = resolve_type(right);
-            resolve_type_result_with_op(l_resolved, op, r_resolved)
+            let l_resolved = resolve_type(left, type_map);
+            let r_resolved = resolve_type(right, type_map);
+            resolve_type_result_with_op(l_resolved, op, r_resolved, type_map)
         }
         _ => unimplemented!(),
     }
 }
 
-pub fn resolve_type(uni: Uni) -> TypeResult {
+pub fn resolve_type(uni: Uni, type_map: &TypeMap) -> TypeResult {
     match uni {
         Uni::Id(id) => TypeResult::Uni(UniType(id.clone(), TypeKind::Undefined(vec![id]))),
         Uni::String(_) => TypeResult::Resolved(TypeKind::String),
@@ -93,11 +92,12 @@ pub fn resolve_type_result_with_op(
     left: TypeResult,
     op: BinOpKind,
     right: TypeResult,
+    type_map: &TypeMap,
 ) -> TypeResult {
     match (left, right) {
         (TypeResult::Resolved(left), TypeResult::Resolved(right)) => {
             if (left == right) {
-                match resolve_op(&left, op, &right) {
+                match resolve_op(&left, op, &right, type_map) {
                     Ok(_) => TypeResult::Resolved(left),
                     Err(err_str) => TypeResult::Err(err_str),
                 }
@@ -112,7 +112,12 @@ pub fn resolve_type_result_with_op(
     }
 }
 
-pub fn resolve_op(left: &TypeKind, op: BinOpKind, right: &TypeKind) -> Result<(), String> {
+pub fn resolve_op(
+    left: &TypeKind,
+    op: BinOpKind,
+    right: &TypeKind,
+    type_map: &TypeMap,
+) -> Result<(), String> {
     match left {
         TypeKind::Boolean => match op {
             BinOpKind::Eq | BinOpKind::Ne => Ok(()),
@@ -150,9 +155,10 @@ mod test {
     #[test]
     fn binary_type_mismatch() {
         let input = r#"123 + "abc""#;
+        let mut type_map: TypeMap = HashMap::new();
         if let Ok((statements, _)) = ast().easy_parse(input) {
             assert_eq!(
-                infer(statements),
+                infer(statements, &mut type_map),
                 Err(create_type_mismatch_err(&TypeKind::Int, &TypeKind::String))
             );
         } else {
@@ -163,9 +169,10 @@ mod test {
     #[test]
     fn binary_op_mismatch() {
         let input = r#""def" - "abc""#;
+        let mut type_map: TypeMap = HashMap::new();
         if let Ok((statements, _)) = ast().easy_parse(input) {
             assert_eq!(
-                infer(statements),
+                infer(statements, &mut type_map),
                 Err(create_cannot_use_op_err(
                     &TypeKind::String,
                     BinOpKind::Sub,
