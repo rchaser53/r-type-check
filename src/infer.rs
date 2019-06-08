@@ -18,6 +18,29 @@ impl TypeMap {
         self.0.insert(id, value)
     }
 
+    pub fn try_insert(&mut self, id: Id, new_type: TypeResult) -> Result<TypeResult, String> {
+        if let Some(defined_type) = self.try_get(&id) {
+            match (defined_type, &new_type) {
+                (TypeResult::Resolved(ref defined), TypeResult::Resolved(ref new)) => {
+                    if defined == new {
+                        Ok(new_type)
+                    } else {
+                        Err(create_type_mismatch_err(defined, &new))
+                    }
+                }
+                // TODO: need to confirmed
+                _ => self
+                    .0
+                    .insert(id, new_type)
+                    .ok_or(String::from("should not come here")),
+            }
+        } else {
+            self.0
+                .insert(id, new_type)
+                .ok_or(String::from("should not come here"))
+        }
+    }
+
     pub fn try_get(&mut self, id: &Id) -> Option<&mut TypeResult> {
         self.0.get_mut(id)
     }
@@ -147,21 +170,37 @@ pub fn resolve_type_result_with_op(
     left: TypeResult,
     op: BinOpKind,
     right: TypeResult,
-    type_map: &TypeMap,
+    type_map: &mut TypeMap,
 ) -> TypeResult {
-    match (left, right) {
-        (TypeResult::Resolved(left), TypeResult::Resolved(right)) => {
+    match (&left, &right) {
+        (TypeResult::Resolved(ref left), TypeResult::Resolved(ref right)) => {
             if (left == right) {
                 match resolve_op(&left, op, &right, type_map) {
-                    Ok(_) => TypeResult::Resolved(left),
+                    Ok(_) => TypeResult::Resolved(left.clone()),
                     Err(err_str) => TypeResult::Err(err_str),
                 }
             } else {
                 TypeResult::Err(create_type_mismatch_err(&left, &right))
             }
         }
-        (TypeResult::Unknown(left_uni_type), TypeResult::Resolved(right_type)) => unimplemented!(),
-        (TypeResult::Resolved(_), TypeResult::Unknown(_)) => unimplemented!(),
+        (TypeResult::Unknown(id), TypeResult::Resolved(right_type)) => {
+            type_map
+                .try_insert(id.clone(), right.clone())
+                .map_err(|err_str| return TypeResult::Err(err_str));
+            match resolve_op_one_side(&right_type, op, type_map) {
+                Ok(_) => TypeResult::Resolved(right_type.clone()),
+                Err(err_str) => TypeResult::Err(err_str),
+            }
+        }
+        (TypeResult::Resolved(left_type), TypeResult::Unknown(id)) => {
+            type_map
+                .try_insert(id.clone(), left.clone())
+                .map_err(|err_str| return TypeResult::Err(err_str));
+            match resolve_op_one_side(&left_type, op, type_map) {
+                Ok(_) => TypeResult::Resolved(left_type.clone()),
+                Err(err_str) => TypeResult::Err(err_str),
+            }
+        }
         (TypeResult::Unknown(_), TypeResult::Unknown(_)) => unimplemented!(),
         _ => unimplemented!(),
     }
@@ -186,6 +225,28 @@ pub fn resolve_op(
         _ => panic!(
             "resolve_op: should not come here. left:{:?} op:{:?} right:{:?}",
             left, op, right
+        ),
+    }
+}
+
+pub fn resolve_op_one_side(
+    oneside: &TypeKind,
+    op: BinOpKind,
+    type_map: &TypeMap,
+) -> Result<(), String> {
+    match oneside {
+        TypeKind::PrimitiveType(PrimitiveType::Boolean) => match op {
+            BinOpKind::Eq | BinOpKind::Ne => Ok(()),
+            _ => Err(create_cannot_use_op_one_side_err(oneside, op)),
+        },
+        TypeKind::PrimitiveType(PrimitiveType::Int) => Ok(()),
+        TypeKind::PrimitiveType(PrimitiveType::String) => match op {
+            BinOpKind::Add => Ok(()),
+            _ => Err(create_cannot_use_op_one_side_err(oneside, op)),
+        },
+        _ => panic!(
+            "resolve_op: should not come here. oneside:{:?} op:{:?}",
+            oneside, op
         ),
     }
 }
