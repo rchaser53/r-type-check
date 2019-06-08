@@ -121,12 +121,15 @@ pub fn resolve_expr(exp: Expr, type_map: &mut TypeMap) -> TypeResult {
             for arg in args {
                 fn_type_map.insert(arg.clone(), TypeResult::Unknown(arg));
             }
-            match infer(body.into_iter().map(|boxed| *boxed).collect(), &mut fn_type_map) {
+            match infer(
+                body.into_iter().map(|boxed| *boxed).collect(),
+                &mut fn_type_map,
+            ) {
                 // TBD: temporary implement
                 Ok(()) => TypeResult::Unknown(id),
                 Err(err_str) => TypeResult::Err(err_str),
             }
-        },
+        }
         Expr::Call(ids, _) => unreachable!(),
     }
 }
@@ -350,6 +353,18 @@ mod test {
                 &TypeKind::PrimitiveType(PrimitiveType::String)
             ))
         );
+    }
+
+    #[test]
+    fn fn_infer_correct() {
+        let input = r#"fn abc(aaa, bbb, ccc) {
+            123 + 345;
+            aaa + 123;
+            bbb + 456;
+            789 + ccc;
+            aaa + bbb;
+        }"#;
+        assert_infer!(input, Ok(()));
     }
 
     #[test]
