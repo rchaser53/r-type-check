@@ -57,18 +57,37 @@ pub fn infer(statements: Vec<Statement>, mut type_map: &mut TypeMap) -> Result<(
 
 pub fn resolve_assign(id: Id, exp: Expr, type_map: &mut TypeMap) -> TypeResult {
     let right_type = resolve_expr(exp, type_map);
-
-    let left_type = if let Some(left_type) = type_map.try_get(&id) {
+    if let Some(left_type) = type_map.try_get(&id) {
         match left_type {
-            TypeResult::Resolved(_) => return type_map.insert(id, right_type).unwrap(),
+            TypeResult::Resolved(left_type) => {
+                if let Some(err_str) = validate_assign_type(left_type, &right_type) {
+                    return TypeResult::Err(err_str);
+                }
+            }
             TypeResult::Err(_) => return left_type.clone(),
-            _ => left_type,
-        }
+            _ => {}
+        };
     } else {
         return TypeResult::Err(create_not_initialized_err(&id));
     };
 
     type_map.insert(id, right_type).unwrap()
+}
+
+pub fn validate_assign_type(
+    left_type: &TypeKind,
+    right_type_result: &TypeResult,
+) -> Option<String> {
+    match right_type_result {
+        TypeResult::Resolved(right_type) => {
+            if *left_type != *right_type {
+                Some(create_type_mismatch_err(left_type, right_type))
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
 }
 
 pub fn resolve_expr(exp: Expr, type_map: &mut TypeMap) -> TypeResult {
@@ -192,11 +211,34 @@ mod test {
     }
 
     #[test]
-    fn let_insert_type() {
+    fn let_type_correct() {
         let input = r#"let abc = 123 in (
           abc + 456;
         )"#;
         assert_infer!(input, Ok(()));
+    }
+
+    #[test]
+    fn let_assign_uninitialized() {
+        let input = r#"let abc = 123 in (
+          def = 456;
+        )"#;
+        assert_infer!(
+            input,
+            Err(create_not_initialized_err(&Id(String::from("def"))))
+        );
+    }
+
+    #[test]
+    fn let_assign_type_mismatch() {
+        let input = r#"let abc = 123 in (
+          abc = 456;
+          abc = "err";
+        )"#;
+        assert_infer!(
+            input,
+            Err(create_type_mismatch_err(&TypeKind::Int, &TypeKind::String))
+        );
     }
 
     #[test]
