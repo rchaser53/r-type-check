@@ -26,14 +26,10 @@ impl TypeMap {
 #[derive(Clone, Debug, PartialEq)]
 pub enum TypeResult {
     Resolved(TypeKind),
-    Uni(UniType),
     Binary(Box<TypeResult>, BinOpKind, Box<TypeResult>),
     Unknown(Id),
     Err(String),
 }
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct UniType(Id, TypeKind);
 
 pub fn infer(statements: Vec<Statement>, mut type_map: &mut TypeMap) -> Result<(), String> {
     for statement in statements {
@@ -164,9 +160,9 @@ pub fn resolve_type_result_with_op(
                 TypeResult::Err(create_type_mismatch_err(&left, &right))
             }
         }
-        (TypeResult::Uni(left_uni_type), TypeResult::Resolved(right_type)) => unimplemented!(),
-        (TypeResult::Resolved(_), TypeResult::Uni(_)) => unimplemented!(),
-        (TypeResult::Uni(_), TypeResult::Uni(_)) => unimplemented!(),
+        (TypeResult::Unknown(left_uni_type), TypeResult::Resolved(right_type)) => unimplemented!(),
+        (TypeResult::Resolved(_), TypeResult::Unknown(_)) => unimplemented!(),
+        (TypeResult::Unknown(_), TypeResult::Unknown(_)) => unimplemented!(),
         _ => unimplemented!(),
     }
 }
@@ -275,24 +271,15 @@ mod test {
         let mut type_map = TypeMap::new();
         type_map.insert(
             Id(String::from("abc")),
-            TypeResult::Uni(UniType(
-                Id(String::from("abc")),
-                TypeKind::PrimitiveType(PrimitiveType::Boolean),
-            )),
+            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean)),
         );
         type_map.insert(
             Id(String::from("abc")),
-            TypeResult::Uni(UniType(
-                Id(String::from("abc")),
-                TypeKind::PrimitiveType(PrimitiveType::Int),
-            )),
+            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
         );
         assert_eq!(
-            type_map.try_get(&Id(String::from("abc"))).unwrap(),
-            &TypeResult::Uni(UniType(
-                Id(String::from("abc")),
-                TypeKind::PrimitiveType(PrimitiveType::Int)
-            ))
+            type_map.try_get(&Id(String::from("abc"))).unwrap().clone(),
+            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int))
         );
     }
 }
