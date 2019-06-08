@@ -5,7 +5,7 @@ use combine::parser::char::string;
 use combine::stream::Stream;
 use combine::{choice, parser, Parser};
 
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum BinOpKind {
     Add, // +
     Sub, // -

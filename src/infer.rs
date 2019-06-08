@@ -17,12 +17,12 @@ impl TypeMap {
         self.0.insert(id, value)
     }
 
-    pub fn try_get(&self, id: &Id) -> Option<&TypeResult> {
-        self.0.get(id)
+    pub fn try_get(&mut self, id: &Id) -> Option<&mut TypeResult> {
+        self.0.get_mut(id)
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum TypeResult {
     Resolved(TypeKind),
     Uni(UniType),
@@ -30,7 +30,7 @@ pub enum TypeResult {
     Err(String),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct UniType(Id, TypeKind);
 
 pub fn infer(statements: Vec<Statement>, mut type_map: &mut TypeMap) -> Result<(), String> {
@@ -53,7 +53,7 @@ pub fn infer(statements: Vec<Statement>, mut type_map: &mut TypeMap) -> Result<(
     Ok(())
 }
 
-pub fn resolve_expr(exp: Expr, type_map: &TypeMap) -> TypeResult {
+pub fn resolve_expr(exp: Expr, type_map: &mut TypeMap) -> TypeResult {
     match exp {
         Expr::Unary(uni) => resolve_type(uni, type_map),
         Expr::Binary(left, op, right) => resolve_binary(*left, op, *right, type_map),
@@ -62,7 +62,12 @@ pub fn resolve_expr(exp: Expr, type_map: &TypeMap) -> TypeResult {
     }
 }
 
-pub fn resolve_binary(left: Expr, op: BinOpKind, right: Expr, type_map: &TypeMap) -> TypeResult {
+pub fn resolve_binary(
+    left: Expr,
+    op: BinOpKind,
+    right: Expr,
+    type_map: &mut TypeMap,
+) -> TypeResult {
     match (left, right) {
         (Expr::Binary(l_left, l_op, l_right), Expr::Binary(r_left, r_op, r_right)) => {
             let l_resolved = resolve_binary(*l_left, l_op, *l_right, type_map);
@@ -88,9 +93,12 @@ pub fn resolve_binary(left: Expr, op: BinOpKind, right: Expr, type_map: &TypeMap
     }
 }
 
-pub fn resolve_type(uni: Uni, type_map: &TypeMap) -> TypeResult {
+pub fn resolve_type(uni: Uni, type_map: &mut TypeMap) -> TypeResult {
     match uni {
-        Uni::Id(id) => TypeResult::Uni(UniType(id.clone(), TypeKind::Undefined(vec![id]))),
+        Uni::Id(id) => match type_map.try_get(&id) {
+            Some(result @ TypeResult::Resolved(_)) => result.clone(),
+            _ => TypeResult::Uni(UniType(id.clone(), TypeKind::Undefined(id))),
+        },
         Uni::String(_) => TypeResult::Resolved(TypeKind::String),
         Uni::Number(_) => TypeResult::Resolved(TypeKind::Int),
         Uni::Boolean(_) => TypeResult::Resolved(TypeKind::Boolean),
@@ -164,6 +172,19 @@ mod test {
     use crate::expr::bin_op::*;
     use crate::infer::*;
     use crate::statement::*;
+
+    #[test]
+    fn let_insert_type() {
+        let input = r#"let abc = 123 in (
+          abc + 456;
+        )"#;
+        let mut type_map = TypeMap::new();
+        if let Ok((statements, _)) = ast().easy_parse(input) {
+            assert_eq!(infer(statements, &mut type_map), Ok(()));
+        } else {
+            panic!("should not come here");
+        }
+    }
 
     #[test]
     fn binary_type_mismatch() {

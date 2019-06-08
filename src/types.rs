@@ -3,12 +3,12 @@ use std::sync::Mutex;
 
 use crate::expr::uni::*;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum TypeKind {
     Int,
     String,
     Boolean,
-    Undefined(Vec<Id>),
+    Undefined(Id),
 }
 
 impl PartialEq for TypeKind {
