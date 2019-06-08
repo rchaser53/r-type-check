@@ -25,7 +25,8 @@ impl TypeMap {
                     if defined == new {
                         Ok(new_type)
                     } else {
-                        Err(create_type_mismatch_err(defined, &new))
+                        // TODO: Maybe cannot come here now
+                        Err(create_infered_other_type_err(&id, defined, &new))
                     }
                 }
                 // TODO: need to confirmed
@@ -48,8 +49,8 @@ impl TypeMap {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum TypeResult {
-    Resolved(TypeKind),
     Binary(Box<TypeResult>, BinOpKind, Box<TypeResult>),
+    Resolved(TypeKind),
     Unknown(Id),
     Err(String),
 }
@@ -274,6 +275,19 @@ mod test {
           abc + 456;
         )"#;
         assert_infer!(input, Ok(()));
+
+        let input = r#"let abc = def in (
+          abc + 456;
+          abc + "def";
+        )"#;
+        // TODO: need to improve error message
+        assert_infer!(
+            input,
+            Err(create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+                &TypeKind::PrimitiveType(PrimitiveType::String)
+            ))
+        );
     }
 
     #[test]
