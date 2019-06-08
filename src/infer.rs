@@ -7,7 +7,20 @@ use crate::expr::*;
 use crate::statement::*;
 use crate::types::*;
 
-type TypeMap = HashMap<Id, TypeResult>;
+pub struct TypeMap(HashMap<Id, TypeResult>);
+impl TypeMap {
+    pub fn new() -> Self {
+        TypeMap(HashMap::new())
+    }
+
+    pub fn insert(&mut self, id: Id, value: TypeResult) -> Option<TypeResult> {
+        self.0.insert(id, value)
+    }
+
+    pub fn try_get(&self, id: &Id) -> Option<&TypeResult> {
+        self.0.get(id)
+    }
+}
 
 #[derive(Debug, PartialEq)]
 pub enum TypeResult {
@@ -155,7 +168,7 @@ mod test {
     #[test]
     fn binary_type_mismatch() {
         let input = r#"123 + "abc""#;
-        let mut type_map: TypeMap = HashMap::new();
+        let mut type_map = TypeMap::new();
         if let Ok((statements, _)) = ast().easy_parse(input) {
             assert_eq!(
                 infer(statements, &mut type_map),
@@ -169,7 +182,7 @@ mod test {
     #[test]
     fn binary_op_mismatch() {
         let input = r#""def" - "abc""#;
-        let mut type_map: TypeMap = HashMap::new();
+        let mut type_map = TypeMap::new();
         if let Ok((statements, _)) = ast().easy_parse(input) {
             assert_eq!(
                 infer(statements, &mut type_map),
@@ -182,5 +195,22 @@ mod test {
         } else {
             panic!("should not come here");
         }
+    }
+
+    #[test]
+    fn type_map_overwrite() {
+        let mut type_map = TypeMap::new();
+        type_map.insert(
+            Id(String::from("abc")),
+            TypeResult::Uni(UniType(Id(String::from("abc")), TypeKind::Boolean)),
+        );
+        type_map.insert(
+            Id(String::from("abc")),
+            TypeResult::Uni(UniType(Id(String::from("abc")), TypeKind::Int)),
+        );
+        assert_eq!(
+            type_map.try_get(&Id(String::from("abc"))).unwrap(),
+            &TypeResult::Uni(UniType(Id(String::from("abc")), TypeKind::Int))
+        );
     }
 }
