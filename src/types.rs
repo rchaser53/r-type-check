@@ -1,45 +1,89 @@
 use std::collections::HashMap;
+use std::fmt;
 use std::sync::Mutex;
 
 use crate::expr::uni::*;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum TypeKind {
-    Int,
-    String,
-    Boolean,
-    Undefined(Id),
+    PrimitiveType(PrimitiveType),
+    Custom(Id),
+}
+
+impl fmt::Debug for TypeKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            TypeKind::PrimitiveType(primitive) => write!(f, "{:?}", primitive),
+            TypeKind::Custom(id) => write!(f, "custom id:{:?}", id),
+        }
+    }
 }
 
 impl PartialEq for TypeKind {
     fn eq(&self, other: &Self) -> bool {
         match self {
-            TypeKind::Int => {
-                if let TypeKind::Int = other {
-                    true
+            TypeKind::PrimitiveType(left) => {
+                if let TypeKind::PrimitiveType(right) = other {
+                    left == right
                 } else {
                     false
                 }
             }
-            TypeKind::String => {
-                if let TypeKind::String = other {
-                    true
+            TypeKind::Custom(left) => {
+                if let TypeKind::Custom(right) = other {
+                    left == right
                 } else {
                     false
                 }
             }
-            TypeKind::Boolean => {
-                if let TypeKind::Boolean = other {
-                    true
-                } else {
-                    false
-                }
-            }
-            TypeKind::Undefined(_) => false,
         }
     }
 }
 impl Eq for TypeKind {}
+
+#[derive(Clone, Debug)]
+pub enum PrimitiveType {
+    Int,
+    String,
+    Boolean,
+    Array(Box<PrimitiveType>),
+}
+
+impl PartialEq for PrimitiveType {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            PrimitiveType::Int => {
+                if let PrimitiveType::Int = other {
+                    true
+                } else {
+                    false
+                }
+            }
+            PrimitiveType::String => {
+                if let PrimitiveType::String = other {
+                    true
+                } else {
+                    false
+                }
+            }
+            PrimitiveType::Boolean => {
+                if let PrimitiveType::Boolean = other {
+                    true
+                } else {
+                    false
+                }
+            }
+            PrimitiveType::Array(left) => {
+                if let PrimitiveType::Array(right) = other {
+                    left == right
+                } else {
+                    false
+                }
+            }
+        }
+    }
+}
+impl Eq for PrimitiveType {}
 
 lazy_static! {
     pub static ref TYPE_MAP: Mutex<HashMap<String, Uni>> = {

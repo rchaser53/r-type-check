@@ -28,6 +28,7 @@ pub enum TypeResult {
     Resolved(TypeKind),
     Uni(UniType),
     Binary(Box<TypeResult>, BinOpKind, Box<TypeResult>),
+    Unknown(Id),
     Err(String),
 }
 
@@ -134,11 +135,11 @@ pub fn resolve_type(uni: Uni, type_map: &mut TypeMap) -> TypeResult {
     match uni {
         Uni::Id(id) => match type_map.try_get(&id) {
             Some(result @ TypeResult::Resolved(_)) => result.clone(),
-            _ => TypeResult::Uni(UniType(id.clone(), TypeKind::Undefined(id))),
+            _ => TypeResult::Unknown(id),
         },
-        Uni::String(_) => TypeResult::Resolved(TypeKind::String),
-        Uni::Number(_) => TypeResult::Resolved(TypeKind::Int),
-        Uni::Boolean(_) => TypeResult::Resolved(TypeKind::Boolean),
+        Uni::String(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::String)),
+        Uni::Number(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
+        Uni::Boolean(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean)),
         Uni::Field(fields) => unimplemented!(),
         Uni::Array(_) => unimplemented!(),
         Uni::HashMap(_) => unimplemented!(),
@@ -163,7 +164,7 @@ pub fn resolve_type_result_with_op(
                 TypeResult::Err(create_type_mismatch_err(&left, &right))
             }
         }
-        (TypeResult::Uni(_), TypeResult::Resolved(_)) => unimplemented!(),
+        (TypeResult::Uni(left_uni_type), TypeResult::Resolved(right_type)) => unimplemented!(),
         (TypeResult::Resolved(_), TypeResult::Uni(_)) => unimplemented!(),
         (TypeResult::Uni(_), TypeResult::Uni(_)) => unimplemented!(),
         _ => unimplemented!(),
@@ -177,12 +178,12 @@ pub fn resolve_op(
     type_map: &TypeMap,
 ) -> Result<(), String> {
     match left {
-        TypeKind::Boolean => match op {
+        TypeKind::PrimitiveType(PrimitiveType::Boolean) => match op {
             BinOpKind::Eq | BinOpKind::Ne => Ok(()),
             _ => Err(create_cannot_use_op_err(left, op, right)),
         },
-        TypeKind::Int => Ok(()),
-        TypeKind::String => match op {
+        TypeKind::PrimitiveType(PrimitiveType::Int) => Ok(()),
+        TypeKind::PrimitiveType(PrimitiveType::String) => match op {
             BinOpKind::Add => Ok(()),
             _ => Err(create_cannot_use_op_err(left, op, right)),
         },
@@ -237,7 +238,10 @@ mod test {
         )"#;
         assert_infer!(
             input,
-            Err(create_type_mismatch_err(&TypeKind::Int, &TypeKind::String))
+            Err(create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+                &TypeKind::PrimitiveType(PrimitiveType::String)
+            ))
         );
     }
 
@@ -246,7 +250,10 @@ mod test {
         let input = r#"123 + "abc""#;
         assert_infer!(
             input,
-            Err(create_type_mismatch_err(&TypeKind::Int, &TypeKind::String))
+            Err(create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+                &TypeKind::PrimitiveType(PrimitiveType::String)
+            ))
         );
     }
 
@@ -256,9 +263,9 @@ mod test {
         assert_infer!(
             input,
             Err(create_cannot_use_op_err(
-                &TypeKind::String,
+                &TypeKind::PrimitiveType(PrimitiveType::String),
                 BinOpKind::Sub,
-                &TypeKind::String
+                &TypeKind::PrimitiveType(PrimitiveType::String)
             ))
         );
     }
@@ -268,15 +275,24 @@ mod test {
         let mut type_map = TypeMap::new();
         type_map.insert(
             Id(String::from("abc")),
-            TypeResult::Uni(UniType(Id(String::from("abc")), TypeKind::Boolean)),
+            TypeResult::Uni(UniType(
+                Id(String::from("abc")),
+                TypeKind::PrimitiveType(PrimitiveType::Boolean),
+            )),
         );
         type_map.insert(
             Id(String::from("abc")),
-            TypeResult::Uni(UniType(Id(String::from("abc")), TypeKind::Int)),
+            TypeResult::Uni(UniType(
+                Id(String::from("abc")),
+                TypeKind::PrimitiveType(PrimitiveType::Int),
+            )),
         );
         assert_eq!(
             type_map.try_get(&Id(String::from("abc"))).unwrap(),
-            &TypeResult::Uni(UniType(Id(String::from("abc")), TypeKind::Int))
+            &TypeResult::Uni(UniType(
+                Id(String::from("abc")),
+                TypeKind::PrimitiveType(PrimitiveType::Int)
+            ))
         );
     }
 }
