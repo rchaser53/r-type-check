@@ -17,44 +17,7 @@ pub enum Expr {
     Unary(Uni),
     Binary(Box<Expr>, BinOpKind, Box<Expr>),
     Call(Vec<Id>, Vec<Box<Expr>>),
-    Fn(Id, Args, Vec<Box<Statement>>),
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Args(Vec<(Id, Id)>);
-
-pub fn create_none_type_id() -> Id {
-    Id(String::from("None"))
-}
-
-fn args<I>() -> impl Parser<Input = I, Output = Args>
-where
-    I: Stream<Item = char>,
-    I::Error: ParseError<I::Item, I::Range, I::Position>,
-{
-    attempt(
-        token_skip_spaces('(')
-            .with(
-                skip_spaces(sep_by(
-                    word().and(optional(string_skip_spaces(":").with(skip_spaces(word())))),
-                    token_skip_spaces(','),
-                ))
-                .map(|unis: Vec<(Uni, Option<Uni>)>| {
-                    let args = unis
-                        .into_iter()
-                        .map(|(uni, word)| match word {
-                            Some(word_uni) => (uni.id(), word_uni.id()),
-                            None => (uni.id(), create_none_type_id()),
-                        })
-                        .collect();
-                    Args(args)
-                }),
-            )
-            .skip(token_skip_spaces(')')),
-    )
-    .or(token_skip_spaces('(')
-        .and(token_skip_spaces(')'))
-        .map(|_| Args(vec![])))
+    Fn(Id, Vec<Id>, Vec<Box<Statement>>),
 }
 
 fn fn_<I>() -> impl Parser<Input = I, Output = Expr>
@@ -64,14 +27,26 @@ where
 {
     string_skip_spaces("fn")
         .with(skip_spaces(word()))
-        .and(skip_spaces(args()))
+        .and(skip_spaces(
+            attempt(
+                token_skip_spaces('(')
+                    .with(
+                        skip_spaces(sep_by(word(), token_skip_spaces(',')))
+                            .map(|unis: Vec<Uni>| unis.into_iter().map(|uni| uni.id()).collect()),
+                    )
+                    .skip(token_skip_spaces(')')),
+            )
+            .or(token_skip_spaces('(')
+                .and(token_skip_spaces(')'))
+                .map(|_| vec![])),
+        ))
         .and(between(
             token_skip_spaces('{'),
             token_skip_spaces('}'),
             many(statement()),
         ))
         .map(
-            |((unary_, args), stetements_): ((Uni, Args), Vec<Statement>)| {
+            |((unary_, args), stetements_): ((Uni, Vec<Id>), Vec<Statement>)| {
                 Expr::Fn(
                     unary_.id(),
                     args,
@@ -509,7 +484,7 @@ mod test {
             Ok((
                 Expr::Fn(
                     Id(String::from("def")),
-                    Args(vec![]),
+                    vec![],
                     vec![Box::new(Statement::Let(
                         Id(String::from("abc")),
                         Expr::Unary(Uni::String(String::from("aaa"))),
@@ -528,7 +503,7 @@ mod test {
             Ok((
                 Expr::Fn(
                     Id(String::from("def")),
-                    Args(vec![(Id(String::from("a")), create_none_type_id())]),
+                    vec![Id(String::from("a"))],
                     vec![Box::new(Statement::Let(
                         Id(String::from("abc")),
                         Expr::Unary(Uni::String(String::from("aaa"))),
@@ -547,10 +522,7 @@ mod test {
             Ok((
                 Expr::Fn(
                     Id(String::from("def")),
-                    Args(vec![
-                        (Id(String::from("a")), create_none_type_id()),
-                        (Id(String::from("b")), create_none_type_id())
-                    ]),
+                    vec![Id(String::from("a")), Id(String::from("b")),],
                     vec![Box::new(Statement::Let(
                         Id(String::from("abc")),
                         Expr::Unary(Uni::String(String::from("aaa"))),
