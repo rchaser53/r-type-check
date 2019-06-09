@@ -62,7 +62,7 @@ pub fn infer(statements: Vec<Statement>, mut type_map: &mut TypeMap) -> Result<T
             Statement::Let(id, exp, bodys) => {
                 let right_type = resolve_expr(exp, &mut type_map);
                 if let TypeResult::Err(err_str) = right_type {
-                    return Ok(TypeResult::Err(err_str.to_string()));
+                    return Err(err_str);
                 }
                 type_map.insert(id.clone(), right_type);
                 let unboxed_bodys = bodys.into_iter().map(|statement| *statement).collect();
@@ -367,6 +367,20 @@ mod test {
                 panic!("should not come here");
             }
         };
+    }
+
+    #[test]
+    fn let_set() {
+        let input = r#"let abc = 123 + "abc" in (
+        )"#;
+        // TODO: need to improve error message
+        assert_infer!(
+            input,
+            Err(create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+                &TypeKind::PrimitiveType(PrimitiveType::String)
+            ))
+        );
     }
 
     #[test]
