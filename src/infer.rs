@@ -57,6 +57,7 @@ pub enum TypeResult {
 }
 
 pub fn infer(statements: Vec<Statement>, mut type_map: &mut TypeMap) -> Result<TypeResult, String> {
+    let mut return_type_results = vec![];
     for statement in statements {
         let result = match statement {
             Statement::Let(id, exp, bodys) => {
@@ -70,6 +71,11 @@ pub fn infer(statements: Vec<Statement>, mut type_map: &mut TypeMap) -> Result<T
             }
             Statement::Expr(expr) => resolve_expr(expr, &mut type_map),
             Statement::Assign(Assign(id, expr)) => resolve_assign(id, expr, &mut type_map),
+            Statement::Return(expr) => {
+                let return_type = resolve_expr(expr, &mut type_map);
+                return_type_results.push(return_type.clone());
+                return_type
+            }
             _ => unimplemented!(),
         };
 
@@ -77,9 +83,23 @@ pub fn infer(statements: Vec<Statement>, mut type_map: &mut TypeMap) -> Result<T
             return Err(err_str);
         }
     }
-    Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
-        PrimitiveType::Void,
-    )))
+
+    if return_type_results.is_empty() {
+        Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+            PrimitiveType::Void,
+        )))
+    } else {
+        let first_type_result = return_type_results.pop().unwrap();
+        for return_type_result in return_type_results {
+            if first_type_result != return_type_result {
+                return Err(create_conflict_type_return_err(
+                    &first_type_result,
+                    &return_type_result,
+                ));
+            }
+        }
+        return Ok(first_type_result);
+    }
 }
 
 pub fn resolve_assign(id: Id, exp: Expr, type_map: &mut TypeMap) -> TypeResult {
@@ -509,6 +529,21 @@ mod test {
             Err(create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
                 &TypeKind::PrimitiveType(PrimitiveType::String)
+            ))
+        );
+    }
+
+    #[test]
+    fn return_infer_incorrect() {
+        let input = r#"
+            return 123;
+            return "abc";
+        "#;
+        assert_infer!(
+            input,
+            Err(create_conflict_type_return_err(
+                &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::String)),
+                &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
             ))
         );
     }
