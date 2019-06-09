@@ -7,23 +7,22 @@ use crate::expr::uni::*;
 use crate::expr::*;
 use crate::utils::{skip_spaces, string_skip_spaces, token_skip_spaces};
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Statement {
     Let(Id, Expr, Vec<Box<Statement>>),
     Expr(Expr),
     Assign(Assign),
-    For(ForCondition, Vec<Box<Statement>>),
     If(Vec<(IfCondition, Vec<Box<Statement>>)>),
     Return(Expr),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Assign(pub Id, pub Expr);
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ForCondition(Box<Statement>, Box<Statement>, Box<Statement>);
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct IfCondition(Box<Statement>);
 
 parser! {

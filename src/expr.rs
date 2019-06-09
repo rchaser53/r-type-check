@@ -12,7 +12,7 @@ use bin_op::{bin_op as bin_op_, BinOpKind};
 pub mod uni;
 use uni::{field, uni as create_uni, word, word_, Id, Uni};
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Expr {
     Unary(Uni),
     Binary(Box<Expr>, BinOpKind, Box<Expr>),

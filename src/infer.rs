@@ -158,7 +158,14 @@ pub fn resolve_expr(exp: Expr, type_map: &mut TypeMap) -> TypeResult {
                 Ok(result) => {
                     let fn_arg_types = args
                         .into_iter()
-                        .map(|id| OpeaqueType::Unknown(id))
+                        .map(|id| {
+                            if let Some(TypeResult::Resolved(type_kind)) = fn_type_map.try_get(&id)
+                            {
+                                OpeaqueType::Defined(Box::new(type_kind.clone()))
+                            } else {
+                                OpeaqueType::Unknown(id)
+                            }
+                        })
                         .collect();
                     let return_type = match result {
                         TypeResult::Resolved(return_type) => {
@@ -178,20 +185,47 @@ pub fn resolve_expr(exp: Expr, type_map: &mut TypeMap) -> TypeResult {
 }
 
 pub fn resolve_call(ids: Vec<Id>, args: Vec<Box<Expr>>, type_map: &mut TypeMap) -> TypeResult {
-    // need to implement correctly
+    // TBD: need to implement correctly
+    // especially for field
+    // ex. xx.yy();
     let id = &ids[0];
-    match type_map.try_get(&id) {
-        Some(ret_result) => match ret_result {
-            TypeResult::Resolved(TypeKind::Function(_, return_opeaque)) => match return_opeaque {
+    let ret_result = match type_map.try_get(&id) {
+        Some(ret_result) => ret_result.clone(),
+        None => {
+            return TypeResult::Err(create_cannot_call_err(&id));
+        }
+    };
+
+    match ret_result {
+        TypeResult::Resolved(TypeKind::Function(params, return_opeaque)) => {
+            for (index, param) in params.into_iter().enumerate() {
+                match param {
+                    OpeaqueType::Defined(param_type_kind) => {
+                        let arg_exp = args.get(index).unwrap();
+                        let arg_type_result = resolve_expr(*arg_exp.clone(), type_map);
+                        let param_type_result = TypeResult::Resolved(*param_type_kind.clone());
+                        if arg_type_result != param_type_result {
+                            return TypeResult::Err(create_param_and_arg_type_is_mismatch_err(
+                                &arg_type_result,
+                                &param_type_result,
+                            ));
+                        }
+                    }
+                    _ => {
+                        // TBD: need to check correctly
+                    }
+                }
+            }
+
+            match return_opeaque {
                 OpeaqueType::Defined(boxed_type_kind) => {
                     TypeResult::Resolved(*boxed_type_kind.clone())
                 }
                 OpeaqueType::Unknown(id) => TypeResult::Unknown(id.clone()),
-            },
-            TypeResult::Unknown(id) => TypeResult::Unknown(id.clone()),
-            _ => unreachable!(),
-        },
-        None => TypeResult::Err(create_cannot_call_err(&id)),
+            }
+        }
+        TypeResult::Unknown(id) => TypeResult::Unknown(id.clone()),
+        _ => unreachable!(),
     }
 }
 
@@ -650,6 +684,21 @@ mod test {
             Err(create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Boolean),
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
+            ))
+        );
+
+        let input = r#"
+            let test = fn(abc) {
+              return abc == true;
+            } in (
+              test(123);
+            );
+        "#;
+        assert_infer!(
+            input,
+            Err(create_param_and_arg_type_is_mismatch_err(
+                &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
+                &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean)),
             ))
         );
     }

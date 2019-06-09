@@ -36,3 +36,10 @@ pub fn create_conflict_type_return_err(defined: &TypeResult, new: &TypeResult) -
 pub fn create_cannot_call_err(id: &Id) -> String {
     format!("cannot call {:?}", id)
 }
+
+pub fn create_param_and_arg_type_is_mismatch_err(arg: &TypeResult, param: &TypeResult) -> String {
+    format!(
+        "param and arg type is mismatch arg type:{:?} param type:{:?}",
+        arg, param
+    )
+}

@@ -14,7 +14,7 @@ impl PartialEq for Id {
 }
 impl Eq for Id {}
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Uni {
     Id(Id),
     Array(Vec<Uni>),
@@ -48,7 +48,7 @@ impl Uni {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Boolean {
     True,
     False,
@@ -63,7 +63,7 @@ impl Boolean {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct HashSet(Id, Box<Uni>);
 
 pub fn uni_<I>() -> impl Parser<Input = I, Output = Uni>
