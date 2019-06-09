@@ -146,7 +146,7 @@ pub fn resolve_expr(exp: Expr, type_map: &mut TypeMap) -> TypeResult {
     match exp {
         Expr::Unary(uni) => resolve_type(uni, type_map),
         Expr::Binary(left, op, right) => resolve_binary(*left, op, *right, type_map),
-        Expr::Fn(id, args, body) => {
+        Expr::Fn(args, body) => {
             let mut fn_type_map = TypeMap::new();
             for arg in args.clone() {
                 fn_type_map.insert(arg.clone(), TypeResult::Unknown(arg));
@@ -518,7 +518,7 @@ mod test {
 
     #[test]
     fn fn_infer_correct() {
-        let input = r#"fn abc(aaa, bbb, ccc) {
+        let input = r#"fn (aaa, bbb, ccc) {
             123 + 345;
             aaa + 123;
             bbb + 456;
@@ -533,7 +533,7 @@ mod test {
             )))
         );
 
-        let input = r#"fn abc(aaa, bbb) {
+        let input = r#"fn (aaa, bbb) {
             aaa + 123;
             bbb + 456;
             aaa + bbb + "abc";

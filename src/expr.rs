@@ -17,7 +17,7 @@ pub enum Expr {
     Unary(Uni),
     Binary(Box<Expr>, BinOpKind, Box<Expr>),
     Call(Vec<Id>, Vec<Box<Expr>>),
-    Fn(Id, Vec<Id>, Vec<Box<Statement>>),
+    Fn(Vec<Id>, Vec<Box<Statement>>),
 }
 
 fn fn_<I>() -> impl Parser<Input = I, Output = Expr>
@@ -26,8 +26,7 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     string_skip_spaces("fn")
-        .with(skip_spaces(word()))
-        .and(skip_spaces(
+        .with(skip_spaces(
             attempt(
                 token_skip_spaces('(')
                     .with(
@@ -45,15 +44,9 @@ where
             token_skip_spaces('}'),
             many(statement()),
         ))
-        .map(
-            |((unary_, args), stetements_): ((Uni, Vec<Id>), Vec<Statement>)| {
-                Expr::Fn(
-                    unary_.id(),
-                    args,
-                    stetements_.into_iter().map(|s| Box::new(s)).collect(),
-                )
-            },
-        )
+        .map(|(args, stetements_): (Vec<Id>, Vec<Statement>)| {
+            Expr::Fn(args, stetements_.into_iter().map(|s| Box::new(s)).collect())
+        })
 }
 
 pub fn expr_<I>() -> impl Parser<Input = I, Output = Expr>
@@ -476,14 +469,13 @@ mod test {
 
     #[test]
     fn fn_test() {
-        let input = r#"fn def() {
+        let input = r#"fn() {
           let abc = "aaa" in
         }"#;
         assert_eq!(
             expr().easy_parse(input),
             Ok((
                 Expr::Fn(
-                    Id(String::from("def")),
                     vec![],
                     vec![Box::new(Statement::Let(
                         Id(String::from("abc")),
@@ -495,14 +487,13 @@ mod test {
             ))
         );
 
-        let input = r#"fn def( a ) {
+        let input = r#"fn ( a ) {
           let abc = "aaa" in
         }"#;
         assert_eq!(
             expr().easy_parse(input),
             Ok((
                 Expr::Fn(
-                    Id(String::from("def")),
                     vec![Id(String::from("a"))],
                     vec![Box::new(Statement::Let(
                         Id(String::from("abc")),
@@ -514,14 +505,13 @@ mod test {
             ))
         );
 
-        let input = r#"fn def( a, b ) {
+        let input = r#"fn ( a, b ) {
           let abc = "aaa" in
         }"#;
         assert_eq!(
             expr().easy_parse(input),
             Ok((
                 Expr::Fn(
-                    Id(String::from("def")),
                     vec![Id(String::from("a")), Id(String::from("b")),],
                     vec![Box::new(Statement::Let(
                         Id(String::from("abc")),
