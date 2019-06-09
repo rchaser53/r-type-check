@@ -14,7 +14,7 @@ pub enum Statement {
     Assign(Assign),
     For(ForCondition, Vec<Box<Statement>>),
     If(Vec<(IfCondition, Vec<Box<Statement>>)>),
-    Return(Box<Statement>),
+    Return(Expr),
 }
 
 #[derive(Debug, PartialEq)]
@@ -79,7 +79,13 @@ where
 {
     string_skip_spaces("return")
         .with(skip_spaces(expr_statement()))
-        .map(|value| Statement::Return(Box::new(value)))
+        .map(|value| {
+            if let Statement::Expr(exp) = value {
+                Statement::Return(exp)
+            } else {
+                unreachable!()
+            }
+        })
 }
 
 fn let_<I>() -> impl Parser<Input = I, Output = Statement>
@@ -351,9 +357,7 @@ mod test {
     fn return_test() {
         assert_statement!(
             r#"return "aaa";"#,
-            Statement::Return(Box::new(Statement::Expr(Expr::Unary(Uni::String(
-                String::from("aaa")
-            )))))
+            Statement::Return(Expr::Unary(Uni::String(String::from("aaa"))))
         );
     }
 
@@ -498,9 +502,9 @@ mod test {
                             Box::new(Expr::Unary(Uni::Number(2))),
                         )
                     )),),
-                    Box::new(Statement::Return(Box::new(Statement::Expr(Expr::Unary(
-                        Uni::Id(Id(String::from("abc")))
-                    )))))
+                    Box::new(Statement::Return(Expr::Unary(Uni::Id(Id(String::from(
+                        "abc"
+                    ))))))
                 ],
             )
         );
