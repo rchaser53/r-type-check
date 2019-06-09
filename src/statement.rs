@@ -12,7 +12,7 @@ pub enum Statement {
     Let(Id, Expr, Vec<Box<Statement>>),
     Expr(Expr),
     Assign(Assign),
-    If(Vec<(IfCondition, Vec<Box<Statement>>)>),
+    If(Vec<(Expr, Vec<Box<Statement>>)>),
     Return(Expr),
 }
 
@@ -21,9 +21,6 @@ pub struct Assign(pub Id, pub Expr);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ForCondition(Box<Statement>, Box<Statement>, Box<Statement>);
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct IfCondition(Box<Statement>);
 
 parser! {
     pub fn statement[I]()(I) -> Statement
@@ -41,17 +38,12 @@ parser! {
     }
 }
 
-fn if_condition<I>() -> impl Parser<Input = I, Output = IfCondition>
+fn if_condition<I>() -> impl Parser<Input = I, Output = Expr>
 where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    between(
-        token_skip_spaces('('),
-        token_skip_spaces(')'),
-        expr_statement_no_semicolon(),
-    )
-    .map(|cond| IfCondition(Box::new(cond)))
+    between(token_skip_spaces('('), token_skip_spaces(')'), expr()).map(|expr| expr)
 }
 
 fn assign_<I>() -> impl Parser<Input = I, Output = Assign>
@@ -151,8 +143,8 @@ where
 {
     create_if(string_skip_spaces("if")).and(else_if_()).map(
         |((cond, stetements_), mut elses): (
-            (IfCondition, Vec<Box<Statement>>),
-            Vec<(IfCondition, Vec<Box<Statement>>)>,
+            (Expr, Vec<Box<Statement>>),
+            Vec<(Expr, Vec<Box<Statement>>)>,
         )| {
             let mut if_vecs = vec![(cond, stetements_)];
             if_vecs.append(&mut elses);
@@ -161,7 +153,7 @@ where
     )
 }
 
-type IfCombination = (IfCondition, Vec<Box<Statement>>);
+type IfCombination = (Expr, Vec<Box<Statement>>);
 fn if_else_<I>() -> impl Parser<Input = I, Output = Statement>
 where
     I: Stream<Item = char>,
@@ -179,13 +171,11 @@ where
                     many(statement()),
                 ))
                 .map(
-                    |(else_condition, else_statements): (Option<IfCondition>, Vec<Statement>)| {
+                    |(else_condition, else_statements): (Option<Expr>, Vec<Statement>)| {
                         let else_condition = if let Some(cond) = else_condition {
                             cond
                         } else {
-                            IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
-                                Boolean::True,
-                            )))))
+                            Expr::Unary(Uni::Boolean(Boolean::True))
                         };
                         (
                             else_condition,
@@ -211,7 +201,7 @@ where
         )
 }
 
-fn else_if_<I>() -> impl Parser<Input = I, Output = Vec<(IfCondition, Vec<Box<Statement>>)>>
+fn else_if_<I>() -> impl Parser<Input = I, Output = Vec<(Expr, Vec<Box<Statement>>)>>
 where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
@@ -226,14 +216,9 @@ where
             many(statement()),
         )))
         .map(
-            |(mut else_ifs, statements_): (
-                Vec<(IfCondition, Vec<Box<Statement>>)>,
-                Vec<Statement>,
-            )| {
+            |(mut else_ifs, statements_): (Vec<(Expr, Vec<Box<Statement>>)>, Vec<Statement>)| {
                 else_ifs.push((
-                    IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
-                        Boolean::True,
-                    ))))),
+                    Expr::Unary(Uni::Boolean(Boolean::True)),
                     statements_.into_iter().map(|s| Box::new(s)).collect(),
                 ));
                 else_ifs
@@ -251,9 +236,7 @@ where
         ))
         .map(|statements_: Vec<Statement>| {
             vec![(
-                IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
-                    Boolean::True,
-                ))))),
+                Expr::Unary(Uni::Boolean(Boolean::True)),
                 statements_.into_iter().map(|s| Box::new(s)).collect(),
             )]
         })))
@@ -261,7 +244,7 @@ where
 
 fn create_if<I, T>(
     input: impl Parser<Input = I, Output = T>,
-) -> impl Parser<Input = I, Output = (IfCondition, Vec<Box<Statement>>)>
+) -> impl Parser<Input = I, Output = (Expr, Vec<Box<Statement>>)>
 where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
@@ -273,7 +256,7 @@ where
             token_skip_spaces('}'),
             many(statement()),
         ))
-        .map(|(cond, stetements_): (IfCondition, Vec<Statement>)| {
+        .map(|(cond, stetements_): (Expr, Vec<Statement>)| {
             (cond, stetements_.into_iter().map(|s| Box::new(s)).collect())
         })
 }
@@ -333,11 +316,11 @@ mod test {
               let abc = "aaa" in
             }"#,
             Statement::If(vec![(
-                IfCondition(Box::new(Statement::Expr(Expr::Binary(
+                Expr::Binary(
                     Box::new(Expr::Unary(Uni::Id(Id(String::from("i"))))),
                     BinOpKind::Lt,
                     Box::new(Expr::Unary(Uni::Number(10)))
-                ))),),
+                ),
                 vec![Box::new(Statement::Let(
                     Id(String::from("abc")),
                     Expr::Unary(Uni::String(String::from("aaa"))),
@@ -354,11 +337,11 @@ mod test {
             }"#,
             Statement::If(vec![
                 (
-                    IfCondition(Box::new(Statement::Expr(Expr::Binary(
+                    Expr::Binary(
                         Box::new(Expr::Unary(Uni::Id(Id(String::from("i"))))),
                         BinOpKind::Lt,
                         Box::new(Expr::Unary(Uni::Number(10)))
-                    ))),),
+                    ),
                     vec![Box::new(Statement::Let(
                         Id(String::from("abc")),
                         Expr::Unary(Uni::String(String::from("aaa"))),
@@ -366,9 +349,7 @@ mod test {
                     ))]
                 ),
                 (
-                    IfCondition(Box::new(Statement::Expr(Expr::Unary(Uni::Boolean(
-                        Boolean::True
-                    ),)))),
+                    Expr::Unary(Uni::Boolean(Boolean::True)),
                     vec![Box::new(Statement::Let(
                         Id(String::from("def")),
                         Expr::Unary(Uni::String(String::from("bbb"))),
@@ -386,11 +367,11 @@ mod test {
             }"#,
             Statement::If(vec![
                 (
-                    IfCondition(Box::new(Statement::Expr(Expr::Binary(
+                    Expr::Binary(
                         Box::new(Expr::Unary(Uni::Id(Id(String::from("i"))))),
                         BinOpKind::Lt,
                         Box::new(Expr::Unary(Uni::Number(10)))
-                    ))),),
+                    ),
                     vec![Box::new(Statement::Let(
                         Id(String::from("abc")),
                         Expr::Unary(Uni::String(String::from("aaa"))),
@@ -398,11 +379,11 @@ mod test {
                     ))]
                 ),
                 (
-                    IfCondition(Box::new(Statement::Expr(Expr::Binary(
+                    Expr::Binary(
                         Box::new(Expr::Unary(Uni::Id(Id(String::from("j"))))),
                         BinOpKind::Gt,
                         Box::new(Expr::Unary(Uni::Number(100)))
-                    ))),),
+                    ),
                     vec![Box::new(Statement::Let(
                         Id(String::from("def")),
                         Expr::Unary(Uni::String(String::from("bbb"))),
