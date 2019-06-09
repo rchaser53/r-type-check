@@ -287,40 +287,6 @@ where
     assign_().map(|assign| Statement::Assign(assign))
 }
 
-// fn for_<I>() -> impl Parser<Input = I, Output = Statement>
-// where
-//     I: Stream<Item = char>,
-//     I::Error: ParseError<I::Item, I::Range, I::Position>,
-// {
-//     string_skip_spaces("for")
-//         .with(skip_spaces(for_condition()))
-//         .and(between(
-//             token_skip_spaces('{'),
-//             token_skip_spaces('}'),
-//             many(statement()),
-//         ))
-//         .map(|(cond, stetements_): (ForCondition, Vec<Statement>)| {
-//             Statement::For(cond, stetements_.into_iter().map(|s| Box::new(s)).collect())
-//         })
-// }
-
-// fn for_condition<I>() -> impl Parser<Input = I, Output = ForCondition>
-// where
-//     I: Stream<Item = char>,
-//     I::Error: ParseError<I::Item, I::Range, I::Position>,
-// {
-//     between(
-//         token_skip_spaces('('),
-//         token_skip_spaces(')'),
-//         skip_spaces(let_())
-//             .and(skip_spaces(expr_statement()))
-//             .and(skip_spaces(expr_statement_no_semicolon())),
-//     )
-//     .map(|((first, limit), iterate)| {
-//         ForCondition(Box::new(first), Box::new(limit), Box::new(iterate))
-//     })
-// }
-
 mod test {
     use crate::expr::bin_op::*;
     use crate::statement::*;
@@ -478,6 +444,33 @@ mod test {
         );
 
         assert_statement!(
+            r#"let abc = fn(aaa) {
+              return aaa + 123;
+            } in
+              abc(456) + "def";
+            "#,
+            Statement::Let(
+                Id(String::from("abc")),
+                Expr::Fn(
+                    vec![Id(String::from("aaa"))],
+                    vec![Box::new(Statement::Return(Expr::Binary(
+                        Box::new(Expr::Unary(Uni::Id(Id(String::from("aaa"))))),
+                        BinOpKind::Add,
+                        Box::new(Expr::Unary(Uni::Number(123))),
+                    )))]
+                ),
+                vec![Box::new(Statement::Expr(Expr::Binary(
+                    Box::new(Expr::Call(
+                        vec![Id(String::from("abc"))],
+                        vec![Box::new(Expr::Unary(Uni::Number(456)))]
+                    )),
+                    BinOpKind::Add,
+                    Box::new(Expr::Unary(Uni::String(String::from("def")))),
+                ))),]
+            )
+        );
+
+        assert_statement!(
             r#"let abc = (1 + 3) * 4 in (
               abc = abc + 2;
               return abc;
@@ -509,66 +502,4 @@ mod test {
             )
         );
     }
-
-    // #[test]
-    // fn for_test() {
-    //     assert_eq!(
-    //         statement().easy_parse(
-    //             r#"for (let i = 0; i < 10; i + 1) {
-    //           let abc = "aaa";
-    //         }"#
-    //         ),
-    //         Ok((
-    //             Statement::For(
-    //                 ForCondition(
-    //                     Box::new(Statement::LetExpr(
-    //                         Id(String::from("i")),
-    //                         Expr::Unary(Uni::Number(0)),
-    //                     )),
-    //                     Box::new(Statement::Expr(Expr::Binary(
-    //                         Box::new(Expr::Unary(Uni::Id(Id(String::from("i"))))),
-    //                         BinOpKind::Lt,
-    //                         Box::new(Expr::Unary(Uni::Number(10)))
-    //                     ))),
-    //                     Box::new(Statement::Expr(Expr::Binary(
-    //                         Box::new(Expr::Unary(Uni::Id(Id(String::from("i"))))),
-    //                         BinOpKind::Add,
-    //                         Box::new(Expr::Unary(Uni::Number(1)))
-    //                     )))
-    //                 ),
-    //                 vec![Box::new(Statement::LetExpr(
-    //                     Id(String::from("abc")),
-    //                     Expr::Unary(Uni::String(String::from("aaa")))
-    //                 ))]
-    //             ),
-    //             ""
-    //         ))
-    //     );
-    // }
-
-    // #[test]
-    // fn for_condition_test() {
-    //     assert_eq!(
-    //         for_condition().easy_parse(r#"(let i = 0; i < 10; i + 1)"#),
-    //         Ok((
-    //             ForCondition(
-    //                 Box::new(Statement::LetExpr(
-    //                     Id(String::from("i")),
-    //                     Expr::Unary(Uni::Number(0)),
-    //                 )),
-    //                 Box::new(Statement::Expr(Expr::Binary(
-    //                     Box::new(Expr::Unary(Uni::Id(Id(String::from("i"))))),
-    //                     BinOpKind::Lt,
-    //                     Box::new(Expr::Unary(Uni::Number(10)))
-    //                 ))),
-    //                 Box::new(Statement::Expr(Expr::Binary(
-    //                     Box::new(Expr::Unary(Uni::Id(Id(String::from("i"))))),
-    //                     BinOpKind::Add,
-    //                     Box::new(Expr::Unary(Uni::Number(1)))
-    //                 )))
-    //             ),
-    //             ""
-    //         ))
-    //     );
-    // }
 }

@@ -388,7 +388,6 @@ pub fn resolve_op_one_side(
 
 mod test {
     use crate::ast::*;
-    use crate::expr::bin_op::*;
     use crate::infer::*;
     use crate::statement::*;
 
