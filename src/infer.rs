@@ -60,29 +60,60 @@ pub enum TypeResult {
 pub fn infer(statements: Vec<Statement>, mut type_map: &mut TypeMap) -> Result<TypeResult, String> {
     let mut return_type_results = vec![];
     for statement in statements {
-        let result = match statement {
-            Statement::Let(id, exp, bodys) => {
+        match statement {
+            Statement::Let(id, exp, body) => {
                 let right_type = resolve_expr(exp, &mut type_map);
                 if let TypeResult::Err(err_str) = right_type {
                     return Err(err_str);
                 }
                 type_map.insert(id.clone(), right_type);
-                let unboxed_bodys = bodys.into_iter().map(|statement| *statement).collect();
-                return infer(unboxed_bodys, type_map);
+                let unboxed_body = body.into_iter().map(|statement| *statement).collect();
+                infer(unboxed_body, type_map)?;
             }
-            Statement::Expr(expr) => resolve_expr(expr, &mut type_map),
-            Statement::Assign(Assign(id, expr)) => resolve_assign(id, expr, &mut type_map),
+            Statement::Expr(expr) => {
+                let type_result = resolve_expr(expr, &mut type_map);
+                if let TypeResult::Err(err_str) = type_result {
+                    return Err(err_str);
+                }
+            }
+            Statement::Assign(Assign(id, expr)) => {
+                let type_result = resolve_assign(id, expr, &mut type_map);
+                if let TypeResult::Err(err_str) = type_result {
+                    return Err(err_str);
+                }
+            }
             Statement::Return(expr) => {
-                let return_type = resolve_expr(expr, &mut type_map);
-                return_type_results.push(return_type.clone());
-                return_type
+                let type_result = resolve_expr(expr, &mut type_map);
+                if let TypeResult::Err(err_str) = type_result {
+                    return Err(err_str);
+                }
+                return_type_results.push(type_result.clone());
             }
-            _ => unimplemented!(),
+            Statement::If(if_tuples) => {
+                for (if_condition, boxed_body) in if_tuples {
+                    let if_condition_type_result = resolve_expr(if_condition, &mut type_map);
+                    match if_condition_type_result {
+                        TypeResult::Resolved(type_kind) => {
+                            if type_kind != TypeKind::PrimitiveType(PrimitiveType::Boolean) {
+                                return Err(create_if_condition_not_boolean_err(&type_kind));
+                            }
+                        }
+                        TypeResult::Unknown(id) => {
+                            type_map.insert(
+                                id.clone(),
+                                TypeResult::Resolved(TypeKind::PrimitiveType(
+                                    PrimitiveType::Boolean,
+                                )),
+                            );
+                        }
+                        TypeResult::Err(err_str) => return Err(err_str),
+                        _ => unreachable!(),
+                    };
+                    let unboxed_body = boxed_body.into_iter().map(|statement| *statement).collect();
+                    infer(unboxed_body, type_map)?;
+                }
+            }
         };
-
-        if let TypeResult::Err(err_str) = result {
-            return Err(err_str);
-        }
     }
 
     if return_type_results.is_empty() {
@@ -459,7 +490,7 @@ pub fn resolve_op(
             ))),
             _ => Err(create_cannot_use_op_err(left, op, right)),
         },
-        _ => panic!(
+        _ => unreachable!(
             "resolve_op: should not come here. left:{:?} op:{:?} right:{:?}",
             left, op, right
         ),
@@ -481,7 +512,7 @@ pub fn resolve_op_one_side(
             BinOpKind::Add => Ok(()),
             _ => Err(create_cannot_use_op_one_side_err(oneside, op)),
         },
-        _ => panic!(
+        _ => unreachable!(
             "resolve_op_one_side: should not come here. oneside:{:?} op:{:?}",
             oneside, op
         ),

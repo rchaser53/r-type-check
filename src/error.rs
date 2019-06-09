@@ -43,3 +43,10 @@ pub fn create_param_and_arg_type_is_mismatch_err(arg: &TypeResult, param: &TypeR
         arg, param
     )
 }
+
+pub fn create_if_condition_not_boolean_err(type_kind: &TypeKind) -> String {
+    format!(
+        "if condition should be boolean but param type:{:?}",
+        type_kind
+    )
+}
