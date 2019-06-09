@@ -383,9 +383,7 @@ mod test {
                 &TypeKind::PrimitiveType(PrimitiveType::String)
             ))
         );
-    }
-    #[test]
-    fn failed() {
+
         let input = r#"let abc = true in (
           abc = (123 > 456) + 44;
         )"#;
@@ -394,6 +392,17 @@ mod test {
             Err(create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Boolean),
                 &TypeKind::PrimitiveType(PrimitiveType::Int)
+            ))
+        );
+
+        let input = r#"let abc = def in (
+          (abc + 234) != (abc == false);
+        )"#;
+        assert_infer!(
+            input,
+            Err(create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+                &TypeKind::PrimitiveType(PrimitiveType::Boolean)
             ))
         );
     }
