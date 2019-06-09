@@ -56,6 +56,7 @@ pub enum TypeResult {
     Err(String),
 }
 
+/// return function return TypeResult
 pub fn infer(statements: Vec<Statement>, mut type_map: &mut TypeMap) -> Result<TypeResult, String> {
     let mut return_type_results = vec![];
     for statement in statements {
@@ -147,15 +148,28 @@ pub fn resolve_expr(exp: Expr, type_map: &mut TypeMap) -> TypeResult {
         Expr::Binary(left, op, right) => resolve_binary(*left, op, *right, type_map),
         Expr::Fn(id, args, body) => {
             let mut fn_type_map = TypeMap::new();
-            for arg in args {
+            for arg in args.clone() {
                 fn_type_map.insert(arg.clone(), TypeResult::Unknown(arg));
             }
             match infer(
                 body.into_iter().map(|boxed| *boxed).collect(),
                 &mut fn_type_map,
             ) {
-                // TBD: temporary implement
-                Ok(_) => TypeResult::Unknown(id),
+                Ok(result) => {
+                    let fn_arg_types = args
+                        .into_iter()
+                        .map(|id| OpeaqueType::Unknown(id))
+                        .collect();
+                    let return_type = match result {
+                        TypeResult::Resolved(return_type) => {
+                            OpeaqueType::Defined(Box::new(return_type))
+                        }
+                        TypeResult::Unknown(id) => OpeaqueType::Unknown(id),
+                        _ => unreachable!(),
+                    };
+                    // TBD: need to think more
+                    TypeResult::Resolved(TypeKind::Function(fn_arg_types, return_type))
+                }
                 Err(err_str) => TypeResult::Err(err_str),
             }
         }
