@@ -79,6 +79,10 @@ pub fn infer(statements: Vec<Statement>, mut type_map: &mut TypeMap) -> Result<(
 
 pub fn resolve_assign(id: Id, exp: Expr, type_map: &mut TypeMap) -> TypeResult {
     let right_type = resolve_expr(exp, type_map);
+    if let TypeResult::Err(err_str) = right_type {
+        return TypeResult::Err(err_str.to_string());
+    }
+
     if let Some(left_type) = type_map.try_get(&id) {
         match left_type {
             TypeResult::Resolved(left_type) => {
@@ -130,7 +134,7 @@ pub fn resolve_expr(exp: Expr, type_map: &mut TypeMap) -> TypeResult {
                 Err(err_str) => TypeResult::Err(err_str),
             }
         }
-        Expr::Call(ids, _) => unreachable!(),
+        Expr::Call(_, _) => unreachable!(),
     }
 }
 
@@ -174,7 +178,7 @@ pub fn resolve_type(uni: Uni, type_map: &mut TypeMap) -> TypeResult {
         Uni::String(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::String)),
         Uni::Number(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
         Uni::Boolean(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean)),
-        Uni::Field(fields) => unimplemented!(),
+        Uni::Field(_) => unimplemented!(),
         Uni::Array(_) => unimplemented!(),
         Uni::HashMap(_) => unimplemented!(),
         Uni::Null => unimplemented!(),
@@ -216,7 +220,7 @@ pub fn resolve_type_result_with_op(
                 (TypeResult::Unknown(left_id), TypeResult::Resolved(right_type)) => {
                     try_insert_and_resolve_op(&right_result, right_type, &left_id, op, type_map)
                 }
-                (TypeResult::Unknown(left_id), TypeResult::Unknown(right_id)) => {
+                (TypeResult::Unknown(left_id), TypeResult::Unknown(_)) => {
                     // TBD need to implemnt correctly
                     // the below case is not covert
                     /*
@@ -243,7 +247,7 @@ pub fn try_insert_and_resolve_op(
     op: BinOpKind,
     type_map: &mut TypeMap,
 ) -> TypeResult {
-    type_map
+    let _ = type_map
         .try_insert(id.clone(), original.clone())
         .map_err(|err_str| return TypeResult::Err(err_str));
     match resolve_op_one_side(&original_type, op, type_map) {
@@ -277,7 +281,7 @@ pub fn check_left_op_right(
 ) -> TypeResult {
     if left == right {
         match resolve_op(&left, op, &right, type_map) {
-            Ok(_) => TypeResult::Resolved(left.clone()),
+            Ok(result) => result,
             Err(err_str) => TypeResult::Err(err_str),
         }
     } else {
@@ -290,15 +294,28 @@ pub fn resolve_op(
     op: BinOpKind,
     right: &TypeKind,
     type_map: &TypeMap,
-) -> Result<(), String> {
+) -> Result<TypeResult, String> {
     match left {
         TypeKind::PrimitiveType(PrimitiveType::Boolean) => match op {
-            BinOpKind::Eq | BinOpKind::Ne => Ok(()),
+            BinOpKind::Eq | BinOpKind::Ne => Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                PrimitiveType::Boolean,
+            ))),
             _ => Err(create_cannot_use_op_err(left, op, right)),
         },
-        TypeKind::PrimitiveType(PrimitiveType::Int) => Ok(()),
+        TypeKind::PrimitiveType(PrimitiveType::Int) => match op {
+            BinOpKind::Add | BinOpKind::Sub | BinOpKind::Mul | BinOpKind::Div | BinOpKind::Shr => {
+                Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                    PrimitiveType::Int,
+                )))
+            }
+            _ => Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                PrimitiveType::Boolean,
+            ))),
+        },
         TypeKind::PrimitiveType(PrimitiveType::String) => match op {
-            BinOpKind::Add => Ok(()),
+            BinOpKind::Add => Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                PrimitiveType::String,
+            ))),
             _ => Err(create_cannot_use_op_err(left, op, right)),
         },
         _ => panic!(
@@ -348,7 +365,7 @@ mod test {
     }
 
     #[test]
-    fn let_type_correct() {
+    fn let_infer() {
         let input = r#"let abc = 123 in (
           abc + 456;
         )"#;
@@ -364,6 +381,19 @@ mod test {
             Err(create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
                 &TypeKind::PrimitiveType(PrimitiveType::String)
+            ))
+        );
+    }
+    #[test]
+    fn failed() {
+        let input = r#"let abc = true in (
+          abc = (123 > 456) + 44;
+        )"#;
+        assert_infer!(
+            input,
+            Err(create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Boolean),
+                &TypeKind::PrimitiveType(PrimitiveType::Int)
             ))
         );
     }
