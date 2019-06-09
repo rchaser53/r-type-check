@@ -58,6 +58,7 @@ pub enum PrimitiveType {
     String,
     Boolean,
     Array(Box<PrimitiveType>),
+    Void,
 }
 
 impl PartialEq for PrimitiveType {
@@ -87,6 +88,13 @@ impl PartialEq for PrimitiveType {
             PrimitiveType::Array(left) => {
                 if let PrimitiveType::Array(right) = other {
                     left == right
+                } else {
+                    false
+                }
+            }
+            PrimitiveType::Void => {
+                if let PrimitiveType::Void = other {
+                    true
                 } else {
                     false
                 }

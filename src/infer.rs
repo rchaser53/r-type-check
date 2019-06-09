@@ -56,11 +56,14 @@ pub enum TypeResult {
     Err(String),
 }
 
-pub fn infer(statements: Vec<Statement>, mut type_map: &mut TypeMap) -> Result<(), String> {
+pub fn infer(statements: Vec<Statement>, mut type_map: &mut TypeMap) -> Result<TypeResult, String> {
     for statement in statements {
         let result = match statement {
             Statement::Let(id, exp, bodys) => {
                 let right_type = resolve_expr(exp, &mut type_map);
+                if let TypeResult::Err(err_str) = right_type {
+                    return Ok(TypeResult::Err(err_str.to_string()));
+                }
                 type_map.insert(id.clone(), right_type);
                 let unboxed_bodys = bodys.into_iter().map(|statement| *statement).collect();
                 return infer(unboxed_bodys, type_map);
@@ -74,7 +77,9 @@ pub fn infer(statements: Vec<Statement>, mut type_map: &mut TypeMap) -> Result<(
             return Err(err_str);
         }
     }
-    Ok(())
+    Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+        PrimitiveType::Void,
+    )))
 }
 
 pub fn resolve_assign(id: Id, exp: Expr, type_map: &mut TypeMap) -> TypeResult {
@@ -130,7 +135,7 @@ pub fn resolve_expr(exp: Expr, type_map: &mut TypeMap) -> TypeResult {
                 &mut fn_type_map,
             ) {
                 // TBD: temporary implement
-                Ok(()) => TypeResult::Unknown(id),
+                Ok(_) => TypeResult::Unknown(id),
                 Err(err_str) => TypeResult::Err(err_str),
             }
         }
@@ -369,7 +374,12 @@ mod test {
         let input = r#"let abc = 123 in (
           abc + 456;
         )"#;
-        assert_infer!(input, Ok(()));
+        assert_infer!(
+            input,
+            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                PrimitiveType::Void
+            )))
+        );
 
         let input = r#"let abc = def in (
           abc + 456;
@@ -468,7 +478,12 @@ mod test {
             aaa + bbb;
             aaa + bbb + ccc;
         }"#;
-        assert_infer!(input, Ok(()));
+        assert_infer!(
+            input,
+            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                PrimitiveType::Void
+            )))
+        );
 
         let input = r#"fn abc(aaa, bbb) {
             aaa + 123;
