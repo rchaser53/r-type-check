@@ -246,6 +246,11 @@ pub fn resolve_binary(
             let r_resolved = resolve_type(right, type_map);
             resolve_type_result_with_op(l_resolved, op, r_resolved, type_map)
         }
+        (Expr::Binary(l_left, l_op, l_right), Expr::Call(ids, args)) => {
+            let l_resolved = resolve_binary(*l_left, l_op, *l_right, type_map);
+            let r_resolved = resolve_call(ids, args, type_map);
+            resolve_type_result_with_op(l_resolved, op, r_resolved, type_map)
+        }
         (Expr::Unary(left), Expr::Binary(r_left, r_op, r_right)) => {
             let l_resolved = resolve_type(left, type_map);
             let r_resolved = resolve_binary(*r_left, r_op, *r_right, type_map);
@@ -256,12 +261,27 @@ pub fn resolve_binary(
             let r_resolved = resolve_type(right, type_map);
             resolve_type_result_with_op(l_resolved, op, r_resolved, type_map)
         }
+        (Expr::Unary(left), Expr::Call(ids, args)) => {
+            let l_resolved = resolve_type(left, type_map);
+            let r_resolved = resolve_call(ids, args, type_map);
+            resolve_type_result_with_op(l_resolved, op, r_resolved, type_map)
+        }
+        (Expr::Call(ids, args), Expr::Binary(r_left, r_op, r_right)) => {
+            let l_resolved = resolve_call(ids, args, type_map);
+            let r_resolved = resolve_binary(*r_left, r_op, *r_right, type_map);
+            resolve_type_result_with_op(l_resolved, op, r_resolved, type_map)
+        }
         (Expr::Call(ids, args), Expr::Unary(right)) => {
             let l_resolved = resolve_call(ids, args, type_map);
             let r_resolved = resolve_type(right, type_map);
             resolve_type_result_with_op(l_resolved, op, r_resolved, type_map)
         }
-        _ => unimplemented!(),
+        (Expr::Call(left_ids, left_args), Expr::Call(right_ids, right_args)) => {
+            let l_resolved = resolve_call(left_ids, left_args, type_map);
+            let r_resolved = resolve_call(right_ids, right_args, type_map);
+            resolve_type_result_with_op(l_resolved, op, r_resolved, type_map)
+        }
+        _ => unreachable!(),
     }
 }
 
