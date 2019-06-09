@@ -7,7 +7,7 @@ use crate::expr::uni::*;
 #[derive(Clone)]
 pub enum TypeKind {
     PrimitiveType(PrimitiveType),
-    Function(Vec<Box<TypeKind>>, Box<TypeKind>),
+    Function(Vec<OpeaqueType>, OpeaqueType),
     Custom(Id),
 }
 
@@ -51,6 +51,33 @@ impl PartialEq for TypeKind {
     }
 }
 impl Eq for TypeKind {}
+
+#[derive(Clone, Debug)]
+pub enum OpeaqueType {
+    Unknown(Id),
+    Defined(Box<TypeKind>),
+}
+impl PartialEq for OpeaqueType {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            OpeaqueType::Unknown(left) => {
+                if let OpeaqueType::Unknown(right) = other {
+                    left == right
+                } else {
+                    false
+                }
+            }
+            OpeaqueType::Defined(left) => {
+                if let OpeaqueType::Defined(right) = other {
+                    left == right
+                } else {
+                    false
+                }
+            }
+        }
+    }
+}
+impl Eq for OpeaqueType {}
 
 #[derive(Clone, Debug)]
 pub enum PrimitiveType {
