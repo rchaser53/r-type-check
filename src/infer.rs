@@ -189,35 +189,99 @@ pub fn resolve_type_result_with_op(
 ) -> TypeResult {
     match (&left, &right) {
         (TypeResult::Resolved(ref left), TypeResult::Resolved(ref right)) => {
-            if (left == right) {
-                match resolve_op(&left, op, &right, type_map) {
-                    Ok(_) => TypeResult::Resolved(left.clone()),
-                    Err(err_str) => TypeResult::Err(err_str),
-                }
-            } else {
-                TypeResult::Err(create_type_mismatch_err(&left, &right))
-            }
+            check_left_op_right(left, op, right, type_map)
         }
         (TypeResult::Unknown(id), TypeResult::Resolved(right_type)) => {
-            type_map
-                .try_insert(id.clone(), right.clone())
-                .map_err(|err_str| return TypeResult::Err(err_str));
-            match resolve_op_one_side(&right_type, op, type_map) {
-                Ok(_) => TypeResult::Resolved(right_type.clone()),
-                Err(err_str) => TypeResult::Err(err_str),
-            }
+            try_insert_and_resolve_op(&right, right_type, &id, op, type_map)
         }
         (TypeResult::Resolved(left_type), TypeResult::Unknown(id)) => {
-            type_map
-                .try_insert(id.clone(), left.clone())
-                .map_err(|err_str| return TypeResult::Err(err_str));
-            match resolve_op_one_side(&left_type, op, type_map) {
-                Ok(_) => TypeResult::Resolved(left_type.clone()),
-                Err(err_str) => TypeResult::Err(err_str),
+            try_insert_and_resolve_op(&left, left_type, &id, op, type_map)
+        }
+        (TypeResult::Unknown(left_id), TypeResult::Unknown(right_id)) => {
+            let left_result = filter_type_result(&left, &left_id, type_map)
+                .map_err(|err_str| return TypeResult::Err(err_str))
+                .unwrap();
+
+            let right_result = filter_type_result(&right, &right_id, type_map)
+                .map_err(|err_str| return TypeResult::Err(err_str))
+                .unwrap();
+
+            match (left_result, right_result) {
+                (TypeResult::Resolved(left_type), TypeResult::Resolved(_)) => {
+                    TypeResult::Resolved(left_type.clone())
+                }
+                (TypeResult::Resolved(left_type), TypeResult::Unknown(right_id)) => {
+                    try_insert_and_resolve_op(&left_result, left_type, &right_id, op, type_map)
+                }
+                (TypeResult::Unknown(left_id), TypeResult::Resolved(right_type)) => {
+                    try_insert_and_resolve_op(&right_result, right_type, &left_id, op, type_map)
+                }
+                (TypeResult::Unknown(left_id), TypeResult::Unknown(right_id)) => {
+                    // TBD need to implemnt correctly
+                    // the below case is not covert
+                    /*
+                     *  fn foo(a + b) {
+                     *    return a + b;
+                     *  }
+                     */
+                    TypeResult::Unknown(left_id.clone())
+                }
+                _ => unreachable!(),
             }
         }
-        (TypeResult::Unknown(_), TypeResult::Unknown(_)) => unimplemented!(),
+        (TypeResult::Err(err_str), _) | (_, TypeResult::Err(err_str)) => {
+            TypeResult::Err(err_str.to_string())
+        }
         _ => unimplemented!(),
+    }
+}
+
+pub fn try_insert_and_resolve_op(
+    original: &TypeResult,
+    original_type: &TypeKind,
+    id: &Id,
+    op: BinOpKind,
+    type_map: &mut TypeMap,
+) -> TypeResult {
+    type_map
+        .try_insert(id.clone(), original.clone())
+        .map_err(|err_str| return TypeResult::Err(err_str));
+    match resolve_op_one_side(&original_type, op, type_map) {
+        Ok(_) => TypeResult::Resolved(original_type.clone()),
+        Err(err_str) => TypeResult::Err(err_str),
+    }
+}
+
+// return Resolved or Unknown only
+pub fn filter_type_result<'a>(
+    original: &'a TypeResult,
+    id: &Id,
+    type_map: &mut TypeMap,
+) -> Result<&'a TypeResult, String> {
+    match type_map.try_get(id) {
+        Some(TypeResult::Resolved(_)) | Some(TypeResult::Unknown(_)) => Ok(original),
+        None => {
+            type_map.insert(id.clone(), TypeResult::Unknown(id.clone()));
+            Ok(original)
+        }
+        Some(TypeResult::Err(err_str)) => Err(err_str.to_string()),
+        Some(TypeResult::Binary(_, _, _)) => unreachable!(),
+    }
+}
+
+pub fn check_left_op_right(
+    left: &TypeKind,
+    op: BinOpKind,
+    right: &TypeKind,
+    type_map: &mut TypeMap,
+) -> TypeResult {
+    if left == right {
+        match resolve_op(&left, op, &right, type_map) {
+            Ok(_) => TypeResult::Resolved(left.clone()),
+            Err(err_str) => TypeResult::Err(err_str),
+        }
+    } else {
+        TypeResult::Err(create_type_mismatch_err(&left, &right))
     }
 }
 
@@ -363,8 +427,22 @@ mod test {
             bbb + 456;
             789 + ccc;
             aaa + bbb;
+            aaa + bbb + ccc;
         }"#;
         assert_infer!(input, Ok(()));
+
+        let input = r#"fn abc(aaa, bbb) {
+            aaa + 123;
+            bbb + 456;
+            aaa + bbb + "abc";
+        }"#;
+        assert_infer!(
+            input,
+            Err(create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+                &TypeKind::PrimitiveType(PrimitiveType::String)
+            ))
+        );
     }
 
     #[test]
