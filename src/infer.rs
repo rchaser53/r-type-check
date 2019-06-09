@@ -259,15 +259,40 @@ pub fn resolve_type_result_with_op(
                 (TypeResult::Unknown(left_id), TypeResult::Resolved(right_type)) => {
                     try_insert_and_resolve_op(&right_result, right_type, &left_id, op, type_map)
                 }
-                (TypeResult::Unknown(left_id), TypeResult::Unknown(_)) => {
+                (TypeResult::Unknown(left_id), TypeResult::Unknown(right_id)) => {
                     // TBD need to implemnt correctly
                     // the below case is not covert
                     /*
-                     *  fn foo(a + b) {
+                     *  fn(a, b) {
+                     *    // this case return type are Int, String, Boolean, ...
                      *    return a + b;
                      *  }
                      */
-                    TypeResult::Unknown(left_id.clone())
+                    match op {
+                        BinOpKind::Sub | BinOpKind::Mul | BinOpKind::Div | BinOpKind::Shr => {
+                            type_map.insert(
+                                left_id.clone(),
+                                TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
+                            );
+                            type_map.insert(
+                                right_id.clone(),
+                                TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
+                            );
+                            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int))
+                        }
+                        BinOpKind::Lt | BinOpKind::Le | BinOpKind::Ge | BinOpKind::Gt => {
+                            type_map.insert(
+                                left_id.clone(),
+                                TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
+                            );
+                            type_map.insert(
+                                right_id.clone(),
+                                TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
+                            );
+                            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean))
+                        }
+                        _ => TypeResult::Unknown(left_id.clone()),
+                    }
                 }
                 _ => unreachable!(),
             }
@@ -332,7 +357,7 @@ pub fn resolve_op(
     left: &TypeKind,
     op: BinOpKind,
     right: &TypeKind,
-    type_map: &TypeMap,
+    _type_map: &TypeMap,
 ) -> Result<TypeResult, String> {
     match left {
         TypeKind::PrimitiveType(PrimitiveType::Boolean) => match op {
@@ -367,7 +392,7 @@ pub fn resolve_op(
 pub fn resolve_op_one_side(
     oneside: &TypeKind,
     op: BinOpKind,
-    type_map: &TypeMap,
+    _type_map: &TypeMap,
 ) -> Result<(), String> {
     match oneside {
         TypeKind::PrimitiveType(PrimitiveType::Boolean) => match op {
@@ -380,7 +405,7 @@ pub fn resolve_op_one_side(
             _ => Err(create_cannot_use_op_one_side_err(oneside, op)),
         },
         _ => panic!(
-            "resolve_op: should not come here. oneside:{:?} op:{:?}",
+            "resolve_op_one_side: should not come here. oneside:{:?} op:{:?}",
             oneside, op
         ),
     }
@@ -389,7 +414,6 @@ pub fn resolve_op_one_side(
 mod test {
     use crate::ast::*;
     use crate::infer::*;
-    use crate::statement::*;
 
     macro_rules! assert_infer {
         ($input: expr, $expected: expr) => {
@@ -557,6 +581,34 @@ mod test {
             Err(create_conflict_type_return_err(
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::String)),
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
+            ))
+        );
+
+        let input = r#"
+            fn() {
+              return 123;
+              return "abc";
+            }
+        "#;
+        assert_infer!(
+            input,
+            Err(create_conflict_type_return_err(
+                &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::String)),
+                &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
+            ))
+        );
+
+        let input = r#"
+            fn(abc, def) {
+              abc * def;
+              return abc == true;
+            }
+        "#;
+        assert_infer!(
+            input,
+            Err(create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+                &TypeKind::PrimitiveType(PrimitiveType::Boolean),
             ))
         );
     }
