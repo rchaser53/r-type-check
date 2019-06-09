@@ -173,7 +173,25 @@ pub fn resolve_expr(exp: Expr, type_map: &mut TypeMap) -> TypeResult {
                 Err(err_str) => TypeResult::Err(err_str),
             }
         }
-        Expr::Call(_, _) => unreachable!(),
+        Expr::Call(ids, boxed_args) => resolve_call(ids, boxed_args, type_map),
+    }
+}
+
+pub fn resolve_call(ids: Vec<Id>, args: Vec<Box<Expr>>, type_map: &mut TypeMap) -> TypeResult {
+    // need to implement correctly
+    let id = &ids[0];
+    match type_map.try_get(&id) {
+        Some(ret_result) => match ret_result {
+            TypeResult::Resolved(TypeKind::Function(_, return_opeaque)) => match return_opeaque {
+                OpeaqueType::Defined(boxed_type_kind) => {
+                    TypeResult::Resolved(*boxed_type_kind.clone())
+                }
+                OpeaqueType::Unknown(id) => TypeResult::Unknown(id.clone()),
+            },
+            TypeResult::Unknown(id) => TypeResult::Unknown(id.clone()),
+            _ => unreachable!(),
+        },
+        None => TypeResult::Err(create_cannot_call_err(&id)),
     }
 }
 
@@ -201,6 +219,11 @@ pub fn resolve_binary(
         }
         (Expr::Unary(left), Expr::Unary(right)) => {
             let l_resolved = resolve_type(left, type_map);
+            let r_resolved = resolve_type(right, type_map);
+            resolve_type_result_with_op(l_resolved, op, r_resolved, type_map)
+        }
+        (Expr::Call(ids, args), Expr::Unary(right)) => {
+            let l_resolved = resolve_call(ids, args, type_map);
             let r_resolved = resolve_type(right, type_map);
             resolve_type_result_with_op(l_resolved, op, r_resolved, type_map)
         }
@@ -609,6 +632,24 @@ mod test {
             Err(create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
                 &TypeKind::PrimitiveType(PrimitiveType::Boolean),
+            ))
+        );
+    }
+
+    #[test]
+    fn call_infer_incorrect() {
+        let input = r#"
+            let test = fn(abc) {
+              return abc == true;
+            } in (
+              test(false) * 2;
+            );
+        "#;
+        assert_infer!(
+            input,
+            Err(create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Boolean),
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
             ))
         );
     }

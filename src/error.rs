@@ -32,3 +32,7 @@ pub fn create_infered_other_type_err(id: &Id, defined: &TypeKind, new: &TypeKind
 pub fn create_conflict_type_return_err(defined: &TypeResult, new: &TypeResult) -> String {
     format!("return some types. defined:{:?} new:{:?}", defined, new)
 }
+
+pub fn create_cannot_call_err(id: &Id) -> String {
+    format!("cannot call {:?}", id)
+}
