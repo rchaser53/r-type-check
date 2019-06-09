@@ -755,6 +755,25 @@ mod test {
     }
 
     #[test]
+    fn if_infer() {
+        let input = r#"
+            fn(abc) {
+                if (abc) {
+                  return abc == true;
+                }
+                abc * 3;
+            }
+        "#;
+        assert_infer!(
+            input,
+            Err(create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Boolean),
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+            ))
+        );
+    }
+
+    #[test]
     fn type_map_overwrite() {
         let mut type_map = TypeMap::new();
         type_map.insert(
