@@ -255,6 +255,9 @@ pub fn resolve_call(ids: Vec<Id>, args: Vec<Box<Expr>>, type_map: &mut TypeMap) 
                 OpeaqueType::Unknown(id) => TypeResult::Unknown(id.clone()),
             }
         }
+        TypeResult::Resolved(type_kind @ _) => {
+            TypeResult::Err(create_cannot_call_err(&id, &type_kind))
+        }
         TypeResult::Unknown(id) => TypeResult::Unknown(id.clone()),
         _ => unreachable!(),
     }
@@ -750,6 +753,20 @@ mod test {
             Err(create_param_and_arg_type_is_mismatch_err(
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean)),
+            ))
+        );
+
+        let input = r#"
+            fn(abc) {
+              abc = 12;
+              abc();
+            }
+        "#;
+        assert_infer!(
+            input,
+            Err(create_cannot_call_err(
+                &Id(String::from("abc")),
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
             ))
         );
     }
