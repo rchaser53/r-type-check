@@ -478,8 +478,10 @@ mod test {
                 Expr::Fn(
                     vec![],
                     vec![Box::new(Statement::Let(
-                        Id(String::from("abc")),
-                        Expr::Unary(Uni::String(String::from("aaa"))),
+                        vec![Assign(
+                            Id(String::from("abc")),
+                            Expr::Unary(Uni::String(String::from("aaa"))),
+                        )],
                         vec![],
                     ))]
                 ),
@@ -496,8 +498,10 @@ mod test {
                 Expr::Fn(
                     vec![Id(String::from("a"))],
                     vec![Box::new(Statement::Let(
-                        Id(String::from("abc")),
-                        Expr::Unary(Uni::String(String::from("aaa"))),
+                        vec![Assign(
+                            Id(String::from("abc")),
+                            Expr::Unary(Uni::String(String::from("aaa"))),
+                        )],
                         vec![],
                     ))]
                 ),
@@ -514,8 +518,10 @@ mod test {
                 Expr::Fn(
                     vec![Id(String::from("a")), Id(String::from("b")),],
                     vec![Box::new(Statement::Let(
-                        Id(String::from("abc")),
-                        Expr::Unary(Uni::String(String::from("aaa"))),
+                        vec![Assign(
+                            Id(String::from("abc")),
+                            Expr::Unary(Uni::String(String::from("aaa"))),
+                        )],
                         vec![],
                     ))]
                 ),

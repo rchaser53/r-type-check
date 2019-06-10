@@ -53,8 +53,10 @@ def = 456;"#;
             ast().easy_parse(input),
             Ok((
                 vec![Statement::Let(
-                    Id(String::from("abc")),
-                    Expr::Unary(Uni::Number(123)),
+                    vec![Assign(
+                        Id(String::from("abc")),
+                        Expr::Unary(Uni::Number(123)),
+                    )],
                     vec![Box::new(Statement::Assign(Assign(
                         Id(String::from("def")),
                         Expr::Unary(Uni::Number(456))

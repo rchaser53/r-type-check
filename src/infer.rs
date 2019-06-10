@@ -62,12 +62,14 @@ pub fn infer(statements: Vec<Statement>, mut type_map: &mut TypeMap) -> Result<T
     let mut return_type_results = vec![];
     for statement in statements {
         match statement {
-            Statement::Let(id, exp, body) => {
-                let right_type = resolve_expr(exp, &mut type_map);
-                if let TypeResult::Err(err_str) = right_type {
-                    return Err(err_str);
+            Statement::Let(lets, body) => {
+                for Assign(id, exp) in lets {
+                    let right_type = resolve_expr(exp, &mut type_map);
+                    if let TypeResult::Err(err_str) = right_type {
+                        return Err(err_str);
+                    }
+                    type_map.insert(id.clone(), right_type);
                 }
-                type_map.insert(id.clone(), right_type);
                 let unboxed_body = body.into_iter().map(|statement| *statement).collect();
                 infer(unboxed_body, type_map)?;
             }
