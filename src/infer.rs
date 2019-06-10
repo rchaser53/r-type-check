@@ -222,8 +222,7 @@ pub fn resolve_call(ids: Vec<Id>, args: Vec<Box<Expr>>, type_map: &mut TypeMap) 
     // ex. xx.yy();
     let id = &ids[0];
     let ret_result = match type_map.try_get(&id) {
-        Some(ret_result) => ret_result.clone(),
-        None => {
+        Some(TypeResult::IdOnly(_)) | None => {
             let arg_len = args.len();
             let mut arg_type_vec = Vec::with_capacity(arg_len);
             for index in 0..arg_len {
@@ -236,6 +235,7 @@ pub fn resolve_call(ids: Vec<Id>, args: Vec<Box<Expr>>, type_map: &mut TypeMap) 
                 )
                 .unwrap()
         }
+        Some(ret_result @ _) => ret_result.clone(),
     };
 
     match ret_result {
@@ -779,6 +779,23 @@ mod test {
             input,
             Err(create_cannot_call_err(
                 &Id(String::from("abc")),
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+            ))
+        );
+    }
+
+    #[test]
+    fn failed() {
+        let input = r#"
+            fn(abc) {
+              abc();
+              abc = 12;
+            }
+        "#;
+        assert_infer!(
+            input,
+            Err(create_type_mismatch_err(
+                &TypeKind::Function(vec![], OpeaqueType::Unknown),
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
             ))
         );
