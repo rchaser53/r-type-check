@@ -54,14 +54,15 @@ impl Eq for TypeKind {}
 
 #[derive(Clone, Debug)]
 pub enum OpeaqueType {
-    Unknown(Id),
+    Unknown,
+    IdOnly(Id),
     Defined(Box<TypeKind>),
 }
 impl PartialEq for OpeaqueType {
     fn eq(&self, other: &Self) -> bool {
         match self {
-            OpeaqueType::Unknown(left) => {
-                if let OpeaqueType::Unknown(right) = other {
+            OpeaqueType::IdOnly(left) => {
+                if let OpeaqueType::IdOnly(right) = other {
                     left == right
                 } else {
                     false
@@ -74,6 +75,7 @@ impl PartialEq for OpeaqueType {
                     false
                 }
             }
+            OpeaqueType::Unknown => false,
         }
     }
 }

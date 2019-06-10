@@ -52,7 +52,8 @@ impl TypeMap {
 pub enum TypeResult {
     Binary(Box<TypeResult>, BinOpKind, Box<TypeResult>),
     Resolved(TypeKind),
-    Unknown(Id),
+    IdOnly(Id),
+    Unknown,
     Err(String),
 }
 
@@ -98,7 +99,7 @@ pub fn infer(statements: Vec<Statement>, mut type_map: &mut TypeMap) -> Result<T
                                 return Err(create_if_condition_not_boolean_err(&type_kind));
                             }
                         }
-                        TypeResult::Unknown(id) => {
+                        TypeResult::IdOnly(id) => {
                             type_map.insert(
                                 id.clone(),
                                 TypeResult::Resolved(TypeKind::PrimitiveType(
@@ -180,7 +181,7 @@ pub fn resolve_expr(exp: Expr, type_map: &mut TypeMap) -> TypeResult {
         Expr::Fn(args, body) => {
             let mut fn_type_map = TypeMap::new();
             for arg in args.clone() {
-                fn_type_map.insert(arg.clone(), TypeResult::Unknown(arg));
+                fn_type_map.insert(arg.clone(), TypeResult::IdOnly(arg));
             }
             match infer(
                 body.into_iter().map(|boxed| *boxed).collect(),
@@ -194,7 +195,7 @@ pub fn resolve_expr(exp: Expr, type_map: &mut TypeMap) -> TypeResult {
                             {
                                 OpeaqueType::Defined(Box::new(type_kind.clone()))
                             } else {
-                                OpeaqueType::Unknown(id)
+                                OpeaqueType::IdOnly(id)
                             }
                         })
                         .collect();
@@ -202,7 +203,7 @@ pub fn resolve_expr(exp: Expr, type_map: &mut TypeMap) -> TypeResult {
                         TypeResult::Resolved(return_type) => {
                             OpeaqueType::Defined(Box::new(return_type))
                         }
-                        TypeResult::Unknown(id) => OpeaqueType::Unknown(id),
+                        TypeResult::IdOnly(id) => OpeaqueType::IdOnly(id),
                         _ => unreachable!(),
                     };
                     // TBD: need to think more
@@ -223,7 +224,17 @@ pub fn resolve_call(ids: Vec<Id>, args: Vec<Box<Expr>>, type_map: &mut TypeMap) 
     let ret_result = match type_map.try_get(&id) {
         Some(ret_result) => ret_result.clone(),
         None => {
-            return TypeResult::Err(create_cannot_call_err(&id));
+            let arg_len = args.len();
+            let mut arg_type_vec = Vec::with_capacity(arg_len);
+            for index in 0..arg_len {
+                arg_type_vec[index] = OpeaqueType::Unknown
+            }
+            type_map
+                .insert(
+                    id.clone(),
+                    TypeResult::Resolved(TypeKind::Function(arg_type_vec, OpeaqueType::Unknown)),
+                )
+                .unwrap()
         }
     };
 
@@ -252,13 +263,14 @@ pub fn resolve_call(ids: Vec<Id>, args: Vec<Box<Expr>>, type_map: &mut TypeMap) 
                 OpeaqueType::Defined(boxed_type_kind) => {
                     TypeResult::Resolved(*boxed_type_kind.clone())
                 }
-                OpeaqueType::Unknown(id) => TypeResult::Unknown(id.clone()),
+                OpeaqueType::IdOnly(id) => TypeResult::IdOnly(id.clone()),
+                OpeaqueType::Unknown => TypeResult::Unknown,
             }
         }
         TypeResult::Resolved(type_kind @ _) => {
             TypeResult::Err(create_cannot_call_err(&id, &type_kind))
         }
-        TypeResult::Unknown(id) => TypeResult::Unknown(id.clone()),
+        TypeResult::IdOnly(id) => TypeResult::IdOnly(id.clone()),
         _ => unreachable!(),
     }
 }
@@ -323,7 +335,7 @@ pub fn resolve_type(uni: Uni, type_map: &mut TypeMap) -> TypeResult {
     match uni {
         Uni::Id(id) => match type_map.try_get(&id) {
             Some(result @ TypeResult::Resolved(_)) => result.clone(),
-            _ => TypeResult::Unknown(id),
+            _ => TypeResult::IdOnly(id),
         },
         Uni::String(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::String)),
         Uni::Number(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
@@ -345,13 +357,13 @@ pub fn resolve_type_result_with_op(
         (TypeResult::Resolved(ref left), TypeResult::Resolved(ref right)) => {
             check_left_op_right(left, op, right, type_map)
         }
-        (TypeResult::Unknown(id), TypeResult::Resolved(right_type)) => {
+        (TypeResult::IdOnly(id), TypeResult::Resolved(right_type)) => {
             try_insert_and_resolve_op(&right, right_type, &id, op, type_map)
         }
-        (TypeResult::Resolved(left_type), TypeResult::Unknown(id)) => {
+        (TypeResult::Resolved(left_type), TypeResult::IdOnly(id)) => {
             try_insert_and_resolve_op(&left, left_type, &id, op, type_map)
         }
-        (TypeResult::Unknown(left_id), TypeResult::Unknown(right_id)) => {
+        (TypeResult::IdOnly(left_id), TypeResult::IdOnly(right_id)) => {
             let left_result = filter_type_result(&left, &left_id, type_map)
                 .map_err(|err_str| return TypeResult::Err(err_str))
                 .unwrap();
@@ -364,13 +376,13 @@ pub fn resolve_type_result_with_op(
                 (TypeResult::Resolved(left_type), TypeResult::Resolved(_)) => {
                     TypeResult::Resolved(left_type.clone())
                 }
-                (TypeResult::Resolved(left_type), TypeResult::Unknown(right_id)) => {
+                (TypeResult::Resolved(left_type), TypeResult::IdOnly(right_id)) => {
                     try_insert_and_resolve_op(&left_result, left_type, &right_id, op, type_map)
                 }
-                (TypeResult::Unknown(left_id), TypeResult::Resolved(right_type)) => {
+                (TypeResult::IdOnly(left_id), TypeResult::Resolved(right_type)) => {
                     try_insert_and_resolve_op(&right_result, right_type, &left_id, op, type_map)
                 }
-                (TypeResult::Unknown(left_id), TypeResult::Unknown(right_id)) => {
+                (TypeResult::IdOnly(left_id), TypeResult::IdOnly(right_id)) => {
                     // TBD need to implemnt correctly
                     // the below case is not covert
                     /*
@@ -402,7 +414,7 @@ pub fn resolve_type_result_with_op(
                             );
                             TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean))
                         }
-                        _ => TypeResult::Unknown(left_id.clone()),
+                        _ => TypeResult::IdOnly(left_id.clone()),
                     }
                 }
                 _ => unreachable!(),
@@ -438,11 +450,12 @@ pub fn filter_type_result<'a>(
     type_map: &mut TypeMap,
 ) -> Result<&'a TypeResult, String> {
     match type_map.try_get(id) {
-        Some(TypeResult::Resolved(_)) | Some(TypeResult::Unknown(_)) => Ok(original),
+        Some(TypeResult::Resolved(_)) | Some(TypeResult::IdOnly(_)) => Ok(original),
         None => {
-            type_map.insert(id.clone(), TypeResult::Unknown(id.clone()));
+            type_map.insert(id.clone(), TypeResult::IdOnly(id.clone()));
             Ok(original)
         }
+        Some(unknown) => unimplemented!(),
         Some(TypeResult::Err(err_str)) => Err(err_str.to_string()),
         Some(TypeResult::Binary(_, _, _)) => unreachable!(),
     }
