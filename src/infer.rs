@@ -816,6 +816,21 @@ mod test {
                 &TypeKind::PrimitiveType(PrimitiveType::String),
             ))
         );
+
+        let input = r#"
+            let abc = fn (a) {
+              a + 3;
+            } in (
+              abc("str");
+            )
+        "#;
+        assert_infer!(
+            input,
+            Err(create_param_and_arg_type_is_mismatch_err(
+                &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::String)),
+                &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
+            ))
+        );
     }
 
     #[test]
