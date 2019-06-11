@@ -346,15 +346,25 @@ pub fn resolve_type(uni: Uni, type_map: &mut TypeMap) -> TypeResult {
         Uni::String(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::String)),
         Uni::Number(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
         Uni::Boolean(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean)),
-        Uni::Array(unis) => {
-            if unis.len() == 0 {
-                TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Array(
-                    ArrayType::Unknown,
-                )))
-            } else {
-                let array_type_result = resolve_type(unis.get(0).unwrap().clone(), type_map);
-                for uni in unis {
-                    let elem_type_result = resolve_type(uni, type_map);
+        Uni::Array(unis) => resolve_array(unis, type_map),
+        Uni::Field(_) => unimplemented!(),
+        Uni::HashMap(_) => unimplemented!(),
+        Uni::Null => unimplemented!(),
+    }
+}
+
+pub fn resolve_array(mut unis: Vec<Uni>, type_map: &mut TypeMap) -> TypeResult {
+    if unis.len() == 0 {
+        TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Array(
+            ArrayType::Unknown,
+        )))
+    } else {
+        let array_type_result = resolve_type(unis.pop().unwrap(), type_map);
+        for uni in unis {
+            let elem_type_result = resolve_type(uni, type_map);
+
+            match (&array_type_result, &elem_type_result) {
+                (TypeResult::Resolved(_), TypeResult::Resolved(_)) => {
                     if elem_type_result != array_type_result {
                         return TypeResult::Err(create_conflict_array_elemenet_type_err(
                             &elem_type_result,
@@ -362,12 +372,23 @@ pub fn resolve_type(uni: Uni, type_map: &mut TypeMap) -> TypeResult {
                         ));
                     }
                 }
-                array_type_result
+                (TypeResult::Resolved(_), TypeResult::IdOnly(id)) => {
+                    let _ = type_map
+                        .try_insert(id.clone(), array_type_result.clone())
+                        .map_err(|err_str| return TypeResult::Err(err_str.to_string()));
+                }
+                (TypeResult::IdOnly(id), TypeResult::Resolved(_)) => {
+                    let _ = type_map
+                        .try_insert(id.clone(), elem_type_result.clone())
+                        .map_err(|err_str| return TypeResult::Err(err_str.to_string()));
+                }
+                (TypeResult::Err(err_str), _) | (_, TypeResult::Err(err_str)) => {
+                    return TypeResult::Err(err_str.to_string());
+                }
+                _ => unimplemented!(),
             }
         }
-        Uni::Field(_) => unimplemented!(),
-        Uni::HashMap(_) => unimplemented!(),
-        Uni::Null => unimplemented!(),
+        array_type_result
     }
 }
 
@@ -937,15 +958,27 @@ mod test {
     #[test]
     fn array_infer() {
         let input = r#"
-            [];
-            [1];
             [1, "abc"];
         "#;
         assert_infer!(
             input,
             Err(create_conflict_array_elemenet_type_err(
-                &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::String)),
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
+                &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::String)),
+            ))
+        );
+
+        let input = r#"
+            fn(a) {
+                [a, 12];
+                a + "abc";
+            }
+        "#;
+        assert_infer!(
+            input,
+            Err(create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+                &TypeKind::PrimitiveType(PrimitiveType::String),
             ))
         );
     }
