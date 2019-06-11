@@ -457,7 +457,7 @@ pub fn filter_type_result<'a>(
             type_map.insert(id.clone(), TypeResult::IdOnly(id.clone()));
             Ok(original)
         }
-        Some(unknown) => unimplemented!(),
+        Some(TypeResult::Unknown) => unimplemented!(),
         Some(TypeResult::Err(err_str)) => Err(err_str.to_string()),
         Some(TypeResult::Binary(_, _, _)) => unreachable!(),
     }

@@ -16,7 +16,6 @@ where
 
 mod test {
     use crate::ast::*;
-    use crate::expr::bin_op::*;
     use crate::expr::*;
     use crate::statement::Assign;
     use crate::statement::Statement;

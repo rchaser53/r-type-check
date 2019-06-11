@@ -1,7 +1,7 @@
 use combine::error::ParseError;
 use combine::parser::choice::optional;
 use combine::stream::Stream;
-use combine::{attempt, between, choice, easy, many, many1, parser, Parser};
+use combine::{attempt, between, choice, easy, many, parser, Parser};
 
 use crate::expr::uni::*;
 use crate::expr::*;
