@@ -101,10 +101,7 @@ where
         .or(many(statement())),
     )
     .map(|(lets, statements): (Vec<Assign>, Vec<Statement>)| {
-        Statement::Let(
-            lets,
-            statements.into_iter().map(|s| Box::new(s)).collect(),
-        )
+        Statement::Let(lets, statements.into_iter().map(|s| Box::new(s)).collect())
     })
 }
 

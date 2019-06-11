@@ -8,7 +8,7 @@ use crate::expr::*;
 use crate::statement::*;
 use crate::types::*;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TypeMap(HashMap<Id, TypeResult>);
 impl TypeMap {
     pub fn new() -> Self {
@@ -230,16 +230,17 @@ pub fn resolve_call(ids: Vec<Id>, args: Vec<Box<Expr>>, type_map: &mut TypeMap) 
             for index in 0..arg_len {
                 arg_type_vec[index] = OpeaqueType::Unknown
             }
-            type_map
-                .insert(
-                    id.clone(),
-                    TypeResult::Resolved(TypeKind::Function(arg_type_vec, OpeaqueType::Unknown)),
-                )
-                .unwrap()
+            type_map.insert(
+                id.clone(),
+                TypeResult::Resolved(TypeKind::Function(
+                    arg_type_vec.clone(),
+                    OpeaqueType::Unknown,
+                )),
+            );
+            TypeResult::Resolved(TypeKind::Function(arg_type_vec, OpeaqueType::Unknown))
         }
         Some(ret_result @ _) => ret_result.clone(),
     };
-
     match ret_result {
         TypeResult::Resolved(TypeKind::Function(params, return_opeaque)) => {
             for (index, param) in params.into_iter().enumerate() {
@@ -740,7 +741,7 @@ mod test {
     }
 
     #[test]
-    fn call_infer_incorrect() {
+    fn call_infer() {
         let input = r#"
             let test = fn(abc) {
               return abc == true;
@@ -784,10 +785,7 @@ mod test {
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
             ))
         );
-    }
 
-    #[test]
-    fn failed() {
         let input = r#"
             fn(abc) {
               abc();
@@ -799,6 +797,23 @@ mod test {
             Err(create_type_mismatch_err(
                 &TypeKind::Function(vec![], OpeaqueType::Unknown),
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
+            ))
+        );
+    }
+
+    #[test]
+    fn call_infer_mismatch() {
+        let input = r#"
+            let abc = def() in (
+                abc + 34;
+                abc + "ghi"
+            )
+        "#;
+        assert_infer!(
+            input,
+            Err(create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+                &TypeKind::PrimitiveType(PrimitiveType::String),
             ))
         );
     }
