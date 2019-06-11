@@ -642,6 +642,36 @@ mod test {
                 &TypeKind::PrimitiveType(PrimitiveType::String)
             ))
         );
+
+        let input = r#"let abc = 123
+          def = "str"
+        in (
+          abc + def;
+        )"#;
+        assert_infer!(
+            input,
+            Err(create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+                &TypeKind::PrimitiveType(PrimitiveType::String)
+            ))
+        );
+    }
+
+    #[test]
+    fn let_nest() {
+        let input = r#"let abc = 123 in (
+          abc = 456;
+          let def = abc + 789 in (
+              abc + def + "nya-n";
+          )
+        )"#;
+        assert_infer!(
+            input,
+            Err(create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+                &TypeKind::PrimitiveType(PrimitiveType::String)
+            ))
+        );
     }
 
     #[test]
