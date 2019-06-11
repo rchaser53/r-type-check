@@ -113,7 +113,10 @@ pub fn infer(statements: Vec<Statement>, mut type_map: &mut TypeMap) -> Result<T
                         _ => unreachable!(),
                     };
                     let unboxed_body = boxed_body.into_iter().map(|statement| *statement).collect();
-                    infer(unboxed_body, type_map)?;
+
+                    // get return type in if statement
+                    let if_return_type_result = infer(unboxed_body, type_map)?;
+                    return_type_results.push(if_return_type_result);
                 }
             }
         };
@@ -848,6 +851,37 @@ mod test {
             Err(create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Boolean),
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
+            ))
+        );
+
+        let input = r#"
+            fn(abc) {
+                if (abc) {
+                  return 123;
+                }
+                return 456;
+            }
+        "#;
+        assert_infer!(
+            input,
+            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                PrimitiveType::Void
+            )))
+        );
+
+        let input = r#"
+            fn(abc) {
+                if (abc) {
+                  return 123;
+                }
+                return true;
+            }
+        "#;
+        assert_infer!(
+            input,
+            Err(create_conflict_type_return_err(
+                &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean)),
+                &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
             ))
         );
     }
