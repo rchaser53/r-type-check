@@ -50,3 +50,13 @@ pub fn create_if_condition_not_boolean_err(type_kind: &TypeKind) -> String {
         type_kind
     )
 }
+
+pub fn create_conflict_array_elemenet_type_err(
+    one_type_result: &TypeResult,
+    two_type_result: &TypeResult,
+) -> String {
+    format!(
+        "some array element types are found ex. {:?}, {:?}",
+        one_type_result, two_type_result
+    )
+}

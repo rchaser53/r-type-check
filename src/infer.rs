@@ -346,8 +346,26 @@ pub fn resolve_type(uni: Uni, type_map: &mut TypeMap) -> TypeResult {
         Uni::String(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::String)),
         Uni::Number(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
         Uni::Boolean(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean)),
+        Uni::Array(unis) => {
+            if unis.len() == 0 {
+                TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Array(
+                    ArrayType::Unknown,
+                )))
+            } else {
+                let array_type_result = resolve_type(unis.get(0).unwrap().clone(), type_map);
+                for uni in unis {
+                    let elem_type_result = resolve_type(uni, type_map);
+                    if elem_type_result != array_type_result {
+                        return TypeResult::Err(create_conflict_array_elemenet_type_err(
+                            &elem_type_result,
+                            &array_type_result,
+                        ));
+                    }
+                }
+                array_type_result
+            }
+        }
         Uni::Field(_) => unimplemented!(),
-        Uni::Array(_) => unimplemented!(),
         Uni::HashMap(_) => unimplemented!(),
         Uni::Null => unimplemented!(),
     }
@@ -917,19 +935,18 @@ mod test {
     }
 
     #[test]
-    fn type_map_overwrite() {
-        let mut type_map = TypeMap::new();
-        type_map.insert(
-            Id(String::from("abc")),
-            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean)),
-        );
-        type_map.insert(
-            Id(String::from("abc")),
-            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
-        );
-        assert_eq!(
-            type_map.try_get(&Id(String::from("abc"))).unwrap().clone(),
-            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int))
+    fn array_infer() {
+        let input = r#"
+            [];
+            [1];
+            [1, "abc"];
+        "#;
+        assert_infer!(
+            input,
+            Err(create_conflict_array_elemenet_type_err(
+                &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::String)),
+                &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
+            ))
         );
     }
 }
