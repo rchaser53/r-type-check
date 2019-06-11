@@ -86,8 +86,14 @@ pub enum PrimitiveType {
     Int,
     String,
     Boolean,
-    Array(Box<PrimitiveType>),
+    Array(ArrayType),
     Void,
+}
+
+#[derive(Clone, Debug)]
+pub enum ArrayType {
+    Unknown, // for empty
+    Defined(Box<PrimitiveType>),
 }
 
 impl PartialEq for PrimitiveType {
@@ -114,13 +120,18 @@ impl PartialEq for PrimitiveType {
                     false
                 }
             }
-            PrimitiveType::Array(left) => {
-                if let PrimitiveType::Array(right) = other {
-                    left == right
+            PrimitiveType::Array(ArrayType::Unknown) => {
+                if let PrimitiveType::Array(_) = other {
+                    true
                 } else {
                     false
                 }
             }
+            PrimitiveType::Array(ArrayType::Defined(left)) => match other {
+                PrimitiveType::Array(ArrayType::Defined(right)) => left == right,
+                PrimitiveType::Array(ArrayType::Unknown) => true,
+                _ => false,
+            },
             PrimitiveType::Void => {
                 if let PrimitiveType::Void = other {
                     true
