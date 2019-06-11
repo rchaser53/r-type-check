@@ -1,5 +1,4 @@
 use combine::error::ParseError;
-use combine::parser::choice::optional;
 use combine::stream::Stream;
 use combine::{attempt, between, many, parser, sep_by, Parser};
 

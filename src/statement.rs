@@ -148,93 +148,33 @@ where
     )
 }
 
-type IfCombination = (Expr, Vec<Box<Statement>>);
-fn if_else_<I>() -> impl Parser<Input = I, Output = Statement>
-where
-    I: Stream<Item = char>,
-    I::Error: ParseError<I::Item, I::Range, I::Position>,
-{
-    create_if(string_skip_spaces("if"))
-        .and(optional(
-            string_skip_spaces("else")
-                .with(optional(
-                    string_skip_spaces("if").with(skip_spaces(if_condition())),
-                ))
-                .and(between(
-                    token_skip_spaces('{'),
-                    token_skip_spaces('}'),
-                    many(statement()),
-                ))
-                .map(
-                    |(else_condition, else_statements): (Option<Expr>, Vec<Statement>)| {
-                        let else_condition = if let Some(cond) = else_condition {
-                            cond
-                        } else {
-                            Expr::Unary(Uni::Boolean(Boolean::True))
-                        };
-                        (
-                            else_condition,
-                            else_statements.into_iter().map(|s| Box::new(s)).collect(),
-                        )
-                    },
-                ),
-        ))
-        .map(
-            |((if_condition, if_statements), else_combination): (
-                IfCombination,
-                Option<IfCombination>,
-            )| {
-                if let Some((else_condition, else_statements)) = else_combination {
-                    Statement::If(vec![
-                        (if_condition, if_statements),
-                        (else_condition, else_statements),
-                    ])
-                } else {
-                    Statement::If(vec![(if_condition, if_statements)])
-                }
-            },
-        )
-}
-
 fn else_if_<I>() -> impl Parser<Input = I, Output = Vec<(Expr, Vec<Box<Statement>>)>>
 where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    attempt(
-        many(create_if(
-            string_skip_spaces("else").with(string_skip_spaces("if")),
-        ))
-        .and(string_skip_spaces("else").with(between(
-            token_skip_spaces('{'),
-            token_skip_spaces('}'),
-            many(statement()),
-        )))
-        .map(
-            |(mut else_ifs, statements_): (Vec<(Expr, Vec<Box<Statement>>)>, Vec<Statement>)| {
-                else_ifs.push((
-                    Expr::Unary(Uni::Boolean(Boolean::True)),
-                    statements_.into_iter().map(|s| Box::new(s)).collect(),
-                ));
-                else_ifs
-            },
-        ),
-    )
-    .or(attempt(many(create_if(
+    many(attempt(create_if(
         string_skip_spaces("else").with(string_skip_spaces("if")),
     )))
-    .or(string_skip_spaces("else")
-        .with(between(
-            token_skip_spaces('{'),
-            token_skip_spaces('}'),
-            many(statement()),
-        ))
-        .map(|statements_: Vec<Statement>| {
-            vec![(
-                Expr::Unary(Uni::Boolean(Boolean::True)),
-                statements_.into_iter().map(|s| Box::new(s)).collect(),
-            )]
-        })))
+    .and(optional(string_skip_spaces("else").with(between(
+        token_skip_spaces('{'),
+        token_skip_spaces('}'),
+        many(statement()),
+    ))))
+    .map(
+        |(mut else_ifs, else_statement): (
+            Vec<(Expr, Vec<Box<Statement>>)>,
+            Option<Vec<Statement>>,
+        )| {
+            if let Some(else_statement) = else_statement {
+                else_ifs.push((
+                    Expr::Unary(Uni::Boolean(Boolean::True)),
+                    else_statement.into_iter().map(|s| Box::new(s)).collect(),
+                ));
+            }
+            else_ifs
+        },
+    )
 }
 
 fn create_if<I, T>(
@@ -391,6 +331,56 @@ mod test {
                         vec![Assign(
                             Id(String::from("def")),
                             Expr::Unary(Uni::String(String::from("bbb"))),
+                        )],
+                        vec![],
+                    ))]
+                )
+            ])
+        );
+
+        assert_statement!(
+            r#"if (i < 10) {
+              let abc = "aaa" in
+            } else if (j > 100) {
+              let def = "bbb" in
+            } else {
+              let ghi = "ccc" in
+            }"#,
+            Statement::If(vec![
+                (
+                    Expr::Binary(
+                        Box::new(Expr::Unary(Uni::Id(Id(String::from("i"))))),
+                        BinOpKind::Lt,
+                        Box::new(Expr::Unary(Uni::Number(10)))
+                    ),
+                    vec![Box::new(Statement::Let(
+                        vec![Assign(
+                            Id(String::from("abc")),
+                            Expr::Unary(Uni::String(String::from("aaa"))),
+                        )],
+                        vec![],
+                    ))]
+                ),
+                (
+                    Expr::Binary(
+                        Box::new(Expr::Unary(Uni::Id(Id(String::from("j"))))),
+                        BinOpKind::Gt,
+                        Box::new(Expr::Unary(Uni::Number(100)))
+                    ),
+                    vec![Box::new(Statement::Let(
+                        vec![Assign(
+                            Id(String::from("def")),
+                            Expr::Unary(Uni::String(String::from("bbb"))),
+                        )],
+                        vec![],
+                    ))]
+                ),
+                (
+                    Expr::Unary(Uni::Boolean(Boolean::True)),
+                    vec![Box::new(Statement::Let(
+                        vec![Assign(
+                            Id(String::from("ghi")),
+                            Expr::Unary(Uni::String(String::from("ccc"))),
                         )],
                         vec![],
                     ))]
