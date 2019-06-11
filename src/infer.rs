@@ -58,7 +58,10 @@ pub enum TypeResult {
 }
 
 /// return function return TypeResult
-pub fn infer(statements: Vec<Statement>, mut type_map: &mut TypeMap) -> Result<TypeResult, String> {
+pub fn resolve_statement(
+    statements: Vec<Statement>,
+    mut type_map: &mut TypeMap,
+) -> Result<TypeResult, String> {
     let mut return_type_results = vec![];
     for statement in statements {
         match statement {
@@ -71,7 +74,7 @@ pub fn infer(statements: Vec<Statement>, mut type_map: &mut TypeMap) -> Result<T
                     type_map.insert(id.clone(), right_type);
                 }
                 let unboxed_body = body.into_iter().map(|statement| *statement).collect();
-                infer(unboxed_body, type_map)?;
+                resolve_statement(unboxed_body, type_map)?;
             }
             Statement::Expr(expr) => {
                 let type_result = resolve_expr(expr, &mut type_map);
@@ -115,7 +118,7 @@ pub fn infer(statements: Vec<Statement>, mut type_map: &mut TypeMap) -> Result<T
                     let unboxed_body = boxed_body.into_iter().map(|statement| *statement).collect();
 
                     // get return type in if statement
-                    let if_return_type_result = infer(unboxed_body, type_map)?;
+                    let if_return_type_result = resolve_statement(unboxed_body, type_map)?;
                     return_type_results.push(if_return_type_result);
                 }
             }
@@ -188,7 +191,7 @@ pub fn resolve_expr(exp: Expr, type_map: &mut TypeMap) -> TypeResult {
             for arg in args.clone() {
                 fn_type_map.insert(arg.clone(), TypeResult::IdOnly(arg));
             }
-            match infer(
+            match resolve_statement(
                 body.into_iter().map(|boxed| *boxed).collect(),
                 &mut fn_type_map,
             ) {
@@ -588,7 +591,7 @@ mod test {
         ($input: expr, $expected: expr) => {
             let mut type_map = TypeMap::new();
             if let Ok((statements, _)) = ast().easy_parse($input) {
-                assert_eq!(infer(statements, &mut type_map), $expected);
+                assert_eq!(resolve_statement(statements, &mut type_map), $expected);
             } else {
                 panic!("should not come here");
             }
