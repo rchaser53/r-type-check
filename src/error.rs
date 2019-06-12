@@ -22,7 +22,7 @@ pub fn create_not_initialized_err(left: &Id) -> String {
     format!("{:?} is not initialized", left)
 }
 
-pub fn create_infered_other_type_err(id: &Id, defined: &TypeKind, new: &TypeKind) -> String {
+pub fn create_assign_conflict_type_err(id: &Id, defined: &TypeKind, new: &TypeKind) -> String {
     format!(
         "{:?} is assined two type. defined:{:?} new:{:?}",
         id, defined, new

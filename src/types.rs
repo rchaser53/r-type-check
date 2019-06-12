@@ -1,6 +1,4 @@
-use std::collections::HashMap;
 use std::fmt;
-use std::sync::Mutex;
 
 use crate::expr::uni::*;
 

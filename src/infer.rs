@@ -38,20 +38,17 @@ impl TypeMap {
                     if defined == new {
                         Ok(new_type)
                     } else {
-                        // TODO: Maybe cannot come here now
-                        Err(create_infered_other_type_err(&id, defined, &new))
+                        Err(create_assign_conflict_type_err(&id, defined, &new))
                     }
                 }
-                // TODO: need to confirmed
-                _ => self
-                    .0
-                    .insert(id, new_type)
-                    .ok_or(String::from("should not come here")),
+                _ => {
+                    self.0.insert(id, new_type.clone());
+                    Ok(new_type)
+                }
             }
         } else {
-            self.0
-                .insert(id, new_type)
-                .ok_or(String::from("should not come here"))
+            self.0.insert(id, new_type.clone());
+            Ok(new_type)
         }
     }
 
@@ -83,7 +80,10 @@ pub fn resolve_statement(
                     if let TypeResult::Err(err_str) = right_type {
                         return Err(err_str);
                     }
-                    context.type_map.borrow_mut().insert(id.clone(), right_type);
+                    context
+                        .type_map
+                        .borrow_mut()
+                        .try_insert(id.clone(), right_type)?;
                 }
                 let unboxed_body = body.into_iter().map(|statement| *statement).collect();
                 resolve_statement(unboxed_body, context)?;
@@ -627,7 +627,7 @@ mod test {
     }
 
     #[test]
-    fn let_set() {
+    fn let_definition() {
         let input = r#"let abc = 123 + "abc" in (
         )"#;
         // TODO: need to improve error message
@@ -638,10 +638,23 @@ mod test {
                 &TypeKind::PrimitiveType(PrimitiveType::String)
             ))
         );
+
+        let input = r#"let
+        abc = 123
+        abc = "abc" in ()"#;
+        // TODO: need to improve error message
+        assert_infer!(
+            input,
+            Err(create_assign_conflict_type_err(
+                &Id(String::from("abc")),
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+                &TypeKind::PrimitiveType(PrimitiveType::String)
+            ))
+        );
     }
 
     #[test]
-    fn let_infer() {
+    fn let_body() {
         let input = r#"let abc = 123 in (
           abc + 456;
         )"#;
