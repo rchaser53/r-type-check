@@ -63,7 +63,6 @@ pub enum TypeResult {
     Resolved(TypeKind),
     IdOnly(Id),
     Unknown,
-    Err(String),
 }
 
 /// return function return TypeResult
@@ -77,9 +76,6 @@ pub fn resolve_statement(
             Statement::Let(lets, body) => {
                 for Assign(id, exp) in lets {
                     let right_type = resolve_expr(exp, &context)?;
-                    if let TypeResult::Err(err_str) = right_type {
-                        return Err(err_str);
-                    }
                     context
                         .type_map
                         .borrow_mut()
@@ -89,19 +85,13 @@ pub fn resolve_statement(
                 resolve_statement(unboxed_body, context)?;
             }
             Statement::Expr(expr) => {
-                let type_result = resolve_expr(expr, context)?;
-                if let TypeResult::Err(err_str) = type_result {
-                    return Err(err_str);
-                }
+                resolve_expr(expr, context)?;
             }
             Statement::Assign(Assign(id, expr)) => {
                 resolve_assign(id, expr, context)?;
             }
             Statement::Return(expr) => {
                 let type_result = resolve_expr(expr, context)?;
-                if let TypeResult::Err(err_str) = type_result {
-                    return Err(err_str);
-                }
                 return_type_results.push(type_result.clone());
             }
             Statement::If(if_tuples) => {
@@ -121,7 +111,6 @@ pub fn resolve_statement(
                                 )),
                             )?;
                         }
-                        TypeResult::Err(err_str) => return Err(err_str),
                         _ => unreachable!(),
                     };
                     let unboxed_body = boxed_body.into_iter().map(|statement| *statement).collect();
@@ -161,13 +150,11 @@ pub fn resolve_assign(id: Id, exp: Expr, context: &Context) -> Result<TypeResult
                     return Err(err_str);
                 }
             }
-            TypeResult::Err(_) => return Ok(left_type.clone()),
             _ => {}
         };
     } else {
         return Err(create_not_initialized_err(&id));
     };
-
     context.type_map.borrow_mut().try_insert(id, right_type)
 }
 
@@ -405,9 +392,6 @@ pub fn resolve_array(mut unis: Vec<Uni>, context: &Context) -> Result<TypeResult
                         .borrow_mut()
                         .try_insert(id.clone(), elem_type_result.clone())?;
                 }
-                (TypeResult::Err(err_str), _) | (_, TypeResult::Err(err_str)) => {
-                    return Err(err_str.to_string());
-                }
                 _ => unimplemented!(),
             }
         }
@@ -487,7 +471,6 @@ pub fn resolve_type_result_with_op(
                 _ => unreachable!(),
             }
         }
-        (TypeResult::Err(err_str), _) | (_, TypeResult::Err(err_str)) => Err(err_str.to_string()),
         _ => unimplemented!(),
     }
 }
@@ -525,7 +508,6 @@ pub fn filter_type_result<'a>(
             Ok(original)
         }
         Some(TypeResult::Unknown) => unimplemented!(),
-        Some(TypeResult::Err(err_str)) => Err(err_str.to_string()),
         Some(TypeResult::Binary(_, _, _)) => unreachable!(),
     }
 }
