@@ -143,10 +143,3 @@ impl PartialEq for PrimitiveType {
     }
 }
 impl Eq for PrimitiveType {}
-
-lazy_static! {
-    pub static ref TYPE_MAP: Mutex<HashMap<String, Uni>> = {
-        let mut m = HashMap::new();
-        Mutex::new(m)
-    };
-}

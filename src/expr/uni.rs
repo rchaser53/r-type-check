@@ -30,12 +30,16 @@ impl Uni {
     pub fn to_string(&self) -> String {
         match self {
             Uni::Id(id) => id.0.to_string(),
-            Uni::Array(array) => "array".to_string(),
+            Uni::Array(array) => array
+                .into_iter()
+                .map(|uni| uni.to_string())
+                .collect::<Vec<String>>()
+                .join(","),
             Uni::String(string_) => string_.clone(),
             Uni::Number(num) => num.to_string(),
             Uni::Boolean(boolean) => boolean.to_string(),
-            Uni::Field(ids) => "field".to_string(),
-            Uni::HashMap(hash_sets) => "hash_map".to_string(),
+            Uni::Field(_) => "field".to_string(),
+            Uni::HashMap(_) => "hash_map".to_string(),
             Uni::Null => "null".to_string(),
         }
     }

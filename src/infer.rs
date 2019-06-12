@@ -1,4 +1,3 @@
-use combine::Parser;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
@@ -614,6 +613,7 @@ pub fn resolve_op_one_side(
 mod test {
     use crate::ast::*;
     use crate::infer::*;
+    use combine::Parser;
 
     macro_rules! assert_infer {
         ($input: expr, $expected: expr) => {
