@@ -268,6 +268,12 @@ pub fn resolve_call(
                             ));
                         }
                     }
+                    OpeaqueType::IdOnly(id) => {
+                        let arg_exp = args.get(index).unwrap();
+                        let arg_type_result = resolve_expr(*arg_exp.clone(), context)?;
+                        // save type information for paramerter in function
+                        // and retry type check somewhere
+                    }
                     _ => {
                         // TBD: need to check correctly
                     }
