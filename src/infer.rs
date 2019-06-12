@@ -76,7 +76,7 @@ pub fn resolve_statement(
         match statement {
             Statement::Let(lets, body) => {
                 for Assign(id, exp) in lets {
-                    let right_type = resolve_expr(exp, &context);
+                    let right_type = resolve_expr(exp, &context)?;
                     if let TypeResult::Err(err_str) = right_type {
                         return Err(err_str);
                     }
@@ -89,19 +89,16 @@ pub fn resolve_statement(
                 resolve_statement(unboxed_body, context)?;
             }
             Statement::Expr(expr) => {
-                let type_result = resolve_expr(expr, context);
+                let type_result = resolve_expr(expr, context)?;
                 if let TypeResult::Err(err_str) = type_result {
                     return Err(err_str);
                 }
             }
             Statement::Assign(Assign(id, expr)) => {
-                let type_result = resolve_assign(id, expr, context);
-                if let TypeResult::Err(err_str) = type_result {
-                    return Err(err_str);
-                }
+                resolve_assign(id, expr, context)?;
             }
             Statement::Return(expr) => {
-                let type_result = resolve_expr(expr, context);
+                let type_result = resolve_expr(expr, context)?;
                 if let TypeResult::Err(err_str) = type_result {
                     return Err(err_str);
                 }
@@ -109,7 +106,7 @@ pub fn resolve_statement(
             }
             Statement::If(if_tuples) => {
                 for (if_condition, boxed_body) in if_tuples {
-                    let if_condition_type_result = resolve_expr(if_condition, context);
+                    let if_condition_type_result = resolve_expr(if_condition, context)?;
                     match if_condition_type_result {
                         TypeResult::Resolved(type_kind) => {
                             if type_kind != TypeKind::PrimitiveType(PrimitiveType::Boolean) {
@@ -117,12 +114,12 @@ pub fn resolve_statement(
                             }
                         }
                         TypeResult::IdOnly(id) => {
-                            context.type_map.borrow_mut().insert(
+                            context.type_map.borrow_mut().try_insert(
                                 id.clone(),
                                 TypeResult::Resolved(TypeKind::PrimitiveType(
                                     PrimitiveType::Boolean,
                                 )),
-                            );
+                            )?;
                         }
                         TypeResult::Err(err_str) => return Err(err_str),
                         _ => unreachable!(),
@@ -155,31 +152,23 @@ pub fn resolve_statement(
     }
 }
 
-pub fn resolve_assign(id: Id, exp: Expr, context: &Context) -> TypeResult {
-    let right_type = resolve_expr(exp, context);
-    if let TypeResult::Err(err_str) = right_type {
-        return TypeResult::Err(err_str.to_string());
-    }
-
+pub fn resolve_assign(id: Id, exp: Expr, context: &Context) -> Result<TypeResult, String> {
+    let right_type = resolve_expr(exp, context)?;
     if let Some(left_type) = context.type_map.borrow_mut().try_get(&id) {
         match left_type {
             TypeResult::Resolved(left_type) => {
                 if let Some(err_str) = validate_assign_type(left_type, &right_type) {
-                    return TypeResult::Err(err_str);
+                    return Err(err_str);
                 }
             }
-            TypeResult::Err(_) => return left_type.clone(),
+            TypeResult::Err(_) => return Ok(left_type.clone()),
             _ => {}
         };
     } else {
-        return TypeResult::Err(create_not_initialized_err(&id));
+        return Err(create_not_initialized_err(&id));
     };
 
-    context
-        .type_map
-        .borrow_mut()
-        .insert(id, right_type)
-        .unwrap()
+    context.type_map.borrow_mut().try_insert(id, right_type)
 }
 
 pub fn validate_assign_type(
@@ -198,7 +187,7 @@ pub fn validate_assign_type(
     }
 }
 
-pub fn resolve_expr(exp: Expr, context: &Context) -> TypeResult {
+pub fn resolve_expr(exp: Expr, context: &Context) -> Result<TypeResult, String> {
     match exp {
         Expr::Unary(uni) => resolve_type(uni, context),
         Expr::Binary(left, op, right) => resolve_binary(*left, op, *right, context),
@@ -232,16 +221,23 @@ pub fn resolve_expr(exp: Expr, context: &Context) -> TypeResult {
                         _ => unreachable!(),
                     };
                     // TBD: need to think more
-                    TypeResult::Resolved(TypeKind::Function(fn_arg_types, return_type))
+                    Ok(TypeResult::Resolved(TypeKind::Function(
+                        fn_arg_types,
+                        return_type,
+                    )))
                 }
-                Err(err_str) => TypeResult::Err(err_str),
+                Err(err_str) => Err(err_str),
             }
         }
         Expr::Call(ids, boxed_args) => resolve_call(ids, boxed_args, context),
     }
 }
 
-pub fn resolve_call(ids: Vec<Id>, args: Vec<Box<Expr>>, context: &Context) -> TypeResult {
+pub fn resolve_call(
+    ids: Vec<Id>,
+    args: Vec<Box<Expr>>,
+    context: &Context,
+) -> Result<TypeResult, String> {
     // TBD: need to implement correctly
     // especially for field
     // ex. xx.yy();
@@ -276,10 +272,10 @@ pub fn resolve_call(ids: Vec<Id>, args: Vec<Box<Expr>>, context: &Context) -> Ty
                 match param {
                     OpeaqueType::Defined(param_type_kind) => {
                         let arg_exp = args.get(index).unwrap();
-                        let arg_type_result = resolve_expr(*arg_exp.clone(), context);
+                        let arg_type_result = resolve_expr(*arg_exp.clone(), context)?;
                         let param_type_result = TypeResult::Resolved(*param_type_kind.clone());
                         if arg_type_result != param_type_result {
-                            return TypeResult::Err(create_param_and_arg_type_is_mismatch_err(
+                            return Err(create_param_and_arg_type_is_mismatch_err(
                                 &arg_type_result,
                                 &param_type_result,
                             ));
@@ -293,73 +289,76 @@ pub fn resolve_call(ids: Vec<Id>, args: Vec<Box<Expr>>, context: &Context) -> Ty
 
             match return_opeaque {
                 OpeaqueType::Defined(boxed_type_kind) => {
-                    TypeResult::Resolved(*boxed_type_kind.clone())
+                    Ok(TypeResult::Resolved(*boxed_type_kind.clone()))
                 }
-                OpeaqueType::IdOnly(id) => TypeResult::IdOnly(id.clone()),
-                OpeaqueType::Unknown => TypeResult::Unknown,
+                OpeaqueType::IdOnly(id) => Ok(TypeResult::IdOnly(id.clone())),
+                OpeaqueType::Unknown => Ok(TypeResult::Unknown),
             }
         }
-        TypeResult::Resolved(type_kind @ _) => {
-            TypeResult::Err(create_cannot_call_err(&id, &type_kind))
-        }
-        TypeResult::IdOnly(id) => TypeResult::IdOnly(id.clone()),
+        TypeResult::Resolved(type_kind @ _) => Err(create_cannot_call_err(&id, &type_kind)),
+        TypeResult::IdOnly(id) => Ok(TypeResult::IdOnly(id.clone())),
         _ => unreachable!(),
     }
 }
 
-pub fn resolve_binary(left: Expr, op: BinOpKind, right: Expr, context: &Context) -> TypeResult {
+pub fn resolve_binary(
+    left: Expr,
+    op: BinOpKind,
+    right: Expr,
+    context: &Context,
+) -> Result<TypeResult, String> {
     match (left, right) {
         (Expr::Binary(l_left, l_op, l_right), Expr::Binary(r_left, r_op, r_right)) => {
-            let l_resolved = resolve_binary(*l_left, l_op, *l_right, context);
-            let r_resolved = resolve_binary(*r_left, r_op, *r_right, context);
+            let l_resolved = resolve_binary(*l_left, l_op, *l_right, context)?;
+            let r_resolved = resolve_binary(*r_left, r_op, *r_right, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         (Expr::Binary(l_left, l_op, l_right), Expr::Unary(right)) => {
-            let l_resolved = resolve_binary(*l_left, l_op, *l_right, context);
-            let r_resolved = resolve_type(right, context);
+            let l_resolved = resolve_binary(*l_left, l_op, *l_right, context)?;
+            let r_resolved = resolve_type(right, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         (Expr::Binary(l_left, l_op, l_right), Expr::Call(ids, args)) => {
-            let l_resolved = resolve_binary(*l_left, l_op, *l_right, context);
-            let r_resolved = resolve_call(ids, args, context);
+            let l_resolved = resolve_binary(*l_left, l_op, *l_right, context)?;
+            let r_resolved = resolve_call(ids, args, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         (Expr::Unary(left), Expr::Binary(r_left, r_op, r_right)) => {
-            let l_resolved = resolve_type(left, context);
-            let r_resolved = resolve_binary(*r_left, r_op, *r_right, context);
+            let l_resolved = resolve_type(left, context)?;
+            let r_resolved = resolve_binary(*r_left, r_op, *r_right, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         (Expr::Unary(left), Expr::Unary(right)) => {
-            let l_resolved = resolve_type(left, context);
-            let r_resolved = resolve_type(right, context);
+            let l_resolved = resolve_type(left, context)?;
+            let r_resolved = resolve_type(right, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         (Expr::Unary(left), Expr::Call(ids, args)) => {
-            let l_resolved = resolve_type(left, context);
-            let r_resolved = resolve_call(ids, args, context);
+            let l_resolved = resolve_type(left, context)?;
+            let r_resolved = resolve_call(ids, args, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         (Expr::Call(ids, args), Expr::Binary(r_left, r_op, r_right)) => {
-            let l_resolved = resolve_call(ids, args, context);
-            let r_resolved = resolve_binary(*r_left, r_op, *r_right, context);
+            let l_resolved = resolve_call(ids, args, context)?;
+            let r_resolved = resolve_binary(*r_left, r_op, *r_right, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         (Expr::Call(ids, args), Expr::Unary(right)) => {
-            let l_resolved = resolve_call(ids, args, context);
-            let r_resolved = resolve_type(right, context);
+            let l_resolved = resolve_call(ids, args, context)?;
+            let r_resolved = resolve_type(right, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         (Expr::Call(left_ids, left_args), Expr::Call(right_ids, right_args)) => {
-            let l_resolved = resolve_call(left_ids, left_args, context);
-            let r_resolved = resolve_call(right_ids, right_args, context);
+            let l_resolved = resolve_call(left_ids, left_args, context)?;
+            let r_resolved = resolve_call(right_ids, right_args, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         _ => unreachable!(),
     }
 }
 
-pub fn resolve_type(uni: Uni, context: &Context) -> TypeResult {
-    match uni {
+pub fn resolve_type(uni: Uni, context: &Context) -> Result<TypeResult, String> {
+    let result = match uni {
         Uni::Id(id) => match context.type_map.borrow_mut().try_get(&id) {
             Some(result @ TypeResult::Resolved(_)) => result.clone(),
             _ => TypeResult::IdOnly(id),
@@ -367,53 +366,52 @@ pub fn resolve_type(uni: Uni, context: &Context) -> TypeResult {
         Uni::String(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::String)),
         Uni::Number(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
         Uni::Boolean(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean)),
-        Uni::Array(unis) => resolve_array(unis, context),
+        Uni::Array(unis) => resolve_array(unis, context)?,
         Uni::Field(_) => unimplemented!(),
         Uni::HashMap(_) => unimplemented!(),
         Uni::Null => unimplemented!(),
-    }
+    };
+    Ok(result)
 }
 
-pub fn resolve_array(mut unis: Vec<Uni>, context: &Context) -> TypeResult {
+pub fn resolve_array(mut unis: Vec<Uni>, context: &Context) -> Result<TypeResult, String> {
     if unis.len() == 0 {
-        TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Array(
-            ArrayType::Unknown,
+        Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+            PrimitiveType::Array(ArrayType::Unknown),
         )))
     } else {
-        let array_type_result = resolve_type(unis.pop().unwrap(), context);
+        let array_type_result = resolve_type(unis.pop().unwrap(), context)?;
         for uni in unis {
-            let elem_type_result = resolve_type(uni, context);
+            let elem_type_result = resolve_type(uni, context)?;
 
             match (&array_type_result, &elem_type_result) {
                 (TypeResult::Resolved(_), TypeResult::Resolved(_)) => {
                     if elem_type_result != array_type_result {
-                        return TypeResult::Err(create_conflict_array_elemenet_type_err(
+                        return Err(create_conflict_array_elemenet_type_err(
                             &elem_type_result,
                             &array_type_result,
                         ));
                     }
                 }
                 (TypeResult::Resolved(_), TypeResult::IdOnly(id)) => {
-                    let _ = context
+                    context
                         .type_map
                         .borrow_mut()
-                        .try_insert(id.clone(), array_type_result.clone())
-                        .map_err(|err_str| return TypeResult::Err(err_str.to_string()));
+                        .try_insert(id.clone(), array_type_result.clone())?;
                 }
                 (TypeResult::IdOnly(id), TypeResult::Resolved(_)) => {
-                    let _ = context
+                    context
                         .type_map
                         .borrow_mut()
-                        .try_insert(id.clone(), elem_type_result.clone())
-                        .map_err(|err_str| return TypeResult::Err(err_str.to_string()));
+                        .try_insert(id.clone(), elem_type_result.clone())?;
                 }
                 (TypeResult::Err(err_str), _) | (_, TypeResult::Err(err_str)) => {
-                    return TypeResult::Err(err_str.to_string());
+                    return Err(err_str.to_string());
                 }
                 _ => unimplemented!(),
             }
         }
-        array_type_result
+        Ok(array_type_result)
     }
 }
 
@@ -422,7 +420,7 @@ pub fn resolve_type_result_with_op(
     op: BinOpKind,
     right: TypeResult,
     context: &Context,
-) -> TypeResult {
+) -> Result<TypeResult, String> {
     match (&left, &right) {
         (TypeResult::Resolved(ref left), TypeResult::Resolved(ref right)) => {
             check_left_op_right(left, op, right, context)
@@ -434,17 +432,12 @@ pub fn resolve_type_result_with_op(
             try_insert_and_resolve_op(&left, left_type, &id, op, context)
         }
         (TypeResult::IdOnly(left_id), TypeResult::IdOnly(right_id)) => {
-            let left_result = filter_type_result(&left, &left_id, context)
-                .map_err(|err_str| return TypeResult::Err(err_str))
-                .unwrap();
-
-            let right_result = filter_type_result(&right, &right_id, context)
-                .map_err(|err_str| return TypeResult::Err(err_str))
-                .unwrap();
+            let left_result = filter_type_result(&left, &left_id, context)?;
+            let right_result = filter_type_result(&right, &right_id, context)?;
 
             match (left_result, right_result) {
                 (TypeResult::Resolved(left_type), TypeResult::Resolved(_)) => {
-                    TypeResult::Resolved(left_type.clone())
+                    Ok(TypeResult::Resolved(left_type.clone()))
                 }
                 (TypeResult::Resolved(left_type), TypeResult::IdOnly(right_id)) => {
                     try_insert_and_resolve_op(&left_result, left_type, &right_id, op, context)
@@ -471,7 +464,9 @@ pub fn resolve_type_result_with_op(
                                 right_id.clone(),
                                 TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
                             );
-                            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int))
+                            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                                PrimitiveType::Int,
+                            )))
                         }
                         BinOpKind::Lt | BinOpKind::Le | BinOpKind::Ge | BinOpKind::Gt => {
                             context.type_map.borrow_mut().insert(
@@ -482,17 +477,17 @@ pub fn resolve_type_result_with_op(
                                 right_id.clone(),
                                 TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
                             );
-                            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean))
+                            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                                PrimitiveType::Boolean,
+                            )))
                         }
-                        _ => TypeResult::IdOnly(left_id.clone()),
+                        _ => Ok(TypeResult::IdOnly(left_id.clone())),
                     }
                 }
                 _ => unreachable!(),
             }
         }
-        (TypeResult::Err(err_str), _) | (_, TypeResult::Err(err_str)) => {
-            TypeResult::Err(err_str.to_string())
-        }
+        (TypeResult::Err(err_str), _) | (_, TypeResult::Err(err_str)) => Err(err_str.to_string()),
         _ => unimplemented!(),
     }
 }
@@ -503,15 +498,14 @@ pub fn try_insert_and_resolve_op(
     id: &Id,
     op: BinOpKind,
     context: &Context,
-) -> TypeResult {
-    let _ = context
+) -> Result<TypeResult, String> {
+    context
         .type_map
         .borrow_mut()
-        .try_insert(id.clone(), original.clone())
-        .map_err(|err_str| return TypeResult::Err(err_str));
+        .try_insert(id.clone(), original.clone())?;
     match resolve_op_one_side(&original_type, op, context) {
-        Ok(_) => TypeResult::Resolved(original_type.clone()),
-        Err(err_str) => TypeResult::Err(err_str),
+        Ok(_) => Ok(TypeResult::Resolved(original_type.clone())),
+        Err(err_str) => Err(err_str),
     }
 }
 
@@ -541,14 +535,14 @@ pub fn check_left_op_right(
     op: BinOpKind,
     right: &TypeKind,
     context: &Context,
-) -> TypeResult {
+) -> Result<TypeResult, String> {
     if left == right {
         match resolve_op(&left, op, &right, context) {
-            Ok(result) => result,
-            Err(err_str) => TypeResult::Err(err_str),
+            Ok(result) => Ok(result),
+            Err(err_str) => Err(err_str),
         }
     } else {
-        TypeResult::Err(create_type_mismatch_err(&left, &right))
+        Err(create_type_mismatch_err(&left, &right))
     }
 }
 
