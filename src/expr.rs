@@ -16,8 +16,11 @@ pub enum Expr {
     Unary(Uni),
     Binary(Box<Expr>, BinOpKind, Box<Expr>),
     Call(Vec<Id>, Vec<Box<Expr>>),
-    Fn(Vec<Id>, Vec<Box<Statement>>),
+    Fn(Function),
 }
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Function(pub Vec<Id>, pub Vec<Box<Statement>>);
 
 fn fn_<I>() -> impl Parser<Input = I, Output = Expr>
 where
@@ -44,7 +47,10 @@ where
             many(statement()),
         ))
         .map(|(args, stetements_): (Vec<Id>, Vec<Statement>)| {
-            Expr::Fn(args, stetements_.into_iter().map(|s| Box::new(s)).collect())
+            Expr::Fn(Function(
+                args,
+                stetements_.into_iter().map(|s| Box::new(s)).collect(),
+            ))
         })
 }
 
@@ -474,7 +480,7 @@ mod test {
         assert_eq!(
             expr().easy_parse(input),
             Ok((
-                Expr::Fn(
+                Expr::Fn(Function(
                     vec![],
                     vec![Box::new(Statement::Let(
                         vec![Assign(
@@ -483,7 +489,7 @@ mod test {
                         )],
                         vec![],
                     ))]
-                ),
+                )),
                 ""
             ))
         );
@@ -494,7 +500,7 @@ mod test {
         assert_eq!(
             expr().easy_parse(input),
             Ok((
-                Expr::Fn(
+                Expr::Fn(Function(
                     vec![Id(String::from("a"))],
                     vec![Box::new(Statement::Let(
                         vec![Assign(
@@ -503,7 +509,7 @@ mod test {
                         )],
                         vec![],
                     ))]
-                ),
+                )),
                 ""
             ))
         );
@@ -514,7 +520,7 @@ mod test {
         assert_eq!(
             expr().easy_parse(input),
             Ok((
-                Expr::Fn(
+                Expr::Fn(Function(
                     vec![Id(String::from("a")), Id(String::from("b")),],
                     vec![Box::new(Statement::Let(
                         vec![Assign(
@@ -523,7 +529,7 @@ mod test {
                         )],
                         vec![],
                     ))]
-                ),
+                )),
                 ""
             ))
         );

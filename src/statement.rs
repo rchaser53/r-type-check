@@ -429,14 +429,14 @@ mod test {
             Statement::Let(
                 vec![Assign(
                     Id(String::from("abc")),
-                    Expr::Fn(
+                    Expr::Fn(Function(
                         vec![Id(String::from("aaa"))],
                         vec![Box::new(Statement::Return(Expr::Binary(
                             Box::new(Expr::Unary(Uni::Id(Id(String::from("aaa"))))),
                             BinOpKind::Add,
                             Box::new(Expr::Unary(Uni::Number(123))),
                         )))]
-                    ),
+                    )),
                 )],
                 vec![Box::new(Statement::Expr(Expr::Binary(
                     Box::new(Expr::Call(

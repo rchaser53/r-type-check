@@ -178,7 +178,7 @@ pub fn resolve_expr(exp: Expr, context: &Context) -> Result<TypeResult, String> 
     match exp {
         Expr::Unary(uni) => resolve_type(uni, context),
         Expr::Binary(left, op, right) => resolve_binary(*left, op, *right, context),
-        Expr::Fn(args, body) => {
+        Expr::Fn(Function(args, body)) => {
             let fn_context = Context::new();
             for arg in args.clone() {
                 fn_context
