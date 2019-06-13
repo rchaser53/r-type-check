@@ -1,21 +1,21 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
 
 use crate::error::*;
 use crate::expr::bin_op::*;
 use crate::expr::uni::*;
 use crate::expr::*;
+use crate::scope::*;
 use crate::statement::*;
 use crate::types::*;
 
 #[derive(Clone, Debug)]
 pub struct Context {
-    pub type_map: RefCell<TypeMap>,
+    pub scope: LocalScope,
 }
 impl Context {
     pub fn new() -> Self {
         Context {
-            type_map: RefCell::new(TypeMap::new()),
+            scope: LocalScope::new(None),
         }
     }
 }
@@ -77,6 +77,7 @@ pub fn resolve_statement(
                 for Assign(id, exp) in lets {
                     let right_type = resolve_expr(exp, &context)?;
                     context
+                        .scope
                         .type_map
                         .borrow_mut()
                         .try_insert(id.clone(), right_type)?;
@@ -104,7 +105,7 @@ pub fn resolve_statement(
                             }
                         }
                         TypeResult::IdOnly(id) => {
-                            context.type_map.borrow_mut().try_insert(
+                            context.scope.type_map.borrow_mut().try_insert(
                                 id.clone(),
                                 TypeResult::Resolved(TypeKind::PrimitiveType(
                                     PrimitiveType::Boolean,
@@ -143,7 +144,7 @@ pub fn resolve_statement(
 
 pub fn resolve_assign(id: Id, exp: Expr, context: &Context) -> Result<TypeResult, String> {
     let right_type = resolve_expr(exp, context)?;
-    if let Some(left_type) = context.type_map.borrow_mut().try_get(&id) {
+    if let Some(left_type) = context.scope.type_map.borrow_mut().try_get(&id) {
         match left_type {
             TypeResult::Resolved(left_type) => {
                 if let Some(err_str) = validate_assign_type(left_type, &right_type) {
@@ -155,7 +156,11 @@ pub fn resolve_assign(id: Id, exp: Expr, context: &Context) -> Result<TypeResult
     } else {
         return Err(create_not_initialized_err(&id));
     };
-    context.type_map.borrow_mut().try_insert(id, right_type)
+    context
+        .scope
+        .type_map
+        .borrow_mut()
+        .try_insert(id, right_type)
 }
 
 pub fn validate_assign_type(
@@ -182,6 +187,7 @@ pub fn resolve_expr(exp: Expr, context: &Context) -> Result<TypeResult, String> 
             let fn_context = Context::new();
             for arg in args.clone() {
                 fn_context
+                    .scope
                     .type_map
                     .borrow_mut()
                     .insert(arg.clone(), TypeResult::IdOnly(arg));
@@ -192,7 +198,7 @@ pub fn resolve_expr(exp: Expr, context: &Context) -> Result<TypeResult, String> 
                         .into_iter()
                         .map(|id| {
                             if let Some(TypeResult::Resolved(type_kind)) =
-                                fn_context.type_map.borrow_mut().try_get(&id)
+                                fn_context.scope.type_map.borrow_mut().try_get(&id)
                             {
                                 OpeaqueType::Defined(Box::new(type_kind.clone()))
                             } else {
@@ -231,7 +237,7 @@ pub fn resolve_call(
     let id = &ids[0];
     let arg_len = args.len();
     let mut arg_type_vec = Vec::with_capacity(arg_len);
-    let (should_insert, ret_result) = match context.type_map.borrow_mut().try_get(&id) {
+    let (should_insert, ret_result) = match context.scope.type_map.borrow_mut().try_get(&id) {
         Some(TypeResult::IdOnly(_)) | None => {
             for index in 0..arg_len {
                 arg_type_vec[index] = OpeaqueType::Unknown
@@ -247,7 +253,7 @@ pub fn resolve_call(
         Some(result @ _) => (false, result.clone()),
     };
     if should_insert {
-        context.type_map.borrow_mut().insert(
+        context.scope.type_map.borrow_mut().insert(
             id.clone(),
             TypeResult::Resolved(TypeKind::Function(arg_type_vec, OpeaqueType::Unknown)),
         );
@@ -352,7 +358,7 @@ pub fn resolve_binary(
 
 pub fn resolve_type(uni: Uni, context: &Context) -> Result<TypeResult, String> {
     let result = match uni {
-        Uni::Id(id) => match context.type_map.borrow_mut().try_get(&id) {
+        Uni::Id(id) => match context.scope.type_map.borrow_mut().try_get(&id) {
             Some(result @ TypeResult::Resolved(_)) => result.clone(),
             _ => TypeResult::IdOnly(id),
         },
@@ -388,12 +394,14 @@ pub fn resolve_array(mut unis: Vec<Uni>, context: &Context) -> Result<TypeResult
                 }
                 (TypeResult::Resolved(_), TypeResult::IdOnly(id)) => {
                     context
+                        .scope
                         .type_map
                         .borrow_mut()
                         .try_insert(id.clone(), array_type_result.clone())?;
                 }
                 (TypeResult::IdOnly(id), TypeResult::Resolved(_)) => {
                     context
+                        .scope
                         .type_map
                         .borrow_mut()
                         .try_insert(id.clone(), elem_type_result.clone())?;
@@ -446,11 +454,11 @@ pub fn resolve_type_result_with_op(
                      */
                     match op {
                         BinOpKind::Sub | BinOpKind::Mul | BinOpKind::Div | BinOpKind::Shr => {
-                            context.type_map.borrow_mut().insert(
+                            context.scope.type_map.borrow_mut().insert(
                                 left_id.clone(),
                                 TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
                             );
-                            context.type_map.borrow_mut().insert(
+                            context.scope.type_map.borrow_mut().insert(
                                 right_id.clone(),
                                 TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
                             );
@@ -459,11 +467,11 @@ pub fn resolve_type_result_with_op(
                             )))
                         }
                         BinOpKind::Lt | BinOpKind::Le | BinOpKind::Ge | BinOpKind::Gt => {
-                            context.type_map.borrow_mut().insert(
+                            context.scope.type_map.borrow_mut().insert(
                                 left_id.clone(),
                                 TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
                             );
-                            context.type_map.borrow_mut().insert(
+                            context.scope.type_map.borrow_mut().insert(
                                 right_id.clone(),
                                 TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
                             );
@@ -489,6 +497,7 @@ pub fn try_insert_and_resolve_op(
     context: &Context,
 ) -> Result<TypeResult, String> {
     context
+        .scope
         .type_map
         .borrow_mut()
         .try_insert(id.clone(), original.clone())?;
@@ -504,10 +513,11 @@ pub fn filter_type_result<'a>(
     id: &Id,
     context: &Context,
 ) -> Result<&'a TypeResult, String> {
-    match context.type_map.borrow_mut().try_get(id) {
+    match context.scope.type_map.borrow_mut().try_get(id) {
         Some(TypeResult::Resolved(_)) | Some(TypeResult::IdOnly(_)) => Ok(original),
         None => {
             context
+                .scope
                 .type_map
                 .borrow_mut()
                 .insert(id.clone(), TypeResult::IdOnly(id.clone()));

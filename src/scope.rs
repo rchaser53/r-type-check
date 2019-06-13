@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -47,18 +48,18 @@ pub enum Scope {
 pub struct ObjectScope {
     pub parent_id: Option<ObjectId>,
     pub id: ObjectId,
-    pub scope_map: HashMap<Id, Box<ObjectScope>>,
-    pub type_map: TypeMap,
-    pub function_map: HashMap<Id, Function>,
+    pub scope_map: RefCell<HashMap<Id, Box<ObjectScope>>>,
+    pub type_map: RefCell<TypeMap>,
+    pub function_map: RefCell<HashMap<Id, Function>>,
 }
 
 #[derive(Clone, Debug)]
 pub struct LocalScope {
     pub parent_id: Option<ScopeId>,
     pub id: ObjectId,
-    pub scope_map: HashMap<Id, Box<Scope>>,
-    pub type_map: TypeMap,
-    pub function_map: HashMap<Id, Function>,
+    pub scope_map: RefCell<HashMap<Id, Box<Scope>>>,
+    pub type_map: RefCell<TypeMap>,
+    pub function_map: RefCell<HashMap<Id, Function>>,
 }
 
 impl LocalScope {
@@ -66,9 +67,9 @@ impl LocalScope {
         LocalScope {
             parent_id,
             id: ObjectId(ID_POOL.next_id()),
-            scope_map: HashMap::new(),
-            type_map: TypeMap::new(),
-            function_map: HashMap::new(),
+            scope_map: RefCell::new(HashMap::new()),
+            type_map: RefCell::new(TypeMap::new()),
+            function_map: RefCell::new(HashMap::new()),
         }
     }
 }
