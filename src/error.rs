@@ -1,6 +1,6 @@
 use crate::expr::bin_op::*;
 use crate::expr::uni::*;
-use crate::infer::*;
+use crate::scope::*;
 use crate::types::*;
 
 pub fn create_type_mismatch_err(left: &TypeKind, right: &TypeKind) -> String {

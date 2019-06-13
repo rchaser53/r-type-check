@@ -4,6 +4,7 @@ use combine::stream::Stream;
 use combine::{attempt, between, choice, easy, many, parser, Parser};
 
 use crate::expr::uni::*;
+use crate::expr::Node::*;
 use crate::expr::*;
 use crate::utils::{skip_spaces, string_skip_spaces, token_skip_spaces};
 
@@ -168,7 +169,7 @@ where
         )| {
             if let Some(else_statement) = else_statement {
                 else_ifs.push((
-                    Expr::Unary(Uni::Boolean(Boolean::True)),
+                    Expr::new(Unary(Uni::Boolean(Boolean::True))),
                     else_statement.into_iter().map(|s| Box::new(s)).collect(),
                 ));
             }
@@ -231,7 +232,7 @@ mod test {
             r#"abc = "aaa";"#,
             Statement::Assign(Assign(
                 Id(String::from("abc")),
-                Expr::Unary(Uni::String(String::from("aaa")))
+                Expr::new(Unary(Uni::String(String::from("aaa"))))
             ))
         );
     }
@@ -240,7 +241,7 @@ mod test {
     fn return_test() {
         assert_statement!(
             r#"return "aaa";"#,
-            Statement::Return(Expr::Unary(Uni::String(String::from("aaa"))))
+            Statement::Return(Expr::new(Unary(Uni::String(String::from("aaa")))))
         );
     }
 
@@ -251,15 +252,15 @@ mod test {
               let abc = "aaa" in
             }"#,
             Statement::If(vec![(
-                Expr::Binary(
-                    Box::new(Expr::Unary(Uni::Id(Id(String::from("i"))))),
+                Expr::new(Binary(
+                    Box::new(Expr::new(Unary(Uni::Id(Id(String::from("i")))))),
                     BinOpKind::Lt,
-                    Box::new(Expr::Unary(Uni::Number(10)))
-                ),
+                    Box::new(Expr::new(Unary(Uni::Number(10))))
+                )),
                 vec![Box::new(Statement::Let(
                     vec![Assign(
                         Id(String::from("abc")),
-                        Expr::Unary(Uni::String(String::from("aaa"))),
+                        Expr::new(Unary(Uni::String(String::from("aaa")))),
                     )],
                     vec![],
                 ))]
@@ -274,25 +275,25 @@ mod test {
             }"#,
             Statement::If(vec![
                 (
-                    Expr::Binary(
-                        Box::new(Expr::Unary(Uni::Id(Id(String::from("i"))))),
+                    Expr::new(Binary(
+                        Box::new(Expr::new(Unary(Uni::Id(Id(String::from("i")))))),
                         BinOpKind::Lt,
-                        Box::new(Expr::Unary(Uni::Number(10)))
-                    ),
+                        Box::new(Expr::new(Unary(Uni::Number(10))))
+                    )),
                     vec![Box::new(Statement::Let(
                         vec![Assign(
                             Id(String::from("abc")),
-                            Expr::Unary(Uni::String(String::from("aaa"))),
+                            Expr::new(Unary(Uni::String(String::from("aaa")))),
                         )],
                         vec![],
                     ))]
                 ),
                 (
-                    Expr::Unary(Uni::Boolean(Boolean::True)),
+                    Expr::new(Unary(Uni::Boolean(Boolean::True))),
                     vec![Box::new(Statement::Let(
                         vec![Assign(
                             Id(String::from("def")),
-                            Expr::Unary(Uni::String(String::from("bbb"))),
+                            Expr::new(Unary(Uni::String(String::from("bbb")))),
                         )],
                         vec![],
                     ))]
@@ -308,29 +309,29 @@ mod test {
             }"#,
             Statement::If(vec![
                 (
-                    Expr::Binary(
-                        Box::new(Expr::Unary(Uni::Id(Id(String::from("i"))))),
+                    Expr::new(Binary(
+                        Box::new(Expr::new(Unary(Uni::Id(Id(String::from("i")))))),
                         BinOpKind::Lt,
-                        Box::new(Expr::Unary(Uni::Number(10)))
-                    ),
+                        Box::new(Expr::new(Unary(Uni::Number(10))))
+                    )),
                     vec![Box::new(Statement::Let(
                         vec![Assign(
                             Id(String::from("abc")),
-                            Expr::Unary(Uni::String(String::from("aaa"))),
+                            Expr::new(Unary(Uni::String(String::from("aaa")))),
                         )],
                         vec![],
                     ))]
                 ),
                 (
-                    Expr::Binary(
-                        Box::new(Expr::Unary(Uni::Id(Id(String::from("j"))))),
+                    Expr::new(Binary(
+                        Box::new(Expr::new(Unary(Uni::Id(Id(String::from("j")))))),
                         BinOpKind::Gt,
-                        Box::new(Expr::Unary(Uni::Number(100)))
-                    ),
+                        Box::new(Expr::new(Unary(Uni::Number(100))))
+                    )),
                     vec![Box::new(Statement::Let(
                         vec![Assign(
                             Id(String::from("def")),
-                            Expr::Unary(Uni::String(String::from("bbb"))),
+                            Expr::new(Unary(Uni::String(String::from("bbb")))),
                         )],
                         vec![],
                     ))]
@@ -348,39 +349,39 @@ mod test {
             }"#,
             Statement::If(vec![
                 (
-                    Expr::Binary(
-                        Box::new(Expr::Unary(Uni::Id(Id(String::from("i"))))),
+                    Expr::new(Binary(
+                        Box::new(Expr::new(Unary(Uni::Id(Id(String::from("i")))))),
                         BinOpKind::Lt,
-                        Box::new(Expr::Unary(Uni::Number(10)))
-                    ),
+                        Box::new(Expr::new(Unary(Uni::Number(10))))
+                    )),
                     vec![Box::new(Statement::Let(
                         vec![Assign(
                             Id(String::from("abc")),
-                            Expr::Unary(Uni::String(String::from("aaa"))),
+                            Expr::new(Unary(Uni::String(String::from("aaa")))),
                         )],
                         vec![],
                     ))]
                 ),
                 (
-                    Expr::Binary(
-                        Box::new(Expr::Unary(Uni::Id(Id(String::from("j"))))),
+                    Expr::new(Binary(
+                        Box::new(Expr::new(Unary(Uni::Id(Id(String::from("j")))))),
                         BinOpKind::Gt,
-                        Box::new(Expr::Unary(Uni::Number(100)))
-                    ),
+                        Box::new(Expr::new(Unary(Uni::Number(100))))
+                    )),
                     vec![Box::new(Statement::Let(
                         vec![Assign(
                             Id(String::from("def")),
-                            Expr::Unary(Uni::String(String::from("bbb"))),
+                            Expr::new(Unary(Uni::String(String::from("bbb")))),
                         )],
                         vec![],
                     ))]
                 ),
                 (
-                    Expr::Unary(Uni::Boolean(Boolean::True)),
+                    Expr::new(Unary(Uni::Boolean(Boolean::True))),
                     vec![Box::new(Statement::Let(
                         vec![Assign(
                             Id(String::from("ghi")),
-                            Expr::Unary(Uni::String(String::from("ccc"))),
+                            Expr::new(Unary(Uni::String(String::from("ccc")))),
                         )],
                         vec![],
                     ))]
@@ -393,11 +394,11 @@ mod test {
     fn expr_statement_test() {
         assert_statement!(
             r#"1 + 2;"#,
-            Statement::Expr(Expr::Binary(
-                Box::new(Expr::Unary(Uni::Number(1))),
+            Statement::Expr(Expr::new(Binary(
+                Box::new(Expr::new(Unary(Uni::Number(1)))),
                 BinOpKind::Add,
-                Box::new(Expr::Unary(Uni::Number(2))),
-            ))
+                Box::new(Expr::new(Unary(Uni::Number(2)))),
+            )))
         );
     }
 
@@ -410,13 +411,13 @@ mod test {
             Statement::Let(
                 vec![Assign(
                     Id(String::from("abc")),
-                    Expr::Unary(Uni::String(String::from("aaa"))),
+                    Expr::new(Unary(Uni::String(String::from("aaa")))),
                 )],
-                vec![Box::new(Statement::Expr(Expr::Binary(
-                    Box::new(Expr::Unary(Uni::Id(Id(String::from("abc"))))),
+                vec![Box::new(Statement::Expr(Expr::new(Binary(
+                    Box::new(Expr::new(Unary(Uni::Id(Id(String::from("abc")))))),
                     BinOpKind::Add,
-                    Box::new(Expr::Unary(Uni::String(String::from("def")))),
-                ))),]
+                    Box::new(Expr::new(Unary(Uni::String(String::from("def"))))),
+                )))),]
             )
         );
 
@@ -429,23 +430,23 @@ mod test {
             Statement::Let(
                 vec![Assign(
                     Id(String::from("abc")),
-                    Expr::Fn(Function(
+                    Expr::new(Fn(Function(
                         vec![Id(String::from("aaa"))],
-                        vec![Box::new(Statement::Return(Expr::Binary(
-                            Box::new(Expr::Unary(Uni::Id(Id(String::from("aaa"))))),
+                        vec![Box::new(Statement::Return(Expr::new(Binary(
+                            Box::new(Expr::new(Unary(Uni::Id(Id(String::from("aaa")))))),
                             BinOpKind::Add,
-                            Box::new(Expr::Unary(Uni::Number(123))),
-                        )))]
-                    )),
+                            Box::new(Expr::new(Unary(Uni::Number(123)))),
+                        ))))]
+                    ))),
                 )],
-                vec![Box::new(Statement::Expr(Expr::Binary(
-                    Box::new(Expr::Call(
+                vec![Box::new(Statement::Expr(Expr::new(Binary(
+                    Box::new(Expr::new(Call(
                         vec![Id(String::from("abc"))],
-                        vec![Box::new(Expr::Unary(Uni::Number(456)))]
-                    )),
+                        vec![Box::new(Expr::new(Unary(Uni::Number(456))))]
+                    ))),
                     BinOpKind::Add,
-                    Box::new(Expr::Unary(Uni::String(String::from("def")))),
-                ))),]
+                    Box::new(Expr::new(Unary(Uni::String(String::from("def"))))),
+                )))),]
             )
         );
 
@@ -457,27 +458,27 @@ mod test {
             Statement::Let(
                 vec![Assign(
                     Id(String::from("abc")),
-                    Expr::Binary(
-                        Box::new(Expr::Binary(
-                            Box::new(Expr::Unary(Uni::Number(1))),
+                    Expr::new(Binary(
+                        Box::new(Expr::new(Binary(
+                            Box::new(Expr::new(Unary(Uni::Number(1)))),
                             BinOpKind::Add,
-                            Box::new(Expr::Unary(Uni::Number(3))),
-                        )),
+                            Box::new(Expr::new(Unary(Uni::Number(3)))),
+                        ))),
                         BinOpKind::Mul,
-                        Box::new(Expr::Unary(Uni::Number(4))),
-                    )
+                        Box::new(Expr::new(Unary(Uni::Number(4)))),
+                    ))
                 )],
                 vec![
                     Box::new(Statement::Assign(Assign(
                         Id(String::from("abc")),
-                        Expr::Binary(
-                            Box::new(Expr::Unary(Uni::Id(Id(String::from("abc"))))),
+                        Expr::new(Binary(
+                            Box::new(Expr::new(Unary(Uni::Id(Id(String::from("abc")))))),
                             BinOpKind::Add,
-                            Box::new(Expr::Unary(Uni::Number(2))),
-                        )
+                            Box::new(Expr::new(Unary(Uni::Number(2)))),
+                        ))
                     )),),
-                    Box::new(Statement::Return(Expr::Unary(Uni::Id(Id(String::from(
-                        "abc"
+                    Box::new(Statement::Return(Expr::new(Unary(Uni::Id(Id(
+                        String::from("abc")
                     ))))))
                 ],
             )

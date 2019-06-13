@@ -3,7 +3,7 @@ use combine::stream::Stream;
 use combine::{attempt, between, many, parser, sep_by, Parser};
 
 use crate::statement::*;
-use crate::utils::{skip_spaces, string_skip_spaces, token_skip_spaces};
+use crate::utils::*;
 
 pub mod bin_op;
 use bin_op::{bin_op as bin_op_, BinOpKind};
@@ -11,8 +11,29 @@ use bin_op::{bin_op as bin_op_, BinOpKind};
 pub mod uni;
 use uni::{field, uni as create_uni, word, word_, Id, Uni};
 
+#[derive(Clone, Debug)]
+pub struct Expr {
+    pub id: Id,
+    pub node: Node,
+}
+
+impl Expr {
+    pub fn new(node: Node) -> Expr {
+        Expr {
+            id: ID_POOL.next_id(),
+            node,
+        }
+    }
+}
+
+impl PartialEq for Expr {
+    fn eq(&self, other: &Self) -> bool {
+        self.node == other.node
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
-pub enum Expr {
+pub enum Node {
     Unary(Uni),
     Binary(Box<Expr>, BinOpKind, Box<Expr>),
     Call(Vec<Id>, Vec<Box<Expr>>),
@@ -47,10 +68,10 @@ where
             many(statement()),
         ))
         .map(|(args, stetements_): (Vec<Id>, Vec<Statement>)| {
-            Expr::Fn(Function(
+            Expr::new(Node::Fn(Function(
                 args,
                 stetements_.into_iter().map(|s| Box::new(s)).collect(),
-            ))
+            )))
         })
 }
 
@@ -69,7 +90,7 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    attempt(call()).or(create_uni().map(Expr::Unary))
+    attempt(call()).or(create_uni().map(|uni| Expr::new(Node::Unary(uni))))
 }
 
 pub fn try_paren_with_binary<I>() -> impl Parser<Input = I, Output = Expr>
@@ -97,7 +118,7 @@ where
                 0 => return left,
                 1 => {
                     let (bin_op, right) = right_pairs.remove(0);
-                    return Expr::Binary(Box::new(left), bin_op, Box::new(right));
+                    return Expr::new(Node::Binary(Box::new(left), bin_op, Box::new(right)));
                 }
                 _ => {
                     let mut exp = left;
@@ -111,11 +132,16 @@ where
                         // [exp1 op1 exp2] op2 exp3
                         if left_priority > right_priority {
                             let (left_op, left_exp) = left_pair;
-                            exp = Expr::Binary(Box::new(exp), left_op, Box::new(left_exp));
+                            exp =
+                                Expr::new(Node::Binary(Box::new(exp), left_op, Box::new(left_exp)));
 
                             if length == 0 {
                                 let (right_op, right_exp) = right_pair;
-                                return Expr::Binary(Box::new(exp), right_op, Box::new(right_exp));
+                                return Expr::new(Node::Binary(
+                                    Box::new(exp),
+                                    right_op,
+                                    Box::new(right_exp),
+                                ));
                             }
 
                             left_pair = right_pair;
@@ -127,12 +153,20 @@ where
                             let (right_op, right_exp) = right_pair;
                             left_pair = (
                                 left_op,
-                                Expr::Binary(Box::new(left_exp), right_op, Box::new(right_exp)),
+                                Expr::new(Node::Binary(
+                                    Box::new(left_exp),
+                                    right_op,
+                                    Box::new(right_exp),
+                                )),
                             );
 
                             if length == 0 {
                                 let (left_op, left_exp) = left_pair;
-                                return Expr::Binary(Box::new(exp), left_op, Box::new(left_exp));
+                                return Expr::new(Node::Binary(
+                                    Box::new(exp),
+                                    left_op,
+                                    Box::new(left_exp),
+                                ));
                             }
 
                             right_pair = right_pairs.remove(0);
@@ -165,8 +199,8 @@ where
                 .map(|exps: Vec<Expr>| exps.into_iter().map(|exp| Box::new(exp)).collect()),
         ))
         .map(|(fn_name, args)| match fn_name {
-            Uni::Id(id) => Expr::Call(vec![id], args),
-            Uni::Field(fields) => Expr::Call(fields, args),
+            Uni::Id(id) => Expr::new(Node::Call(vec![id], args)),
+            Uni::Field(fields) => Expr::new(Node::Call(fields, args)),
             _ => panic!("should come Uni::Id. actual: {:?}", fn_name),
         })
 }
@@ -182,13 +216,14 @@ parser! {
 mod test {
     use crate::expr::bin_op::*;
     use crate::expr::uni::*;
+    use crate::expr::Node::*;
     use crate::expr::*;
 
     #[test]
     fn unary_test() {
         assert_eq!(
             expr().easy_parse(r#""abc""#),
-            Ok((Expr::Unary(Uni::String(String::from("abc"))), ""))
+            Ok((Expr::new(Unary(Uni::String(String::from("abc")))), ""))
         );
     }
 
@@ -197,11 +232,11 @@ mod test {
         assert_eq!(
             expr().easy_parse(r#"1 + 2"#),
             Ok((
-                Expr::Binary(
-                    Box::new(Expr::Unary(Uni::Number(1))),
+                Expr::new(Binary(
+                    Box::new(Expr::new(Unary(Uni::Number(1)))),
                     BinOpKind::Add,
-                    Box::new(Expr::Unary(Uni::Number(2))),
-                ),
+                    Box::new(Expr::new(Unary(Uni::Number(2)))),
+                )),
                 ""
             ))
         );
@@ -211,16 +246,16 @@ mod test {
     fn call_test() {
         assert_eq!(
             expr().easy_parse(r#"ab()"#),
-            Ok((Expr::Call(vec![Id(String::from("ab"))], vec![]), ""))
+            Ok((Expr::new(Call(vec![Id(String::from("ab"))], vec![])), ""))
         );
 
         assert_eq!(
             expr().easy_parse(r#"ab( cde )"#),
             Ok((
-                Expr::Call(
+                Expr::new(Call(
                     vec![Id(String::from("ab"))],
-                    vec![Box::new(Expr::Unary(Uni::Id(Id(String::from("cde")))))]
-                ),
+                    vec![Box::new(Expr::new(Unary(Uni::Id(Id(String::from("cde"))))))]
+                )),
                 ""
             ))
         );
@@ -228,13 +263,13 @@ mod test {
         assert_eq!(
             expr().easy_parse(r#"ab( cde , fgh )"#),
             Ok((
-                Expr::Call(
+                Expr::new(Call(
                     vec![Id(String::from("ab"))],
                     vec![
-                        Box::new(Expr::Unary(Uni::Id(Id(String::from("cde"))))),
-                        Box::new(Expr::Unary(Uni::Id(Id(String::from("fgh")))))
+                        Box::new(Expr::new(Unary(Uni::Id(Id(String::from("cde")))))),
+                        Box::new(Expr::new(Unary(Uni::Id(Id(String::from("fgh"))))))
                     ]
-                ),
+                )),
                 ""
             ))
         );
@@ -242,13 +277,13 @@ mod test {
         assert_eq!(
             expr().easy_parse(r#"ab.field( cde , fgh )"#),
             Ok((
-                Expr::Call(
+                Expr::new(Call(
                     vec![Id(String::from("ab")), Id(String::from("field"))],
                     vec![
-                        Box::new(Expr::Unary(Uni::Id(Id(String::from("cde"))))),
-                        Box::new(Expr::Unary(Uni::Id(Id(String::from("fgh")))))
+                        Box::new(Expr::new(Unary(Uni::Id(Id(String::from("cde")))))),
+                        Box::new(Expr::new(Unary(Uni::Id(Id(String::from("fgh"))))))
                     ]
-                ),
+                )),
                 ""
             ))
         );
@@ -259,11 +294,11 @@ mod test {
         assert_eq!(
             expr().easy_parse(r#"abc() * 3"#),
             Ok((
-                Expr::Binary(
-                    Box::new(Expr::Call(vec![Id(String::from("abc"))], vec![])),
+                Expr::new(Binary(
+                    Box::new(Expr::new(Call(vec![Id(String::from("abc"))], vec![]))),
                     BinOpKind::Mul,
-                    Box::new(Expr::Unary(Uni::Number(3))),
-                ),
+                    Box::new(Expr::new(Unary(Uni::Number(3)))),
+                )),
                 ""
             ))
         );
@@ -271,14 +306,14 @@ mod test {
         assert_eq!(
             expr().easy_parse(r#"abc( def ) * 3"#),
             Ok((
-                Expr::Binary(
-                    Box::new(Expr::Call(
+                Expr::new(Binary(
+                    Box::new(Expr::new(Call(
                         vec![Id(String::from("abc"))],
-                        vec![Box::new(Expr::Unary(Uni::Id(Id(String::from("def"))))),]
-                    )),
+                        vec![Box::new(Expr::new(Unary(Uni::Id(Id(String::from("def")))))),]
+                    ))),
                     BinOpKind::Mul,
-                    Box::new(Expr::Unary(Uni::Number(3))),
-                ),
+                    Box::new(Expr::new(Unary(Uni::Number(3)))),
+                )),
                 ""
             ))
         );
@@ -286,18 +321,18 @@ mod test {
         assert_eq!(
             expr().easy_parse(r#"(abc( def ) + 1) * 2"#),
             Ok((
-                Expr::Binary(
-                    Box::new(Expr::Binary(
-                        Box::new(Expr::Call(
+                Expr::new(Binary(
+                    Box::new(Expr::new(Binary(
+                        Box::new(Expr::new(Call(
                             vec![Id(String::from("abc"))],
-                            vec![Box::new(Expr::Unary(Uni::Id(Id(String::from("def"))))),]
-                        )),
+                            vec![Box::new(Expr::new(Unary(Uni::Id(Id(String::from("def")))))),]
+                        ))),
                         BinOpKind::Add,
-                        Box::new(Expr::Unary(Uni::Number(1))),
-                    )),
+                        Box::new(Expr::new(Unary(Uni::Number(1)))),
+                    ))),
                     BinOpKind::Mul,
-                    Box::new(Expr::Unary(Uni::Number(2))),
-                ),
+                    Box::new(Expr::new(Unary(Uni::Number(2)))),
+                )),
                 ""
             ))
         );
@@ -308,15 +343,15 @@ mod test {
         assert_eq!(
             expr().easy_parse(r#"1 + 2 * 3"#),
             Ok((
-                Expr::Binary(
-                    Box::new(Expr::Unary(Uni::Number(1))),
+                Expr::new(Binary(
+                    Box::new(Expr::new(Unary(Uni::Number(1)))),
                     BinOpKind::Add,
-                    Box::new(Expr::Binary(
-                        Box::new(Expr::Unary(Uni::Number(2))),
+                    Box::new(Expr::new(Binary(
+                        Box::new(Expr::new(Unary(Uni::Number(2)))),
                         BinOpKind::Mul,
-                        Box::new(Expr::Unary(Uni::Number(3))),
-                    )),
-                ),
+                        Box::new(Expr::new(Unary(Uni::Number(3)))),
+                    ))),
+                )),
                 ""
             ))
         );
@@ -324,15 +359,15 @@ mod test {
         assert_eq!(
             expr().easy_parse(r#"1 * 2 + 3"#),
             Ok((
-                Expr::Binary(
-                    Box::new(Expr::Binary(
-                        Box::new(Expr::Unary(Uni::Number(1))),
+                Expr::new(Binary(
+                    Box::new(Expr::new(Binary(
+                        Box::new(Expr::new(Unary(Uni::Number(1)))),
                         BinOpKind::Mul,
-                        Box::new(Expr::Unary(Uni::Number(2))),
-                    )),
+                        Box::new(Expr::new(Unary(Uni::Number(2)))),
+                    ))),
                     BinOpKind::Add,
-                    Box::new(Expr::Unary(Uni::Number(3))),
-                ),
+                    Box::new(Expr::new(Unary(Uni::Number(3)))),
+                )),
                 ""
             ))
         );
@@ -343,19 +378,19 @@ mod test {
         assert_eq!(
             expr().easy_parse(r#"1 * 2 * 3 - 5"#),
             Ok((
-                Expr::Binary(
-                    Box::new(Expr::Binary(
-                        Box::new(Expr::Unary(Uni::Number(1))),
+                Expr::new(Binary(
+                    Box::new(Expr::new(Binary(
+                        Box::new(Expr::new(Unary(Uni::Number(1)))),
                         BinOpKind::Mul,
-                        Box::new(Expr::Binary(
-                            Box::new(Expr::Unary(Uni::Number(2))),
+                        Box::new(Expr::new(Binary(
+                            Box::new(Expr::new(Unary(Uni::Number(2)))),
                             BinOpKind::Mul,
-                            Box::new(Expr::Unary(Uni::Number(3))),
-                        ))
-                    )),
+                            Box::new(Expr::new(Unary(Uni::Number(3)))),
+                        )))
+                    ))),
                     BinOpKind::Sub,
-                    Box::new(Expr::Unary(Uni::Number(5))),
-                ),
+                    Box::new(Expr::new(Unary(Uni::Number(5)))),
+                )),
                 ""
             ))
         );
@@ -363,19 +398,19 @@ mod test {
         assert_eq!(
             expr().easy_parse(r#"1 * 2 - 3 / 5"#),
             Ok((
-                Expr::Binary(
-                    Box::new(Expr::Binary(
-                        Box::new(Expr::Unary(Uni::Number(1))),
+                Expr::new(Binary(
+                    Box::new(Expr::new(Binary(
+                        Box::new(Expr::new(Unary(Uni::Number(1)))),
                         BinOpKind::Mul,
-                        Box::new(Expr::Unary(Uni::Number(2))),
-                    )),
+                        Box::new(Expr::new(Unary(Uni::Number(2)))),
+                    ))),
                     BinOpKind::Sub,
-                    Box::new(Expr::Binary(
-                        Box::new(Expr::Unary(Uni::Number(3))),
+                    Box::new(Expr::new(Binary(
+                        Box::new(Expr::new(Unary(Uni::Number(3)))),
                         BinOpKind::Div,
-                        Box::new(Expr::Unary(Uni::Number(5))),
-                    ))
-                ),
+                        Box::new(Expr::new(Unary(Uni::Number(5)))),
+                    )))
+                )),
                 ""
             ))
         );
@@ -383,19 +418,19 @@ mod test {
         assert_eq!(
             expr().easy_parse(r#"1 + 2 * 3 - 5"#),
             Ok((
-                Expr::Binary(
-                    Box::new(Expr::Unary(Uni::Number(1))),
+                Expr::new(Binary(
+                    Box::new(Expr::new(Unary(Uni::Number(1)))),
                     BinOpKind::Add,
-                    Box::new(Expr::Binary(
-                        Box::new(Expr::Binary(
-                            Box::new(Expr::Unary(Uni::Number(2))),
+                    Box::new(Expr::new(Binary(
+                        Box::new(Expr::new(Binary(
+                            Box::new(Expr::new(Unary(Uni::Number(2)))),
                             BinOpKind::Mul,
-                            Box::new(Expr::Unary(Uni::Number(3))),
-                        )),
+                            Box::new(Expr::new(Unary(Uni::Number(3)))),
+                        ))),
                         BinOpKind::Sub,
-                        Box::new(Expr::Unary(Uni::Number(5))),
-                    )),
-                ),
+                        Box::new(Expr::new(Unary(Uni::Number(5)))),
+                    )),)
+                )),
                 ""
             ))
         );
@@ -406,15 +441,15 @@ mod test {
         assert_eq!(
             expr().easy_parse(r#"1 + 2 * 3"#),
             Ok((
-                Expr::Binary(
-                    Box::new(Expr::Unary(Uni::Number(1))),
+                Expr::new(Binary(
+                    Box::new(Expr::new(Unary(Uni::Number(1)))),
                     BinOpKind::Add,
-                    Box::new(Expr::Binary(
-                        Box::new(Expr::Unary(Uni::Number(2))),
+                    Box::new(Expr::new(Binary(
+                        Box::new(Expr::new(Unary(Uni::Number(2)))),
                         BinOpKind::Mul,
-                        Box::new(Expr::Unary(Uni::Number(3))),
-                    )),
-                ),
+                        Box::new(Expr::new(Unary(Uni::Number(3)))),
+                    ))),
+                )),
                 ""
             ))
         );
@@ -422,15 +457,15 @@ mod test {
         assert_eq!(
             expr().easy_parse(r#"1 + (2 * 3)"#),
             Ok((
-                Expr::Binary(
-                    Box::new(Expr::Unary(Uni::Number(1))),
+                Expr::new(Binary(
+                    Box::new(Expr::new(Unary(Uni::Number(1)))),
                     BinOpKind::Add,
-                    Box::new(Expr::Binary(
-                        Box::new(Expr::Unary(Uni::Number(2))),
+                    Box::new(Expr::new(Binary(
+                        Box::new(Expr::new(Unary(Uni::Number(2)))),
                         BinOpKind::Mul,
-                        Box::new(Expr::Unary(Uni::Number(3))),
-                    ))
-                ),
+                        Box::new(Expr::new(Unary(Uni::Number(3)))),
+                    )))
+                )),
                 ""
             ))
         );
@@ -438,15 +473,15 @@ mod test {
         assert_eq!(
             expr().easy_parse(r#"(1 + 2) * 3"#),
             Ok((
-                Expr::Binary(
-                    Box::new(Expr::Binary(
-                        Box::new(Expr::Unary(Uni::Number(1))),
+                Expr::new(Binary(
+                    Box::new(Expr::new(Binary(
+                        Box::new(Expr::new(Unary(Uni::Number(1)))),
                         BinOpKind::Add,
-                        Box::new(Expr::Unary(Uni::Number(2))),
-                    )),
+                        Box::new(Expr::new(Unary(Uni::Number(2)))),
+                    ))),
                     BinOpKind::Mul,
-                    Box::new(Expr::Unary(Uni::Number(3))),
-                ),
+                    Box::new(Expr::new(Unary(Uni::Number(3)))),
+                )),
                 ""
             ))
         );
@@ -454,19 +489,19 @@ mod test {
         assert_eq!(
             expr().easy_parse(r#"(1 + 2) * (3 * 4)"#),
             Ok((
-                Expr::Binary(
-                    Box::new(Expr::Binary(
-                        Box::new(Expr::Unary(Uni::Number(1))),
+                Expr::new(Binary(
+                    Box::new(Expr::new(Binary(
+                        Box::new(Expr::new(Unary(Uni::Number(1)))),
                         BinOpKind::Add,
-                        Box::new(Expr::Unary(Uni::Number(2))),
-                    )),
+                        Box::new(Expr::new(Unary(Uni::Number(2)))),
+                    ))),
                     BinOpKind::Mul,
-                    Box::new(Expr::Binary(
-                        Box::new(Expr::Unary(Uni::Number(3))),
+                    Box::new(Expr::new(Binary(
+                        Box::new(Expr::new(Unary(Uni::Number(3)))),
                         BinOpKind::Mul,
-                        Box::new(Expr::Unary(Uni::Number(4))),
-                    )),
-                ),
+                        Box::new(Expr::new(Unary(Uni::Number(4)))),
+                    ))),
+                )),
                 ""
             ))
         );
@@ -480,16 +515,16 @@ mod test {
         assert_eq!(
             expr().easy_parse(input),
             Ok((
-                Expr::Fn(Function(
+                Expr::new(Fn(Function(
                     vec![],
                     vec![Box::new(Statement::Let(
                         vec![Assign(
                             Id(String::from("abc")),
-                            Expr::Unary(Uni::String(String::from("aaa"))),
+                            Expr::new(Unary(Uni::String(String::from("aaa")))),
                         )],
                         vec![],
                     ))]
-                )),
+                ))),
                 ""
             ))
         );
@@ -500,16 +535,16 @@ mod test {
         assert_eq!(
             expr().easy_parse(input),
             Ok((
-                Expr::Fn(Function(
+                Expr::new(Fn(Function(
                     vec![Id(String::from("a"))],
                     vec![Box::new(Statement::Let(
                         vec![Assign(
                             Id(String::from("abc")),
-                            Expr::Unary(Uni::String(String::from("aaa"))),
+                            Expr::new(Unary(Uni::String(String::from("aaa")))),
                         )],
                         vec![],
                     ))]
-                )),
+                ))),
                 ""
             ))
         );
@@ -520,16 +555,16 @@ mod test {
         assert_eq!(
             expr().easy_parse(input),
             Ok((
-                Expr::Fn(Function(
+                Expr::new(Fn(Function(
                     vec![Id(String::from("a")), Id(String::from("b")),],
                     vec![Box::new(Statement::Let(
                         vec![Assign(
                             Id(String::from("abc")),
-                            Expr::Unary(Uni::String(String::from("aaa"))),
+                            Expr::new(Unary(Uni::String(String::from("aaa")))),
                         )],
                         vec![],
                     ))]
-                )),
+                ))),
                 ""
             ))
         );

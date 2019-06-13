@@ -4,6 +4,7 @@ use combine::stream::Stream;
 use combine::{many, Parser};
 
 use crate::expr::uni::*;
+use crate::expr::Node::*;
 use crate::statement::*;
 
 pub fn ast<I>() -> impl Parser<Input = I, Output = Vec<Statement>>
@@ -31,11 +32,11 @@ def = 456;"#;
                 vec![
                     Statement::Assign(Assign(
                         Id(String::from("abc")),
-                        Expr::Unary(Uni::Number(123))
+                        Expr::new(Unary(Uni::Number(123)))
                     )),
                     Statement::Assign(Assign(
                         Id(String::from("def")),
-                        Expr::Unary(Uni::Number(456))
+                        Expr::new(Unary(Uni::Number(456)))
                     )),
                 ],
                 ""
@@ -54,11 +55,11 @@ def = 456;"#;
                 vec![Statement::Let(
                     vec![Assign(
                         Id(String::from("abc")),
-                        Expr::Unary(Uni::Number(123)),
+                        Expr::new(Unary(Uni::Number(123))),
                     )],
                     vec![Box::new(Statement::Assign(Assign(
                         Id(String::from("def")),
-                        Expr::Unary(Uni::Number(456))
+                        Expr::new(Unary(Uni::Number(456)))
                     )))]
                 ),],
                 ""

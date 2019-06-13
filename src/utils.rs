@@ -1,7 +1,11 @@
+use std::sync::Mutex;
+
 use combine::error::ParseError;
 use combine::parser::char::{spaces, string};
 use combine::stream::Stream;
 use combine::{token, Parser};
+
+use crate::expr::uni::*;
 
 pub fn skip_spaces<I, T>(
     input: impl Parser<Input = I, Output = T>,
@@ -28,4 +32,24 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     skip_spaces(string(input))
+}
+
+pub struct Pool(Mutex<i64>);
+impl Pool {
+    pub fn next_id(&self) -> Id {
+        let mut temp = self.0.lock().unwrap();
+        *temp += 1;
+        Id(temp.to_string())
+    }
+
+    pub fn new() -> Pool {
+        Pool(Mutex::new(0))
+    }
+}
+
+lazy_static! {
+    pub static ref ID_POOL: Pool = {
+        let mut pool = Pool::new();
+        pool
+    };
 }

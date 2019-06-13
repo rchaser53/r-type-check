@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::error::*;
 use crate::expr::bin_op::*;
 use crate::expr::uni::*;
@@ -18,51 +16,6 @@ impl Context {
             scope: LocalScope::new(None),
         }
     }
-}
-
-#[derive(Clone, Debug)]
-pub struct TypeMap(HashMap<Id, TypeResult>);
-impl TypeMap {
-    pub fn new() -> Self {
-        TypeMap(HashMap::new())
-    }
-
-    pub fn insert(&mut self, id: Id, value: TypeResult) -> Option<TypeResult> {
-        self.0.insert(id, value)
-    }
-
-    pub fn try_insert(&mut self, id: Id, new_type: TypeResult) -> Result<TypeResult, String> {
-        if let Some(defined_type) = self.try_get(&id) {
-            match (defined_type, &new_type) {
-                (TypeResult::Resolved(ref defined), TypeResult::Resolved(ref new)) => {
-                    if defined == new {
-                        Ok(new_type)
-                    } else {
-                        Err(create_assign_conflict_type_err(&id, defined, &new))
-                    }
-                }
-                _ => {
-                    self.0.insert(id, new_type.clone());
-                    Ok(new_type)
-                }
-            }
-        } else {
-            self.0.insert(id, new_type.clone());
-            Ok(new_type)
-        }
-    }
-
-    pub fn try_get(&mut self, id: &Id) -> Option<&mut TypeResult> {
-        self.0.get_mut(id)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum TypeResult {
-    Binary(Box<TypeResult>, BinOpKind, Box<TypeResult>),
-    Resolved(TypeKind),
-    IdOnly(Id),
-    Unknown,
 }
 
 /// return function return TypeResult
@@ -180,10 +133,10 @@ pub fn validate_assign_type(
 }
 
 pub fn resolve_expr(exp: Expr, context: &Context) -> Result<TypeResult, String> {
-    match exp {
-        Expr::Unary(uni) => resolve_type(uni, context),
-        Expr::Binary(left, op, right) => resolve_binary(*left, op, *right, context),
-        Expr::Fn(Function(args, body)) => {
+    match exp.node {
+        Node::Unary(uni) => resolve_type(uni, context),
+        Node::Binary(left, op, right) => resolve_binary(*left, op, *right, context),
+        Node::Fn(Function(args, body)) => {
             let fn_context = Context::new();
             for arg in args.clone() {
                 fn_context
@@ -222,7 +175,7 @@ pub fn resolve_expr(exp: Expr, context: &Context) -> Result<TypeResult, String> 
                 Err(err_str) => Err(err_str),
             }
         }
-        Expr::Call(ids, boxed_args) => resolve_call(ids, boxed_args, context),
+        Node::Call(ids, boxed_args) => resolve_call(ids, boxed_args, context),
     }
 }
 
@@ -306,48 +259,48 @@ pub fn resolve_binary(
     right: Expr,
     context: &Context,
 ) -> Result<TypeResult, String> {
-    match (left, right) {
-        (Expr::Binary(l_left, l_op, l_right), Expr::Binary(r_left, r_op, r_right)) => {
+    match (left.node, right.node) {
+        (Node::Binary(l_left, l_op, l_right), Node::Binary(r_left, r_op, r_right)) => {
             let l_resolved = resolve_binary(*l_left, l_op, *l_right, context)?;
             let r_resolved = resolve_binary(*r_left, r_op, *r_right, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
-        (Expr::Binary(l_left, l_op, l_right), Expr::Unary(right)) => {
+        (Node::Binary(l_left, l_op, l_right), Node::Unary(right)) => {
             let l_resolved = resolve_binary(*l_left, l_op, *l_right, context)?;
             let r_resolved = resolve_type(right, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
-        (Expr::Binary(l_left, l_op, l_right), Expr::Call(ids, args)) => {
+        (Node::Binary(l_left, l_op, l_right), Node::Call(ids, args)) => {
             let l_resolved = resolve_binary(*l_left, l_op, *l_right, context)?;
             let r_resolved = resolve_call(ids, args, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
-        (Expr::Unary(left), Expr::Binary(r_left, r_op, r_right)) => {
+        (Node::Unary(left), Node::Binary(r_left, r_op, r_right)) => {
             let l_resolved = resolve_type(left, context)?;
             let r_resolved = resolve_binary(*r_left, r_op, *r_right, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
-        (Expr::Unary(left), Expr::Unary(right)) => {
+        (Node::Unary(left), Node::Unary(right)) => {
             let l_resolved = resolve_type(left, context)?;
             let r_resolved = resolve_type(right, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
-        (Expr::Unary(left), Expr::Call(ids, args)) => {
+        (Node::Unary(left), Node::Call(ids, args)) => {
             let l_resolved = resolve_type(left, context)?;
             let r_resolved = resolve_call(ids, args, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
-        (Expr::Call(ids, args), Expr::Binary(r_left, r_op, r_right)) => {
+        (Node::Call(ids, args), Node::Binary(r_left, r_op, r_right)) => {
             let l_resolved = resolve_call(ids, args, context)?;
             let r_resolved = resolve_binary(*r_left, r_op, *r_right, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
-        (Expr::Call(ids, args), Expr::Unary(right)) => {
+        (Node::Call(ids, args), Node::Unary(right)) => {
             let l_resolved = resolve_call(ids, args, context)?;
             let r_resolved = resolve_type(right, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
-        (Expr::Call(left_ids, left_args), Expr::Call(right_ids, right_args)) => {
+        (Node::Call(left_ids, left_args), Node::Call(right_ids, right_args)) => {
             let l_resolved = resolve_call(left_ids, left_args, context)?;
             let r_resolved = resolve_call(right_ids, right_args, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)

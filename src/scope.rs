@@ -1,30 +1,12 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::sync::Mutex;
 
+use crate::error::*;
+use crate::expr::bin_op::*;
 use crate::expr::uni::*;
 use crate::expr::*;
-use crate::infer::*;
-
-pub struct Pool(Mutex<i64>);
-impl Pool {
-    pub fn next_id(&self) -> Id {
-        let mut temp = self.0.lock().unwrap();
-        *temp += 1;
-        Id(temp.to_string())
-    }
-
-    pub fn new() -> Pool {
-        Pool(Mutex::new(0))
-    }
-}
-
-lazy_static! {
-    pub static ref ID_POOL: Pool = {
-        let mut pool = Pool::new();
-        pool
-    };
-}
+use crate::types::*;
+use crate::utils::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum IdType {
@@ -73,3 +55,50 @@ impl LocalScope {
         }
     }
 }
+
+#[derive(Clone, Debug)]
+pub struct TypeMap(HashMap<Id, TypeResult>);
+impl TypeMap {
+    pub fn new() -> Self {
+        TypeMap(HashMap::new())
+    }
+
+    pub fn insert(&mut self, id: Id, value: TypeResult) -> Option<TypeResult> {
+        self.0.insert(id, value)
+    }
+
+    pub fn try_insert(&mut self, id: Id, new_type: TypeResult) -> Result<TypeResult, String> {
+        if let Some(defined_type) = self.try_get(&id) {
+            match (defined_type, &new_type) {
+                (TypeResult::Resolved(ref defined), TypeResult::Resolved(ref new)) => {
+                    if defined == new {
+                        Ok(new_type)
+                    } else {
+                        Err(create_assign_conflict_type_err(&id, defined, &new))
+                    }
+                }
+                _ => {
+                    self.0.insert(id, new_type.clone());
+                    Ok(new_type)
+                }
+            }
+        } else {
+            self.0.insert(id, new_type.clone());
+            Ok(new_type)
+        }
+    }
+
+    pub fn try_get(&mut self, id: &Id) -> Option<&mut TypeResult> {
+        self.0.get_mut(id)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum TypeResult {
+    Binary(Box<TypeResult>, BinOpKind, Box<TypeResult>),
+    Resolved(TypeKind),
+    IdOnly(Id),
+    Unknown,
+}
+
+impl Eq for TypeResult {}
