@@ -1,12 +1,6 @@
 language: rust
-rust:
-  - niglty
-os:
-  - osx
-  - linux
-cache:
-  - cargo
-  - build
+rust: nightly
+os: linux
 
 script:
   - |
