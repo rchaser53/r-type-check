@@ -10,6 +10,7 @@ pub mod ast;
 pub mod error;
 pub mod expr;
 pub mod infer;
+pub mod scope;
 pub mod statement;
 pub mod types;
 pub mod utils;
