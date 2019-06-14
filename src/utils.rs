@@ -53,3 +53,14 @@ lazy_static! {
         pool
     };
 }
+
+#[macro_export]
+macro_rules! debug_info {
+    ($exp:expr) => {
+        if let Ok(word) = env::var("DEBUG_INFO") {
+            if word == "1" {
+                dbg!($exp);
+            }
+        }
+    };
+}

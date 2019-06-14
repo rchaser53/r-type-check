@@ -1,3 +1,5 @@
+use std::env;
+
 use crate::error::*;
 use crate::expr::bin_op::*;
 use crate::expr::uni::*;
@@ -5,6 +7,8 @@ use crate::expr::*;
 use crate::scope::*;
 use crate::statement::*;
 use crate::types::*;
+
+use crate::debug_info;
 
 #[derive(Clone, Debug)]
 pub struct Context {
@@ -349,7 +353,6 @@ pub fn resolve_binary(
         (Node::Call(ids, args), Node::Unary(right)) => {
             let l_resolved = resolve_call(ids, args, context)?;
             let r_resolved = resolve_type(right, context)?;
-            dbg!(&context.scope.type_map);
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         (Node::Call(left_ids, left_args), Node::Call(right_ids, right_args)) => {
@@ -359,7 +362,6 @@ pub fn resolve_binary(
         }
         _ => unreachable!(),
     };
-    dbg!(&context.scope.type_map);
     result
 }
 
@@ -944,37 +946,6 @@ mod test {
             Err(create_param_and_arg_type_is_mismatch_err(
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::String)),
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
-            ))
-        );
-    }
-
-    #[test]
-    fn polymofism_test() {
-        // let input = r#"
-        //     let abc = fn(a){ return a; } in (
-        //         abc(1);
-        //         abc("a");
-        //     )
-        // "#;
-        // assert_infer!(
-        //     input,
-        //     Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
-        //         PrimitiveType::Void
-        //     )))
-        // );
-
-        let input = r#"
-            let abc = fn (def, ghi){ return def + ghi; } in (
-                abc(2, 1) + 33;
-                abc("a", "b") + "cde";
-                abc("a", true);
-            )
-        "#;
-        assert_infer!(
-            input,
-            Err(create_type_mismatch_err(
-                &TypeKind::PrimitiveType(PrimitiveType::String),
-                &TypeKind::PrimitiveType(PrimitiveType::Boolean),
             ))
         );
     }
