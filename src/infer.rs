@@ -237,7 +237,7 @@ pub fn resolve_call(
                 match param {
                     OpeaqueType::Defined(param_type_kind) => {
                         let arg_exp = args.get(index).unwrap();
-                        let arg_type_result = resolve_expr(*arg_exp.clone(), context)?;
+                        let arg_type_result = resolve_expr(*arg_exp.clone(), &fn_context)?;
                         let param_type_result = TypeResult::Resolved(*param_type_kind.clone());
                         if arg_type_result != param_type_result {
                             return Err(create_param_and_arg_type_is_mismatch_err(
@@ -248,14 +248,14 @@ pub fn resolve_call(
                     }
                     OpeaqueType::IdOnly(arg_id) => {
                         let arg_exp = args.get(index).unwrap();
-                        let arg_type_result = resolve_expr(*arg_exp.clone(), context)?;
+                        let arg_type_result = resolve_expr(*arg_exp.clone(), &fn_context)?;
                         // save type information for paramerter in function
                         // and retry type check somewhere
                         fn_context
                             .scope
                             .type_map
                             .borrow_mut()
-                            .insert(arg_id.clone(), arg_type_result);
+                            .insert(id.clone(), arg_type_result);
                     }
                     _ => {
                         // TBD: need to check correctly
@@ -277,33 +277,31 @@ pub fn resolve_call(
     };
 
     let mut fn_map = context.scope.function_map.borrow_mut();
-    if let Some(Function(_, bodys)) = fn_map.get_mut(&id) {
-        let fn_return_type_result = resolve_statement(
-            bodys
-                .clone()
-                .into_iter()
-                .map(|boxed_statement| *boxed_statement)
-                .collect(),
-            &fn_context,
-        )?;
-        let result = result?;
-
-        match (fn_return_type_result, result.clone()) {
-            (TypeResult::Resolved(left_type_kind), TypeResult::Resolved(right_type_kind)) => {
-                if left_type_kind != right_type_kind {
-                    return Err(create_conflict_type_return_err(
-                        &TypeResult::Resolved(left_type_kind),
-                        &TypeResult::Resolved(right_type_kind),
-                    ));
-                }
-            }
-            _ => { /* TBD: need implements correctly */ }
-        }
-
-        Ok(result)
+    let mut bodys = if let Some(Function(_, bodys)) = fn_map.get_mut(&id) {
+        bodys
+            .clone()
+            .into_iter()
+            .map(|boxed_statement| *boxed_statement)
+            .collect()
     } else {
-        result
+        return result;
+    };
+
+    let fn_return_type_result = resolve_statement(bodys, &fn_context)?;
+    let result = result?;
+
+    match (fn_return_type_result, result.clone()) {
+        (TypeResult::Resolved(left_type_kind), TypeResult::Resolved(right_type_kind)) => {
+            if left_type_kind != right_type_kind {
+                return Err(create_conflict_type_return_err(
+                    &TypeResult::Resolved(left_type_kind),
+                    &TypeResult::Resolved(right_type_kind),
+                ));
+            }
+        }
+        _ => { /* TBD: need implements correctly */ }
     }
+    Ok(result)
 }
 
 pub fn resolve_binary(
@@ -312,7 +310,7 @@ pub fn resolve_binary(
     right: Expr,
     context: &Context,
 ) -> Result<TypeResult, String> {
-    match (left.node, right.node) {
+    let result = match (left.node, right.node) {
         (Node::Binary(l_left, l_op, l_right), Node::Binary(r_left, r_op, r_right)) => {
             let l_resolved = resolve_binary(*l_left, l_op, *l_right, context)?;
             let r_resolved = resolve_binary(*r_left, r_op, *r_right, context)?;
@@ -351,6 +349,7 @@ pub fn resolve_binary(
         (Node::Call(ids, args), Node::Unary(right)) => {
             let l_resolved = resolve_call(ids, args, context)?;
             let r_resolved = resolve_type(right, context)?;
+            dbg!(&context.scope.type_map);
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         (Node::Call(left_ids, left_args), Node::Call(right_ids, right_args)) => {
@@ -359,7 +358,9 @@ pub fn resolve_binary(
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         _ => unreachable!(),
-    }
+    };
+    dbg!(&context.scope.type_map);
+    result
 }
 
 pub fn resolve_type(uni: Uni, context: &Context) -> Result<TypeResult, String> {
@@ -519,19 +520,19 @@ pub fn filter_type_result<'a>(
     id: &Id,
     context: &Context,
 ) -> Result<&'a TypeResult, String> {
-    match context.scope.type_map.borrow_mut().try_get(id) {
-        Some(TypeResult::Resolved(_)) | Some(TypeResult::IdOnly(_)) => Ok(original),
-        None => {
-            context
-                .scope
-                .type_map
-                .borrow_mut()
-                .insert(id.clone(), TypeResult::IdOnly(id.clone()));
-            Ok(original)
-        }
-        Some(TypeResult::Unknown) => unimplemented!(),
-        Some(TypeResult::Binary(_, _, _)) => unreachable!(),
+    if let Some(result) = context.scope.type_map.borrow_mut().try_get(id) {
+        return match result {
+            TypeResult::Resolved(_) | TypeResult::IdOnly(_) => Ok(original),
+            TypeResult::Unknown => unimplemented!(),
+            TypeResult::Binary(_, _, _) => unreachable!(),
+        };
     }
+    context
+        .scope
+        .type_map
+        .borrow_mut()
+        .insert(id.clone(), TypeResult::IdOnly(id.clone()));
+    Ok(original)
 }
 
 pub fn check_left_op_right(
@@ -949,22 +950,23 @@ mod test {
 
     #[test]
     fn polymofism_test() {
-        let input = r#"
-            let abc = fn(a){ return a; } in (
-                abc(1);
-                abc("a");
-            )
-        "#;
-        assert_infer!(
-            input,
-            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
-                PrimitiveType::Void
-            )))
-        );
+        // let input = r#"
+        //     let abc = fn(a){ return a; } in (
+        //         abc(1);
+        //         abc("a");
+        //     )
+        // "#;
+        // assert_infer!(
+        //     input,
+        //     Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+        //         PrimitiveType::Void
+        //     )))
+        // );
 
         let input = r#"
-            let abc = fn (a, b){ return a + b; } in (
-                abc(2, 1);
+            let abc = fn (def, ghi){ return def + ghi; } in (
+                abc(2, 1) + 33;
+                abc("a", "b") + "cde";
                 abc("a", true);
             )
         "#;
