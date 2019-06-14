@@ -259,7 +259,7 @@ pub fn resolve_call(
                             .scope
                             .type_map
                             .borrow_mut()
-                            .insert(id.clone(), arg_type_result);
+                            .insert(arg_id.clone(), arg_type_result);
                     }
                     _ => {
                         // TBD: need to check correctly
@@ -271,12 +271,11 @@ pub fn resolve_call(
                 OpeaqueType::Defined(boxed_type_kind) => {
                     Ok(TypeResult::Resolved(*boxed_type_kind.clone()))
                 }
-                OpeaqueType::IdOnly(id) => Ok(TypeResult::IdOnly(id.clone())),
-                OpeaqueType::Unknown => Ok(TypeResult::Unknown),
+                OpeaqueType::IdOnly(_) | OpeaqueType::Unknown => Ok(TypeResult::Unknown),
             }
         }
         TypeResult::Resolved(type_kind @ _) => Err(create_cannot_call_err(&id, &type_kind)),
-        TypeResult::IdOnly(id) => Ok(TypeResult::IdOnly(id.clone())),
+        TypeResult::IdOnly(_) | TypeResult::Unknown => Ok(TypeResult::Unknown),
         _ => unreachable!(),
     };
 
@@ -433,11 +432,12 @@ pub fn resolve_type_result_with_op(
         (TypeResult::Resolved(ref left), TypeResult::Resolved(ref right)) => {
             check_left_op_right(left, op, right, context)
         }
-        (TypeResult::IdOnly(id), TypeResult::Resolved(right_type)) => {
-            try_insert_and_resolve_op(&right, right_type, &id, op, context)
-        }
         (TypeResult::Resolved(left_type), TypeResult::IdOnly(id)) => {
             try_insert_and_resolve_op(&left, left_type, &id, op, context)
+        }
+        (TypeResult::Resolved(_), TypeResult::Unknown) => Ok(left.clone()),
+        (TypeResult::IdOnly(id), TypeResult::Resolved(right_type)) => {
+            try_insert_and_resolve_op(&right, right_type, &id, op, context)
         }
         (TypeResult::IdOnly(left_id), TypeResult::IdOnly(right_id)) => {
             let left_result = filter_type_result(&left, &left_id, context)?;
@@ -495,6 +495,9 @@ pub fn resolve_type_result_with_op(
                 _ => unreachable!(),
             }
         }
+        (TypeResult::Unknown, TypeResult::Resolved(_)) => Ok(right.clone()),
+        (TypeResult::Unknown, _) => Ok(TypeResult::Unknown),
+        (_, TypeResult::Unknown) => Ok(TypeResult::Unknown),
         _ => unimplemented!(),
     }
 }
@@ -947,6 +950,37 @@ mod test {
             Err(create_param_and_arg_type_is_mismatch_err(
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::String)),
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
+            ))
+        );
+    }
+
+    #[test]
+    fn polymofism_test() {
+        let input = r#"
+            let abc = fn(a){ return a; } in (
+                abc(1);
+                abc("a");
+            )
+        "#;
+        assert_infer!(
+            input,
+            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                PrimitiveType::Void
+            )))
+        );
+
+        let input = r#"
+            let abc = fn (def, ghi){ return def + ghi; } in (
+                abc(2, 1) + 33;
+                abc("a", "b") + "cde";
+                abc("a", true);
+            )
+        "#;
+        assert_infer!(
+            input,
+            Err(create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::String),
+                &TypeKind::PrimitiveType(PrimitiveType::Boolean),
             ))
         );
     }
