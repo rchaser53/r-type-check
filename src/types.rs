@@ -5,7 +5,7 @@ use crate::expr::uni::*;
 #[derive(Clone)]
 pub enum TypeKind {
     PrimitiveType(PrimitiveType),
-    Function(Vec<OpeaqueType>, OpeaqueType),
+    Function(Id, Vec<OpeaqueType>, OpeaqueType),
     Custom(Id),
 }
 
@@ -13,7 +13,7 @@ impl fmt::Debug for TypeKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             TypeKind::PrimitiveType(primitive) => write!(f, "{:?}", primitive),
-            TypeKind::Function(args, ret_type) => {
+            TypeKind::Function(_, args, ret_type) => {
                 write!(f, "args:{:?} return:{:?}", args, ret_type)
             }
             TypeKind::Custom(id) => write!(f, "custom id:{:?}", id),
@@ -31,8 +31,8 @@ impl PartialEq for TypeKind {
                     false
                 }
             }
-            TypeKind::Function(left_args, left_ret) => {
-                if let TypeKind::Function(right_args, right_ret) = other {
+            TypeKind::Function(_, left_args, left_ret) => {
+                if let TypeKind::Function(_, right_args, right_ret) = other {
                     left_args == right_args && left_ret == right_ret
                 } else {
                     false

@@ -28,12 +28,24 @@ pub fn resolve_statement(
         match statement {
             Statement::Let(lets, body) => {
                 for Assign(id, exp) in lets {
-                    let right_type = resolve_expr(exp, &context)?;
+                    let right_type_result = resolve_expr(exp.clone(), &context)?;
+
+                    match exp.node {
+                        Node::Fn(function) => {
+                            context
+                                .scope
+                                .function_map
+                                .borrow_mut()
+                                .insert(id.clone(), function.clone());
+                        }
+                        _ => {}
+                    };
+
                     context
                         .scope
                         .type_map
                         .borrow_mut()
-                        .try_insert(id.clone(), right_type)?;
+                        .try_insert(id.clone(), right_type_result)?;
                 }
                 let unboxed_body = body.into_iter().map(|statement| *statement).collect();
                 resolve_statement(unboxed_body, context)?;
@@ -96,11 +108,11 @@ pub fn resolve_statement(
 }
 
 pub fn resolve_assign(id: Id, exp: Expr, context: &Context) -> Result<TypeResult, String> {
-    let right_type = resolve_expr(exp, context)?;
+    let right_type_result = resolve_expr(exp.clone(), context)?;
     if let Some(left_type) = context.scope.type_map.borrow_mut().try_get(&id) {
         match left_type {
             TypeResult::Resolved(left_type) => {
-                if let Some(err_str) = validate_assign_type(left_type, &right_type) {
+                if let Some(err_str) = validate_assign_type(left_type, &right_type_result) {
                     return Err(err_str);
                 }
             }
@@ -113,7 +125,7 @@ pub fn resolve_assign(id: Id, exp: Expr, context: &Context) -> Result<TypeResult
         .scope
         .type_map
         .borrow_mut()
-        .try_insert(id, right_type)
+        .try_insert(id, right_type_result)
 }
 
 pub fn validate_assign_type(
@@ -168,6 +180,7 @@ pub fn resolve_expr(exp: Expr, context: &Context) -> Result<TypeResult, String> 
                     };
                     // TBD: need to think more
                     Ok(TypeResult::Resolved(TypeKind::Function(
+                        exp.id.clone(),
                         fn_arg_types,
                         return_type,
                     )))
@@ -198,6 +211,7 @@ pub fn resolve_call(
             (
                 true,
                 TypeResult::Resolved(TypeKind::Function(
+                    id.clone(),
                     arg_type_vec.clone(),
                     OpeaqueType::Unknown,
                 )),
@@ -208,12 +222,17 @@ pub fn resolve_call(
     if should_insert {
         context.scope.type_map.borrow_mut().insert(
             id.clone(),
-            TypeResult::Resolved(TypeKind::Function(arg_type_vec, OpeaqueType::Unknown)),
+            TypeResult::Resolved(TypeKind::Function(
+                id.clone(),
+                arg_type_vec,
+                OpeaqueType::Unknown,
+            )),
         );
     }
 
-    match ret_result {
-        TypeResult::Resolved(TypeKind::Function(params, return_opeaque)) => {
+    let fn_context = Context::new();
+    let result = match ret_result {
+        TypeResult::Resolved(TypeKind::Function(_, params, return_opeaque)) => {
             for (index, param) in params.into_iter().enumerate() {
                 match param {
                     OpeaqueType::Defined(param_type_kind) => {
@@ -227,11 +246,16 @@ pub fn resolve_call(
                             ));
                         }
                     }
-                    OpeaqueType::IdOnly(id) => {
+                    OpeaqueType::IdOnly(arg_id) => {
                         let arg_exp = args.get(index).unwrap();
                         let arg_type_result = resolve_expr(*arg_exp.clone(), context)?;
                         // save type information for paramerter in function
                         // and retry type check somewhere
+                        fn_context
+                            .scope
+                            .type_map
+                            .borrow_mut()
+                            .insert(arg_id.clone(), arg_type_result);
                     }
                     _ => {
                         // TBD: need to check correctly
@@ -250,6 +274,35 @@ pub fn resolve_call(
         TypeResult::Resolved(type_kind @ _) => Err(create_cannot_call_err(&id, &type_kind)),
         TypeResult::IdOnly(id) => Ok(TypeResult::IdOnly(id.clone())),
         _ => unreachable!(),
+    };
+
+    let mut fn_map = context.scope.function_map.borrow_mut();
+    if let Some(Function(_, bodys)) = fn_map.get_mut(&id) {
+        let fn_return_type_result = resolve_statement(
+            bodys
+                .clone()
+                .into_iter()
+                .map(|boxed_statement| *boxed_statement)
+                .collect(),
+            &fn_context,
+        )?;
+        let result = result?;
+
+        match (fn_return_type_result, result.clone()) {
+            (TypeResult::Resolved(left_type_kind), TypeResult::Resolved(right_type_kind)) => {
+                if left_type_kind != right_type_kind {
+                    return Err(create_conflict_type_return_err(
+                        &TypeResult::Resolved(left_type_kind),
+                        &TypeResult::Resolved(right_type_kind),
+                    ));
+                }
+            }
+            _ => { /* TBD: need implements correctly */ }
+        }
+
+        Ok(result)
+    } else {
+        result
     }
 }
 
@@ -856,7 +909,7 @@ mod test {
         assert_infer!(
             input,
             Err(create_type_mismatch_err(
-                &TypeKind::Function(vec![], OpeaqueType::Unknown),
+                &TypeKind::Function(Id(String::from("whatever")), vec![], OpeaqueType::Unknown),
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
             ))
         );
@@ -890,6 +943,36 @@ mod test {
             Err(create_param_and_arg_type_is_mismatch_err(
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::String)),
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
+            ))
+        );
+    }
+
+    #[test]
+    fn polymofism_test() {
+        let input = r#"
+            let abc = fn(a){ return a; } in (
+                abc(1);
+                abc("a");
+            )
+        "#;
+        assert_infer!(
+            input,
+            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                PrimitiveType::Void
+            )))
+        );
+
+        let input = r#"
+            let abc = fn (a, b){ return a + b; } in (
+                abc(2, 1);
+                abc("a", true);
+            )
+        "#;
+        assert_infer!(
+            input,
+            Err(create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::String),
+                &TypeKind::PrimitiveType(PrimitiveType::Boolean),
             ))
         );
     }
