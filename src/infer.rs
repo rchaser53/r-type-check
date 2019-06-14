@@ -8,7 +8,7 @@ use crate::scope::*;
 use crate::statement::*;
 use crate::types::*;
 
-use crate::debug_info;
+use crate::DEBUG_INFO;
 
 #[derive(Clone, Debug)]
 pub struct Context {
@@ -291,6 +291,7 @@ pub fn resolve_call(
         return result;
     };
 
+    DEBUG_INFO!(&fn_context);
     let fn_return_type_result = resolve_statement(bodys, &fn_context)?;
     let result = result?;
 

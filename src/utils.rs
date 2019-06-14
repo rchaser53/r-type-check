@@ -55,7 +55,7 @@ lazy_static! {
 }
 
 #[macro_export]
-macro_rules! debug_info {
+macro_rules! DEBUG_INFO {
     ($exp:expr) => {
         if let Ok(word) = env::var("DEBUG_INFO") {
             if word == "1" {
