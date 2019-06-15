@@ -5,6 +5,7 @@ use combine::parser::char::{digit, letter};
 use combine::stream::Stream;
 use combine::{attempt, between, choice, many, many1, none_of, parser, sep_by, sep_by1, Parser};
 
+use crate::scope::*;
 use crate::utils::*;
 
 #[derive(Clone, Debug, Hash)]
@@ -23,9 +24,29 @@ pub enum Uni {
     String(String),
     Number(i32),
     Boolean(Boolean),
-    Field(Vec<Id>),
+    Field(Field),
     HashMap(Hash),
     Null,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Field {
+    pub parent_id: Option<ObjectId>,
+    pub id: ObjectId,
+    pub child: Option<Box<Field>>,
+}
+impl Field {
+    pub fn new(parent_id: Option<ObjectId>, id: Id, child: Option<Box<Field>>) -> Self {
+        Field {
+            parent_id,
+            id: ObjectId(id),
+            child,
+        }
+    }
+
+    pub fn attach(&mut self, child: Field) {
+        self.child = Some(Box::new(child));
+    }
 }
 
 impl Uni {
@@ -85,7 +106,7 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     skip_spaces(choice((
-        attempt(field()).or(word_()),
+        attempt(field()),
         attempt(hash_map()),
         attempt(array()),
         attempt(string()),
@@ -136,14 +157,37 @@ where
     skip_spaces(sep_by1(word(), token_skip_spaces('.'))).map(|mut words: Vec<Uni>| {
         let length = words.len();
         if length > 1 {
-            let fields = words
+            if let Some(result) = words
                 .into_iter()
-                .map(|word| match word {
-                    Uni::Id(id) => id,
-                    _ => panic!("should come here Id. but actual: {:?}", word),
+                .fold(None, |previous: Option<Field>, next| {
+                    let id = match next {
+                        Uni::Id(id) => id,
+                        _ => unreachable!(),
+                    };
+
+                    fn set_field_to_leaf(mut field: Field, id: Id) -> Field {
+                        if field.child.is_none() {
+                            field.child =
+                                Some(Box::new(Field::new(Some(field.id.clone()), id, None)));
+                            field
+                        } else {
+                            set_field_to_leaf(*field.child.unwrap(), id)
+                        }
+                    }
+
+                    let result = if let Some(previous) = previous {
+                        set_field_to_leaf(previous, id)
+                    } else {
+                        Field::new(None, id, None)
+                    };
+
+                    Some(result)
                 })
-                .collect();
-            Uni::Field(fields)
+            {
+                Uni::Field(result)
+            } else {
+                panic!("uni field: should not come here");
+            }
         } else {
             words.pop().unwrap()
         }
@@ -289,7 +333,15 @@ mod test {
         assert_eq!(
             uni().easy_parse(r#"abc.def"#),
             Ok((
-                Uni::Field(vec![Id(String::from("abc")), Id(String::from("def")),]),
+                Uni::Field(Field::new(
+                    None,
+                    Id(String::from("abc")),
+                    Some(Box::new(Field::new(
+                        Some(ObjectId(Id(String::from("abc")))),
+                        Id(String::from("def")),
+                        None
+                    )))
+                )),
                 ""
             ))
         );

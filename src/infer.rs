@@ -375,7 +375,7 @@ pub fn resolve_uni(uni: Uni, context: &Context) -> Result<TypeResult, String> {
         Uni::Number(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
         Uni::Boolean(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean)),
         Uni::Array(unis) => resolve_array(unis, context)?,
-        Uni::HashMap(hash) => resove_hash(hash, context)?,
+        Uni::HashMap(hash) => resolve_hash(hash, context)?,
         Uni::Field(_) => unimplemented!(),
         Uni::Null => unimplemented!(),
     };
@@ -422,7 +422,7 @@ pub fn resolve_array(mut unis: Vec<Uni>, context: &Context) -> Result<TypeResult
     }
 }
 
-pub fn resove_hash(hash: Hash, context: &Context) -> Result<TypeResult, String> {
+pub fn resolve_hash(hash: Hash, context: &Context) -> Result<TypeResult, String> {
     let parent_id = context.scope.id.0.clone();
     let hash_scope = ObjectScope::new(Some(IdType::Local(ScopeId(parent_id))));
     let hash_scope_id = hash_scope.id.clone();
@@ -1085,6 +1085,19 @@ mod test {
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
                 &TypeKind::PrimitiveType(PrimitiveType::String),
             ))
+        );
+    }
+
+    #[test]
+    fn hash_map_infer() {
+        let input = r#"
+            { abc: "def" };
+        "#;
+        assert_infer!(
+            input,
+            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                PrimitiveType::Void
+            )))
         );
     }
 }
