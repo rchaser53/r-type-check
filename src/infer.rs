@@ -376,10 +376,46 @@ pub fn resolve_uni(uni: Uni, context: &Context) -> Result<TypeResult, String> {
         Uni::Boolean(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean)),
         Uni::Array(unis) => resolve_array(unis, context)?,
         Uni::HashMap(hash) => resolve_hash(hash, context)?,
-        Uni::Field(_) => unimplemented!(),
+        Uni::Field(field) => resolve_field(field, context)?,
         Uni::Null => unimplemented!(),
     };
     Ok(result)
+}
+
+pub fn resolve_field(field: Field, context: &Context) -> Result<TypeResult, String> {
+    if let Some(child) = field.child {
+        let child_id = child.id.clone();
+        if let Some(type_result) = context.scope.type_map.borrow_mut().try_get(&field.id.0) {
+            match type_result {
+                TypeResult::Resolved(TypeKind::Object(object_id)) => {
+                    if let Some(boxed_scope) = context
+                        .scope
+                        .scope_map
+                        .borrow_mut()
+                        .get_mut(&IdType::Object(object_id.clone()))
+                    {
+                        if let Scope::Object(object_map) = *boxed_scope.clone() {
+                            if let Some(type_result) =
+                                object_map.type_map.borrow_mut().try_get(&child_id.0)
+                            {
+                                return Ok(type_result.clone());
+                            } else {
+                                unimplemented!()
+                            }
+                        } else {
+                            unreachable!()
+                        }
+                    }
+                }
+                _ => {}
+            };
+            Ok(type_result.clone())
+        } else {
+            unimplemented!();
+        }
+    } else {
+        unimplemented!();
+    }
 }
 
 pub fn resolve_array(mut unis: Vec<Uni>, context: &Context) -> Result<TypeResult, String> {
@@ -434,10 +470,11 @@ pub fn resolve_hash(hash: Hash, context: &Context) -> Result<TypeResult, String>
                 .borrow_mut()
                 .insert(key.clone(), type_result.clone());
         } else {
+            let type_result = resolve_uni(*boxed_uni, context)?;
             hash_scope
                 .type_map
                 .borrow_mut()
-                .insert(key.clone(), resolve_uni(*boxed_uni, context)?);
+                .insert(key.clone(), type_result);
         }
     }
     context.scope.scope_map.borrow_mut().insert(
@@ -1092,6 +1129,21 @@ mod test {
     fn hash_map_infer() {
         let input = r#"
             { abc: "def" };
+        "#;
+        assert_infer!(
+            input,
+            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                PrimitiveType::Void
+            )))
+        );
+
+        let input = r#"
+            let abc = { def: 123 } in (
+                if (true) {
+                  return abc.def;
+                }
+                return 456;
+            )
         "#;
         assert_infer!(
             input,
