@@ -70,7 +70,7 @@ impl Boolean {
 }
 
 #[derive(Clone, Debug)]
-pub struct Hash(Id, HashMap<Id, Box<Uni>>);
+pub struct Hash(pub Id, pub HashMap<Id, Box<Uni>>);
 impl PartialEq for Hash {
     fn eq(&self, other: &Self) -> bool {
         self.1 == other.1

@@ -375,8 +375,8 @@ pub fn resolve_uni(uni: Uni, context: &Context) -> Result<TypeResult, String> {
         Uni::Number(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
         Uni::Boolean(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean)),
         Uni::Array(unis) => resolve_array(unis, context)?,
+        Uni::HashMap(hash) => resove_hash(hash, context)?,
         Uni::Field(_) => unimplemented!(),
-        Uni::HashMap(_) => unimplemented!(),
         Uni::Null => unimplemented!(),
     };
     Ok(result)
@@ -420,6 +420,31 @@ pub fn resolve_array(mut unis: Vec<Uni>, context: &Context) -> Result<TypeResult
         }
         Ok(array_type_result)
     }
+}
+
+pub fn resove_hash(hash: Hash, context: &Context) -> Result<TypeResult, String> {
+    let parent_id = context.scope.id.0.clone();
+    let hash_scope = ObjectScope::new(Some(IdType::Local(ScopeId(parent_id))));
+    let hash_scope_id = hash_scope.id.clone();
+    let hash_map = hash.1;
+    for (key, boxed_uni) in hash_map.into_iter() {
+        if let Some(type_result) = context.scope.type_map.borrow_mut().try_get(&key) {
+            hash_scope
+                .type_map
+                .borrow_mut()
+                .insert(key.clone(), type_result.clone());
+        } else {
+            hash_scope
+                .type_map
+                .borrow_mut()
+                .insert(key.clone(), resolve_uni(*boxed_uni, context)?);
+        }
+    }
+    context.scope.scope_map.borrow_mut().insert(
+        IdType::Object(hash_scope_id.clone()),
+        Box::new(Scope::Object(hash_scope)),
+    );
+    Ok(TypeResult::Resolved(TypeKind::Object(hash_scope_id)))
 }
 
 pub fn resolve_type_result_with_op(

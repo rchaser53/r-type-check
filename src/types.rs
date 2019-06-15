@@ -1,12 +1,13 @@
 use std::fmt;
 
 use crate::expr::uni::*;
+use crate::scope::*;
 
 #[derive(Clone)]
 pub enum TypeKind {
     PrimitiveType(PrimitiveType),
     Function(Id, Vec<OpeaqueType>, OpeaqueType),
-    Custom(Id),
+    Object(ObjectId),
 }
 
 impl fmt::Debug for TypeKind {
@@ -16,7 +17,7 @@ impl fmt::Debug for TypeKind {
             TypeKind::Function(_, args, ret_type) => {
                 write!(f, "args:{:?} return:{:?}", args, ret_type)
             }
-            TypeKind::Custom(id) => write!(f, "custom id:{:?}", id),
+            TypeKind::Object(id) => write!(f, "object id:{:?}", id),
         }
     }
 }
@@ -38,8 +39,8 @@ impl PartialEq for TypeKind {
                     false
                 }
             }
-            TypeKind::Custom(left) => {
-                if let TypeKind::Custom(right) = other {
+            TypeKind::Object(left) => {
+                if let TypeKind::Object(right) = other {
                     left == right
                 } else {
                     false

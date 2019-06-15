@@ -8,17 +8,20 @@ use crate::expr::*;
 use crate::types::*;
 use crate::utils::*;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 pub enum IdType {
     Object(ObjectId),
-    Scope(ScopeId),
+    Local(ScopeId),
 }
+impl Eq for IdType {}
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct ObjectId(Id);
+#[derive(Clone, Debug, Hash, PartialEq)]
+pub struct ObjectId(pub Id);
+impl Eq for ObjectId {}
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct ScopeId(Id);
+#[derive(Clone, Debug, Hash, PartialEq)]
+pub struct ScopeId(pub Id);
+impl Eq for ScopeId {}
 
 #[derive(Clone, Debug)]
 pub enum Scope {
@@ -26,20 +29,34 @@ pub enum Scope {
     Local(LocalScope),
 }
 
+/// scope_map in ObjectScope has only ObjectScope
 #[derive(Clone, Debug)]
 pub struct ObjectScope {
-    pub parent_id: Option<ObjectId>,
+    pub parent_id: Option<IdType>,
     pub id: ObjectId,
-    pub scope_map: RefCell<HashMap<Id, Box<ObjectScope>>>,
+    pub scope_map: RefCell<HashMap<ObjectId, Box<ObjectScope>>>,
     pub type_map: RefCell<TypeMap>,
     pub function_map: RefCell<HashMap<Id, Function>>,
 }
 
+impl ObjectScope {
+    pub fn new(parent_id: Option<IdType>) -> Self {
+        ObjectScope {
+            parent_id,
+            id: ObjectId(ID_POOL.next_id()),
+            scope_map: RefCell::new(HashMap::new()),
+            type_map: RefCell::new(TypeMap::new()),
+            function_map: RefCell::new(HashMap::new()),
+        }
+    }
+}
+
+/// scope_map in LocalScope has both LocalScope and ObjectScope
 #[derive(Clone, Debug)]
 pub struct LocalScope {
     pub parent_id: Option<ScopeId>,
     pub id: ObjectId,
-    pub scope_map: RefCell<HashMap<Id, Box<Scope>>>,
+    pub scope_map: RefCell<HashMap<IdType, Box<Scope>>>,
     pub type_map: RefCell<TypeMap>,
     pub function_map: RefCell<HashMap<Id, Function>>,
 }
