@@ -150,7 +150,7 @@ pub fn validate_assign_type(
 
 pub fn resolve_expr(exp: Expr, context: &Context) -> Result<TypeResult, String> {
     match exp.node {
-        Node::Unary(uni) => resolve_type(uni, context),
+        Node::Unary(uni) => resolve_uni(uni, context),
         Node::Binary(left, op, right) => resolve_binary(*left, op, *right, context),
         Node::Fn(Function(args, body)) => {
             let fn_context = Context::new();
@@ -322,7 +322,7 @@ pub fn resolve_binary(
         }
         (Node::Binary(l_left, l_op, l_right), Node::Unary(right)) => {
             let l_resolved = resolve_binary(*l_left, l_op, *l_right, context)?;
-            let r_resolved = resolve_type(right, context)?;
+            let r_resolved = resolve_uni(right, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         (Node::Binary(l_left, l_op, l_right), Node::Call(ids, args)) => {
@@ -331,17 +331,17 @@ pub fn resolve_binary(
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         (Node::Unary(left), Node::Binary(r_left, r_op, r_right)) => {
-            let l_resolved = resolve_type(left, context)?;
+            let l_resolved = resolve_uni(left, context)?;
             let r_resolved = resolve_binary(*r_left, r_op, *r_right, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         (Node::Unary(left), Node::Unary(right)) => {
-            let l_resolved = resolve_type(left, context)?;
-            let r_resolved = resolve_type(right, context)?;
+            let l_resolved = resolve_uni(left, context)?;
+            let r_resolved = resolve_uni(right, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         (Node::Unary(left), Node::Call(ids, args)) => {
-            let l_resolved = resolve_type(left, context)?;
+            let l_resolved = resolve_uni(left, context)?;
             let r_resolved = resolve_call(ids, args, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
@@ -352,7 +352,7 @@ pub fn resolve_binary(
         }
         (Node::Call(ids, args), Node::Unary(right)) => {
             let l_resolved = resolve_call(ids, args, context)?;
-            let r_resolved = resolve_type(right, context)?;
+            let r_resolved = resolve_uni(right, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         (Node::Call(left_ids, left_args), Node::Call(right_ids, right_args)) => {
@@ -365,7 +365,7 @@ pub fn resolve_binary(
     result
 }
 
-pub fn resolve_type(uni: Uni, context: &Context) -> Result<TypeResult, String> {
+pub fn resolve_uni(uni: Uni, context: &Context) -> Result<TypeResult, String> {
     let result = match uni {
         Uni::Id(id) => match context.scope.type_map.borrow_mut().try_get(&id) {
             Some(result @ TypeResult::Resolved(_)) => result.clone(),
@@ -388,9 +388,9 @@ pub fn resolve_array(mut unis: Vec<Uni>, context: &Context) -> Result<TypeResult
             PrimitiveType::Array(ArrayType::Unknown),
         )))
     } else {
-        let array_type_result = resolve_type(unis.pop().unwrap(), context)?;
+        let array_type_result = resolve_uni(unis.pop().unwrap(), context)?;
         for uni in unis {
-            let elem_type_result = resolve_type(uni, context)?;
+            let elem_type_result = resolve_uni(uni, context)?;
 
             match (&array_type_result, &elem_type_result) {
                 (TypeResult::Resolved(_), TypeResult::Resolved(_)) => {
