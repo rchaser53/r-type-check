@@ -56,10 +56,13 @@ lazy_static! {
 
 #[macro_export]
 macro_rules! DEBUG_INFO {
-    ($exp:expr) => {
+    ($name:expr, $($exp:expr),*) => {
         if let Ok(word) = env::var("DEBUG_INFO") {
             if word == "1" {
-                dbg!($exp);
+                println!("\n{}", $name);
+                $(
+                  dbg!($exp);
+                )*
             }
         }
     };

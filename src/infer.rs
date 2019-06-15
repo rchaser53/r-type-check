@@ -290,7 +290,7 @@ pub fn resolve_call(
         return result;
     };
 
-    DEBUG_INFO!(&fn_context);
+    DEBUG_INFO!("resolve_call", &fn_context);
     let fn_return_type_result = resolve_statement(bodys, &fn_context)?;
     let result = result?;
 
