@@ -5,7 +5,7 @@ use combine::parser::char::{digit, letter};
 use combine::stream::Stream;
 use combine::{attempt, between, choice, many, many1, none_of, parser, sep_by, sep_by1, Parser};
 
-use crate::utils::{skip_spaces, string_skip_spaces, token_skip_spaces};
+use crate::utils::*;
 
 #[derive(Clone, Debug, Hash)]
 pub struct Id(pub String);
@@ -69,8 +69,13 @@ impl Boolean {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct Hash(HashMap<Id, Box<Uni>>);
+#[derive(Clone, Debug)]
+pub struct Hash(Id, HashMap<Id, Box<Uni>>);
+impl PartialEq for Hash {
+    fn eq(&self, other: &Self) -> bool {
+        self.1 == other.1
+    }
+}
 
 pub type HashSet = (Id, Box<Uni>);
 
@@ -101,7 +106,7 @@ where
             for (id, boxed_uni) in hs.into_iter() {
                 hash_map.insert(id, boxed_uni);
             }
-            Uni::HashMap(Hash(hash_map))
+            Uni::HashMap(Hash(ID_POOL.next_id(), hash_map))
         })
 }
 
@@ -221,7 +226,7 @@ mod test {
                 r#"{
             }"#
             ),
-            Ok((Uni::HashMap(Hash(HashMap::new())), ""))
+            Ok((Uni::HashMap(Hash(ID_POOL.next_id(), HashMap::new())), ""))
         );
 
         let expect: HashMap<Id, Box<Uni>> = [(Id(String::from("abc")), Box::new(Uni::Number(32)))]
@@ -234,7 +239,7 @@ mod test {
               abc: 32
             }"#
             ),
-            Ok((Uni::HashMap(Hash(expect)), ""))
+            Ok((Uni::HashMap(Hash(ID_POOL.next_id(), expect)), ""))
         );
 
         let expect: HashMap<Id, Box<Uni>> = [
@@ -254,7 +259,7 @@ mod test {
               def: "def_value!",
             }"#
             ),
-            Ok((Uni::HashMap(Hash(expect)), ""))
+            Ok((Uni::HashMap(Hash(ID_POOL.next_id(), expect)), ""))
         );
     }
 
