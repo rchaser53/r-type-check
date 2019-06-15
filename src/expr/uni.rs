@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use combine::error::ParseError;
 use combine::parser::char::{digit, letter};
 use combine::stream::Stream;
@@ -22,7 +24,7 @@ pub enum Uni {
     Number(i32),
     Boolean(Boolean),
     Field(Vec<Id>),
-    HashMap(Vec<HashSet>),
+    HashMap(Hash),
     Null,
 }
 
@@ -68,7 +70,9 @@ impl Boolean {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct HashSet(Id, Box<Uni>);
+pub struct Hash(HashMap<Id, Box<Uni>>);
+
+pub type HashSet = (Id, Box<Uni>);
 
 pub fn uni_<I>() -> impl Parser<Input = I, Output = Uni>
 where
@@ -77,10 +81,10 @@ where
 {
     skip_spaces(choice((
         attempt(field()).or(word_()),
-        hash_map(),
-        array(),
-        string(),
-        integer(),
+        attempt(hash_map()),
+        attempt(array()),
+        attempt(string()),
+        attempt(integer()),
     )))
 }
 
@@ -92,7 +96,13 @@ where
     token_skip_spaces('{')
         .with(skip_spaces(many(hash_set())))
         .skip(token_skip_spaces('}'))
-        .map(|hs| Uni::HashMap(hs))
+        .map(|hs: Vec<HashSet>| {
+            let mut hash_map = HashMap::new();
+            for (id, boxed_uni) in hs.into_iter() {
+                hash_map.insert(id, boxed_uni);
+            }
+            Uni::HashMap(Hash(hash_map))
+        })
 }
 
 pub fn hash_set<I>() -> impl Parser<Input = I, Output = HashSet>
@@ -105,7 +115,7 @@ where
             .and(token_skip_spaces(':'))
             .and(skip_spaces(uni()))
             .map(|((w, _), u)| match w {
-                Uni::Id(id) => HashSet(id, Box::new(u)),
+                Uni::Id(id) => (id, Box::new(u)),
                 _ => panic!("should come here Id. but actual: {:?}", w),
             })
     };
@@ -211,24 +221,32 @@ mod test {
                 r#"{
             }"#
             ),
-            Ok((Uni::HashMap(vec![]), ""))
+            Ok((Uni::HashMap(Hash(HashMap::new())), ""))
         );
 
+        let expect: HashMap<Id, Box<Uni>> = [(Id(String::from("abc")), Box::new(Uni::Number(32)))]
+            .iter()
+            .cloned()
+            .collect();
         assert_eq!(
             uni().easy_parse(
                 r#"{
               abc: 32
             }"#
             ),
-            Ok((
-                Uni::HashMap(vec![HashSet(
-                    Id(String::from("abc")),
-                    Box::new(Uni::Number(32))
-                ),]),
-                ""
-            ))
+            Ok((Uni::HashMap(Hash(expect)), ""))
         );
 
+        let expect: HashMap<Id, Box<Uni>> = [
+            (Id(String::from("abc")), Box::new(Uni::Number(32))),
+            (
+                Id(String::from("def")),
+                Box::new(Uni::String(String::from("def_value!"))),
+            ),
+        ]
+        .iter()
+        .cloned()
+        .collect();
         assert_eq!(
             uni().easy_parse(
                 r#"{
@@ -236,16 +254,7 @@ mod test {
               def: "def_value!",
             }"#
             ),
-            Ok((
-                Uni::HashMap(vec![
-                    HashSet(Id(String::from("abc")), Box::new(Uni::Number(32))),
-                    HashSet(
-                        Id(String::from("def")),
-                        Box::new(Uni::String(String::from("def_value!")))
-                    ),
-                ]),
-                ""
-            ))
+            Ok((Uni::HashMap(Hash(expect)), ""))
         );
     }
 
@@ -253,10 +262,7 @@ mod test {
     fn hash_set_test() {
         assert_eq!(
             hash_set().easy_parse(r#"abc: 32"#),
-            Ok((
-                HashSet(Id(String::from("abc")), Box::new(Uni::Number(32))),
-                ""
-            ))
+            Ok(((Id(String::from("abc")), Box::new(Uni::Number(32))), ""))
         );
     }
 
