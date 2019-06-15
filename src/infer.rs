@@ -192,19 +192,19 @@ pub fn resolve_expr(exp: Expr, context: &Context) -> Result<TypeResult, String> 
                 Err(err_str) => Err(err_str),
             }
         }
-        Node::Call(ids, boxed_args) => resolve_call(ids, boxed_args, context),
+        Node::Call(field, boxed_args) => resolve_call(field, boxed_args, context),
     }
 }
 
 pub fn resolve_call(
-    ids: Vec<Id>,
+    field: Field,
     args: Vec<Box<Expr>>,
     context: &Context,
 ) -> Result<TypeResult, String> {
     // TBD: need to implement correctly
     // especially for field
     // ex. xx.yy();
-    let id = &ids[0];
+    let id = field.id.0;
     let arg_len = args.len();
     let mut arg_type_vec = Vec::with_capacity(arg_len);
     let (should_insert, ret_result) = match context.scope.type_map.borrow_mut().try_get(&id) {
@@ -325,9 +325,9 @@ pub fn resolve_binary(
             let r_resolved = resolve_uni(right, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
-        (Node::Binary(l_left, l_op, l_right), Node::Call(ids, args)) => {
+        (Node::Binary(l_left, l_op, l_right), Node::Call(r_field, args)) => {
             let l_resolved = resolve_binary(*l_left, l_op, *l_right, context)?;
-            let r_resolved = resolve_call(ids, args, context)?;
+            let r_resolved = resolve_call(r_field, args, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         (Node::Unary(left), Node::Binary(r_left, r_op, r_right)) => {
@@ -340,24 +340,24 @@ pub fn resolve_binary(
             let r_resolved = resolve_uni(right, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
-        (Node::Unary(left), Node::Call(ids, args)) => {
+        (Node::Unary(left), Node::Call(r_field, args)) => {
             let l_resolved = resolve_uni(left, context)?;
-            let r_resolved = resolve_call(ids, args, context)?;
+            let r_resolved = resolve_call(r_field, args, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
-        (Node::Call(ids, args), Node::Binary(r_left, r_op, r_right)) => {
-            let l_resolved = resolve_call(ids, args, context)?;
+        (Node::Call(l_field, args), Node::Binary(r_left, r_op, r_right)) => {
+            let l_resolved = resolve_call(l_field, args, context)?;
             let r_resolved = resolve_binary(*r_left, r_op, *r_right, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
-        (Node::Call(ids, args), Node::Unary(right)) => {
-            let l_resolved = resolve_call(ids, args, context)?;
+        (Node::Call(l_field, args), Node::Unary(right)) => {
+            let l_resolved = resolve_call(l_field, args, context)?;
             let r_resolved = resolve_uni(right, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
-        (Node::Call(left_ids, left_args), Node::Call(right_ids, right_args)) => {
-            let l_resolved = resolve_call(left_ids, left_args, context)?;
-            let r_resolved = resolve_call(right_ids, right_args, context)?;
+        (Node::Call(l_field, left_args), Node::Call(r_field, right_args)) => {
+            let l_resolved = resolve_call(l_field, left_args, context)?;
+            let r_resolved = resolve_call(r_field, right_args, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         _ => unreachable!(),

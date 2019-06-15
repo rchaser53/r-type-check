@@ -2,6 +2,7 @@ use combine::error::ParseError;
 use combine::stream::Stream;
 use combine::{attempt, between, many, parser, sep_by, Parser};
 
+use crate::scope::*;
 use crate::statement::*;
 use crate::utils::*;
 
@@ -9,7 +10,7 @@ pub mod bin_op;
 use bin_op::{bin_op as bin_op_, BinOpKind};
 
 pub mod uni;
-use uni::{field, uni as create_uni, word, word_, Id, Uni};
+use uni::{field, uni as create_uni, word, word_, Field, Id, Uni};
 
 #[derive(Clone, Debug)]
 pub struct Expr {
@@ -36,7 +37,7 @@ impl PartialEq for Expr {
 pub enum Node {
     Unary(Uni),
     Binary(Box<Expr>, BinOpKind, Box<Expr>),
-    Call(Vec<Id>, Vec<Box<Expr>>),
+    Call(Field, Vec<Box<Expr>>),
     Fn(Function),
 }
 
@@ -199,9 +200,8 @@ where
                 .map(|exps: Vec<Expr>| exps.into_iter().map(|exp| Box::new(exp)).collect()),
         ))
         .map(|(fn_name, args)| match fn_name {
-            Uni::Id(id) => Expr::new(Node::Call(vec![id], args)),
-            // Uni::Field(fields) => Expr::new(Node::Call(fields, args)),
-            Uni::Field(fields) => unimplemented!(),
+            Uni::Id(id) => Expr::new(Node::Call(Field::new(None, id, None), args)),
+            Uni::Field(field) => Expr::new(Node::Call(field, args)),
             _ => panic!("should come Uni::Id. actual: {:?}", fn_name),
         })
 }
@@ -247,14 +247,17 @@ mod test {
     fn call_test() {
         assert_eq!(
             expr().easy_parse(r#"ab()"#),
-            Ok((Expr::new(Call(vec![Id(String::from("ab"))], vec![])), ""))
+            Ok((
+                Expr::new(Call(Field::new(None, Id(String::from("ab")), None), vec![])),
+                ""
+            ))
         );
 
         assert_eq!(
             expr().easy_parse(r#"ab( cde )"#),
             Ok((
                 Expr::new(Call(
-                    vec![Id(String::from("ab"))],
+                    Field::new(None, Id(String::from("ab")), None),
                     vec![Box::new(Expr::new(Unary(Uni::Id(Id(String::from("cde"))))))]
                 )),
                 ""
@@ -265,7 +268,7 @@ mod test {
             expr().easy_parse(r#"ab( cde , fgh )"#),
             Ok((
                 Expr::new(Call(
-                    vec![Id(String::from("ab"))],
+                    Field::new(None, Id(String::from("ab")), None),
                     vec![
                         Box::new(Expr::new(Unary(Uni::Id(Id(String::from("cde")))))),
                         Box::new(Expr::new(Unary(Uni::Id(Id(String::from("fgh"))))))
@@ -275,19 +278,27 @@ mod test {
             ))
         );
 
-        // assert_eq!(
-        //     expr().easy_parse(r#"ab.field( cde , fgh )"#),
-        //     Ok((
-        //         Expr::new(Call(
-        //             vec![Id(String::from("ab")), Id(String::from("field"))],
-        //             vec![
-        //                 Box::new(Expr::new(Unary(Uni::Id(Id(String::from("cde")))))),
-        //                 Box::new(Expr::new(Unary(Uni::Id(Id(String::from("fgh"))))))
-        //             ]
-        //         )),
-        //         ""
-        //     ))
-        // );
+        assert_eq!(
+            expr().easy_parse(r#"ab.field( cde , fgh )"#),
+            Ok((
+                Expr::new(Call(
+                    Field::new(
+                        None,
+                        Id(String::from("ab")),
+                        Some(Box::new(Field::new(
+                            Some(ObjectId(Id(String::from("ab")))),
+                            Id(String::from("field")),
+                            None
+                        )))
+                    ),
+                    vec![
+                        Box::new(Expr::new(Unary(Uni::Id(Id(String::from("cde")))))),
+                        Box::new(Expr::new(Unary(Uni::Id(Id(String::from("fgh"))))))
+                    ]
+                )),
+                ""
+            ))
+        );
     }
 
     #[test]
@@ -296,7 +307,10 @@ mod test {
             expr().easy_parse(r#"abc() * 3"#),
             Ok((
                 Expr::new(Binary(
-                    Box::new(Expr::new(Call(vec![Id(String::from("abc"))], vec![]))),
+                    Box::new(Expr::new(Call(
+                        Field::new(None, Id(String::from("abc")), None),
+                        vec![]
+                    ))),
                     BinOpKind::Mul,
                     Box::new(Expr::new(Unary(Uni::Number(3)))),
                 )),
@@ -309,7 +323,7 @@ mod test {
             Ok((
                 Expr::new(Binary(
                     Box::new(Expr::new(Call(
-                        vec![Id(String::from("abc"))],
+                        Field::new(None, Id(String::from("abc")), None),
                         vec![Box::new(Expr::new(Unary(Uni::Id(Id(String::from("def")))))),]
                     ))),
                     BinOpKind::Mul,
@@ -325,7 +339,7 @@ mod test {
                 Expr::new(Binary(
                     Box::new(Expr::new(Binary(
                         Box::new(Expr::new(Call(
-                            vec![Id(String::from("abc"))],
+                            Field::new(None, Id(String::from("abc")), None),
                             vec![Box::new(Expr::new(Unary(Uni::Id(Id(String::from("def")))))),]
                         ))),
                         BinOpKind::Add,

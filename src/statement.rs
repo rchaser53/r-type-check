@@ -441,7 +441,7 @@ mod test {
                 )],
                 vec![Box::new(Statement::Expr(Expr::new(Binary(
                     Box::new(Expr::new(Call(
-                        vec![Id(String::from("abc"))],
+                        Field::new(None, Id(String::from("abc")), None),
                         vec![Box::new(Expr::new(Unary(Uni::Number(456))))]
                     ))),
                     BinOpKind::Add,
