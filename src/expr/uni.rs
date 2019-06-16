@@ -265,6 +265,10 @@ parser! {
 mod test {
     use crate::expr::uni::*;
 
+    fn create_hash_map(input: &[(Id, Box<Expr>)]) -> HashMap<Id, Box<Expr>> {
+        input.iter().cloned().collect()
+    }
+
     #[test]
     fn hash_map_test() {
         assert_eq!(
@@ -275,37 +279,24 @@ mod test {
             Ok((Uni::HashMap(Hash(ID_POOL.next_id(), HashMap::new())), ""))
         );
 
-        let expect: HashMap<Id, Box<Expr>> = [(
-            Id(String::from("abc")),
-            Box::new(Expr::new(Node::Unary(Uni::Number(32)))),
-        )]
-        .iter()
-        .cloned()
-        .collect();
         assert_eq!(
             uni().easy_parse(
                 r#"{
               abc: 32
             }"#
             ),
-            Ok((Uni::HashMap(Hash(ID_POOL.next_id(), expect)), ""))
+            Ok((
+                Uni::HashMap(Hash(
+                    ID_POOL.next_id(),
+                    create_hash_map(&[(
+                        Id(String::from("abc")),
+                        Box::new(Expr::new(Node::Unary(Uni::Number(32)))),
+                    )])
+                )),
+                ""
+            ))
         );
 
-        let expect: HashMap<Id, Box<Expr>> = [
-            (
-                Id(String::from("abc")),
-                Box::new(Expr::new(Node::Unary(Uni::Number(32)))),
-            ),
-            (
-                Id(String::from("def")),
-                Box::new(Expr::new(Node::Unary(Uni::String(String::from(
-                    "def_value!",
-                ))))),
-            ),
-        ]
-        .iter()
-        .cloned()
-        .collect();
         assert_eq!(
             uni().easy_parse(
                 r#"{
@@ -313,29 +304,26 @@ mod test {
               def: "def_value!",
             }"#
             ),
-            Ok((Uni::HashMap(Hash(ID_POOL.next_id(), expect)), ""))
+            Ok((
+                Uni::HashMap(Hash(
+                    ID_POOL.next_id(),
+                    create_hash_map(&[
+                        (
+                            Id(String::from("abc")),
+                            Box::new(Expr::new(Node::Unary(Uni::Number(32)))),
+                        ),
+                        (
+                            Id(String::from("def")),
+                            Box::new(Expr::new(Node::Unary(Uni::String(String::from(
+                                "def_value!",
+                            ))))),
+                        ),
+                    ])
+                )),
+                ""
+            ))
         );
 
-        let expect: HashMap<Id, Box<Expr>> = [
-            (
-                Id(String::from("abc")),
-                Box::new(Expr::new(Node::Fn(Function(
-                    vec![],
-                    vec![Box::new(Statement::Return(Expr::new(Node::Unary(
-                        Uni::Number(3),
-                    ))))],
-                )))),
-            ),
-            (
-                Id(String::from("def")),
-                Box::new(Expr::new(Node::Unary(Uni::String(String::from(
-                    "def_value!",
-                ))))),
-            ),
-        ]
-        .iter()
-        .cloned()
-        .collect();
         assert_eq!(
             uni().easy_parse(
                 r#"{
@@ -345,7 +333,29 @@ mod test {
               def: "def_value!",
             }"#
             ),
-            Ok((Uni::HashMap(Hash(ID_POOL.next_id(), expect)), ""))
+            Ok((
+                Uni::HashMap(Hash(
+                    ID_POOL.next_id(),
+                    create_hash_map(&[
+                        (
+                            Id(String::from("abc")),
+                            Box::new(Expr::new(Node::Fn(Function(
+                                vec![],
+                                vec![Box::new(Statement::Return(Expr::new(Node::Unary(
+                                    Uni::Number(3),
+                                ))))],
+                            )))),
+                        ),
+                        (
+                            Id(String::from("def")),
+                            Box::new(Expr::new(Node::Unary(Uni::String(String::from(
+                                "def_value!",
+                            ))))),
+                        ),
+                    ])
+                )),
+                ""
+            ))
         );
     }
 
