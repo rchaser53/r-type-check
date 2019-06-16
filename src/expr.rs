@@ -10,7 +10,7 @@ pub mod bin_op;
 use bin_op::{bin_op as bin_op_, BinOpKind};
 
 pub mod uni;
-use uni::{field, uni as create_uni, word, word_, Field, Id, Uni};
+use uni::{field, uni as create_uni, word, Field, Id, Uni};
 
 #[derive(Clone, Debug)]
 pub struct Expr {
@@ -192,7 +192,7 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    skip_spaces(attempt(field()).or(word_()))
+    skip_spaces(field())
         .and(between(
             token_skip_spaces('('),
             token_skip_spaces(')'),
