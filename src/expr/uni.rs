@@ -30,6 +30,17 @@ pub enum Uni {
     Null,
 }
 
+impl Uni {
+    pub fn renew_parent_id(&mut self, id: Id) {
+        match self {
+            Uni::Field(field) => {
+                field.parent_id = Some(ObjectId(id));
+            }
+            _ => {}
+        };
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Field {
     pub parent_id: Option<ObjectId>,
@@ -363,7 +374,7 @@ mod test {
     fn hash_map_nest() {
         assert_eq!(
             uni().easy_parse(
-            r#"{
+                r#"{
               abc: {
                 inner_abc: 12
               },

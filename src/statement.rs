@@ -56,11 +56,12 @@ where
         .and(token_skip_spaces('='))
         .and(skip_spaces(expr_()))
         .skip(token_skip_spaces(';'))
-        .map(|((unary_, _), value)| {
+        .map(|((unary_, _), mut value)| {
             if let Uni::Id(id_) = unary_ {
+                value.renew_parent_id(id_.clone());
                 return Assign(id_, value);
             };
-            panic!("should come Uni::Id. actual: {:?}", unary_);
+            unreachable!()
         })
 }
 

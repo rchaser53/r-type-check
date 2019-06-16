@@ -25,6 +25,10 @@ impl Expr {
             node,
         }
     }
+
+    pub fn renew_parent_id(&mut self, id: Id) {
+        self.node.renew_parent_id(id);
+    }
 }
 
 impl PartialEq for Expr {
@@ -39,6 +43,24 @@ pub enum Node {
     Binary(Box<Expr>, BinOpKind, Box<Expr>),
     Call(Field, Vec<Box<Expr>>),
     Fn(Function),
+}
+
+impl Node {
+    pub fn renew_parent_id(&mut self, id: Id) {
+        match self {
+            Node::Binary(left, _, right) => {
+                left.renew_parent_id(id.clone());
+                right.renew_parent_id(id.clone());
+            }
+            Node::Unary(unary) => {
+                unary.renew_parent_id(id);
+            }
+            Node::Call(field, _) => {
+                field.parent_id = Some(ObjectId(id));
+            }
+            _ => {}
+        };
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
