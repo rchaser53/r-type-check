@@ -149,50 +149,56 @@ pub fn validate_assign_type(
 }
 
 pub fn resolve_expr(exp: Expr, context: &Context) -> Result<TypeResult, String> {
+    let exp_id = exp.id.clone();
     match exp.node {
         Node::Unary(uni) => resolve_uni(uni, context),
         Node::Binary(left, op, right) => resolve_binary(*left, op, *right, context),
-        Node::Fn(Function(args, body)) => {
-            let fn_context = Context::new();
-            for arg in args.clone() {
-                fn_context
-                    .scope
-                    .type_map
-                    .borrow_mut()
-                    .insert(arg.clone(), TypeResult::IdOnly(arg));
-            }
-            match resolve_statement(body.into_iter().map(|boxed| *boxed).collect(), &fn_context) {
-                Ok(result) => {
-                    let fn_arg_types = args
-                        .into_iter()
-                        .map(|id| {
-                            if let Some(TypeResult::Resolved(type_kind)) =
-                                fn_context.scope.type_map.borrow_mut().try_get(&id)
-                            {
-                                OpeaqueType::Defined(Box::new(type_kind.clone()))
-                            } else {
-                                OpeaqueType::IdOnly(id)
-                            }
-                        })
-                        .collect();
-                    let return_type = match result {
-                        TypeResult::Resolved(return_type) => {
-                            OpeaqueType::Defined(Box::new(return_type))
-                        }
-                        TypeResult::IdOnly(id) => OpeaqueType::IdOnly(id),
-                        _ => unreachable!(),
-                    };
-                    // TBD: need to think more
-                    Ok(TypeResult::Resolved(TypeKind::Function(
-                        exp.id.clone(),
-                        fn_arg_types,
-                        return_type,
-                    )))
-                }
-                Err(err_str) => Err(err_str),
-            }
-        }
+        Node::Fn(Function(args, body)) => resolve_fn(exp_id, args, body, context),
         Node::Call(field, boxed_args) => resolve_call(field, boxed_args, context),
+    }
+}
+
+pub fn resolve_fn(
+    id: Id,
+    args: Vec<Id>,
+    body: Vec<Box<Statement>>,
+    _context: &Context,
+) -> Result<TypeResult, String> {
+    let fn_context = Context::new();
+    for arg in args.clone() {
+        fn_context
+            .scope
+            .type_map
+            .borrow_mut()
+            .insert(arg.clone(), TypeResult::IdOnly(arg));
+    }
+    match resolve_statement(body.into_iter().map(|boxed| *boxed).collect(), &fn_context) {
+        Ok(result) => {
+            let fn_arg_types = args
+                .into_iter()
+                .map(|id| {
+                    if let Some(TypeResult::Resolved(type_kind)) =
+                        fn_context.scope.type_map.borrow_mut().try_get(&id)
+                    {
+                        OpeaqueType::Defined(Box::new(type_kind.clone()))
+                    } else {
+                        OpeaqueType::IdOnly(id)
+                    }
+                })
+                .collect();
+            let return_type = match result {
+                TypeResult::Resolved(return_type) => OpeaqueType::Defined(Box::new(return_type)),
+                TypeResult::IdOnly(id) => OpeaqueType::IdOnly(id),
+                _ => unreachable!(),
+            };
+            // TBD: need to think more
+            Ok(TypeResult::Resolved(TypeKind::Function(
+                id,
+                fn_arg_types,
+                return_type,
+            )))
+        }
+        Err(err_str) => Err(err_str),
     }
 }
 
