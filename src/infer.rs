@@ -204,11 +204,14 @@ pub fn resolve_call(
     // TBD: need to implement correctly
     // especially for field
     // ex. xx.yy();
-    let id = field.id.0;
+    let id = field.id.0.clone();
+    let type_result = resolve_field(field, context)?;
+
     let arg_len = args.len();
     let mut arg_type_vec = Vec::with_capacity(arg_len);
-    let (should_insert, ret_result) = match context.scope.type_map.borrow_mut().try_get(&id) {
-        Some(TypeResult::IdOnly(_)) | None => {
+
+    let (should_insert, ret_result) = match type_result {
+        TypeResult::IdOnly(_) => {
             for index in 0..arg_len {
                 arg_type_vec[index] = OpeaqueType::Unknown
             }
@@ -221,8 +224,9 @@ pub fn resolve_call(
                 )),
             )
         }
-        Some(result @ _) => (false, result.clone()),
+        type_result @ _ => (false, type_result.clone()),
     };
+
     if should_insert {
         context.scope.type_map.borrow_mut().insert(
             id.clone(),
@@ -384,33 +388,16 @@ pub fn resolve_uni(uni: Uni, context: &Context) -> Result<TypeResult, String> {
 
 /// xxx.yyy comes now. xxx is possibility for every type
 pub fn resolve_field(field: Field, context: &Context) -> Result<TypeResult, String> {
+    DEBUG_INFO!("resolve_field", &context);
+
+    let current_id = field.id.0.clone();
     if let Some(child) = field.child {
         let child_id = child.id.clone();
         // try to get object scope id
-        let current_id = field.id.0;
         if let Some(type_result) = context.scope.type_map.borrow_mut().try_get(&current_id) {
             match type_result {
                 TypeResult::Resolved(TypeKind::Object(object_id)) => {
-                    // try to get object scope
-                    if let Some(boxed_scope) = context
-                        .scope
-                        .scope_map
-                        .borrow_mut()
-                        .get_mut(&IdType::Object(object_id.clone()))
-                    {
-                        if let Scope::Object(object_map) = *boxed_scope.clone() {
-                            // try to get field type_result
-                            if let Some(type_result) =
-                                object_map.type_map.borrow_mut().try_get(&child_id.0)
-                            {
-                                return Ok(type_result.clone());
-                            } else {
-                                unimplemented!()
-                            }
-                        } else {
-                            unreachable!()
-                        }
-                    }
+                    return resolve_object(object_id, &child_id.0, context);
                 }
                 TypeResult::Resolved(type_kind @ _) => {
                     // check property for primitive type
@@ -423,7 +410,42 @@ pub fn resolve_field(field: Field, context: &Context) -> Result<TypeResult, Stri
             unimplemented!();
         }
     } else {
-        unimplemented!();
+        // case xxx()
+        if let Some(type_result) = context.scope.type_map.borrow_mut().try_get(&current_id) {
+            Ok(type_result.clone())
+        } else {
+            // case xxx.yyy()
+            // Err(create_not_initialized_err(&current_id))
+            Ok(TypeResult::Unknown)
+        }
+    }
+}
+
+/// try to get object scope
+pub fn resolve_object(
+    object_scope_id: &ObjectId,
+    id: &Id,
+    context: &Context,
+) -> Result<TypeResult, String> {
+    if let Some(boxed_scope) = context
+        .scope
+        .scope_map
+        .borrow_mut()
+        .get_mut(&IdType::Object(object_scope_id.clone()))
+    {
+        if let Scope::Object(object_map) = *boxed_scope.clone() {
+            // try to get field type_result
+            if let Some(type_result) = object_map.type_map.borrow_mut().try_get(&id) {
+                return Ok(type_result.clone());
+            } else {
+                unimplemented!()
+            }
+        } else {
+            unreachable!()
+        }
+    } else {
+        // Maybe...
+        unreachable!()
     }
 }
 
@@ -1178,6 +1200,26 @@ mod test {
             Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
                 PrimitiveType::Void
             )))
+        );
+    }
+
+    #[test]
+    fn hash_map_call_infer() {
+        let input = r#"
+            let abc = {
+              def: fn() {
+                return 3;
+              }
+            } in (
+                abc.def() + "abc";
+            )
+        "#;
+        assert_infer!(
+            input,
+            Err(create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+                &TypeKind::PrimitiveType(PrimitiveType::String),
+            ))
         );
     }
 
