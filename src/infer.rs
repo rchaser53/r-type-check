@@ -384,14 +384,11 @@ pub fn resolve_uni(uni: Uni, context: &Context) -> Result<TypeResult, String> {
 
 /// xxx.yyy comes now. xxx is possibility for every type
 pub fn resolve_field(field: Field, context: &Context) -> Result<TypeResult, String> {
-    if let Some(parent_id) = field.parent_id {
-        unimplemented!()
-    }
-  
     if let Some(child) = field.child {
         let child_id = child.id.clone();
         // try to get object scope id
-        if let Some(type_result) = context.scope.type_map.borrow_mut().try_get(&field.id.0) {
+        let current_id = field.id.0;
+        if let Some(type_result) = context.scope.type_map.borrow_mut().try_get(&current_id) {
             match type_result {
                 TypeResult::Resolved(TypeKind::Object(object_id)) => {
                     // try to get object scope
@@ -414,6 +411,22 @@ pub fn resolve_field(field: Field, context: &Context) -> Result<TypeResult, Stri
                             unreachable!()
                         }
                     }
+                }
+                TypeResult::Resolved(type_kind @ _) => {
+                    // check property for primitive type
+                    // TBD: this is a experimental implement
+                    return match type_kind {
+                        TypeKind::PrimitiveType(PrimitiveType::Int) => {
+                            if Id(String::from("length")) == child_id.0 {
+                                return Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                                    PrimitiveType::Int,
+                                )));
+                            } else {
+                                panic!("nya-n");
+                            }
+                        }
+                        result @ _ => Ok(TypeResult::Resolved(result.clone())),
+                    };
                 }
                 _ => {}
             };
@@ -1151,6 +1164,21 @@ mod test {
                   return abc.def;
                 }
                 return abc.def + 456;
+            )
+        "#;
+        assert_infer!(
+            input,
+            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                PrimitiveType::Void
+            )))
+        );
+    }
+
+    #[test]
+    fn field_for_primitive_type() {
+        let input = r#"
+            let abc = 123 in (
+                111 + abc.length;
             )
         "#;
         assert_infer!(
