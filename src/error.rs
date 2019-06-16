@@ -60,3 +60,7 @@ pub fn create_conflict_array_elemenet_type_err(
         one_type_result, two_type_result
     )
 }
+
+pub fn create_undefined_field_err(parent_id: &Id, current_id: &Id) -> String {
+    format!("{:?} is undefined in ${:?}", current_id, parent_id)
+}

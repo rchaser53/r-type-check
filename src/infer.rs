@@ -414,19 +414,7 @@ pub fn resolve_field(field: Field, context: &Context) -> Result<TypeResult, Stri
                 }
                 TypeResult::Resolved(type_kind @ _) => {
                     // check property for primitive type
-                    // TBD: this is a experimental implement
-                    return match type_kind {
-                        TypeKind::PrimitiveType(PrimitiveType::Int) => {
-                            if Id(String::from("length")) == child_id.0 {
-                                return Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
-                                    PrimitiveType::Int,
-                                )));
-                            } else {
-                                panic!("nya-n");
-                            }
-                        }
-                        result @ _ => Ok(TypeResult::Resolved(result.clone())),
-                    };
+                    return resolve_unique_field(&current_id, &child_id.0, &type_kind);
                 }
                 _ => {}
             };
@@ -437,6 +425,25 @@ pub fn resolve_field(field: Field, context: &Context) -> Result<TypeResult, Stri
     } else {
         unimplemented!();
     }
+}
+
+pub fn resolve_unique_field(
+    parent_id: &Id,
+    id: &Id,
+    type_kind: &TypeKind,
+) -> Result<TypeResult, String> {
+    return match type_kind {
+        TypeKind::PrimitiveType(PrimitiveType::Int) => {
+            if &Id(String::from("length")) == id {
+                return Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                    PrimitiveType::Int,
+                )));
+            } else {
+                Err(create_undefined_field_err(parent_id, id))
+            }
+        }
+        result @ _ => Ok(TypeResult::Resolved(result.clone())),
+    };
 }
 
 pub fn resolve_array(mut unis: Vec<Uni>, context: &Context) -> Result<TypeResult, String> {
@@ -1186,6 +1193,19 @@ mod test {
             Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
                 PrimitiveType::Void
             )))
+        );
+
+        let input = r#"
+            let abc = 123 in (
+                abc.nothing;
+            )
+        "#;
+        assert_infer!(
+            input,
+            Err(create_undefined_field_err(
+                &Id(String::from("abc")),
+                &Id(String::from("nothing")),
+            ))
         );
     }
 }
