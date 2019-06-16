@@ -382,12 +382,19 @@ pub fn resolve_uni(uni: Uni, context: &Context) -> Result<TypeResult, String> {
     Ok(result)
 }
 
+/// xxx.yyy comes now. xxx is possibility for every type
 pub fn resolve_field(field: Field, context: &Context) -> Result<TypeResult, String> {
+    if let Some(parent_id) = field.parent_id {
+        unimplemented!()
+    }
+  
     if let Some(child) = field.child {
         let child_id = child.id.clone();
+        // try to get object scope id
         if let Some(type_result) = context.scope.type_map.borrow_mut().try_get(&field.id.0) {
             match type_result {
                 TypeResult::Resolved(TypeKind::Object(object_id)) => {
+                    // try to get object scope
                     if let Some(boxed_scope) = context
                         .scope
                         .scope_map
@@ -395,6 +402,7 @@ pub fn resolve_field(field: Field, context: &Context) -> Result<TypeResult, Stri
                         .get_mut(&IdType::Object(object_id.clone()))
                     {
                         if let Scope::Object(object_map) = *boxed_scope.clone() {
+                            // try to get field type_result
                             if let Some(type_result) =
                                 object_map.type_map.borrow_mut().try_get(&child_id.0)
                             {
@@ -1142,7 +1150,7 @@ mod test {
                 if (true) {
                   return abc.def;
                 }
-                return 456;
+                return abc.def + 456;
             )
         "#;
         assert_infer!(
