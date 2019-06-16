@@ -403,28 +403,35 @@ pub fn resolve_field(field: Field, context: &Context) -> Result<TypeResult, Stri
     if let Some(child) = field.child {
         let child_id = child.id.clone();
         // try to get object scope id
-        if let Some(type_result) = context.scope.type_map.borrow_mut().try_get(&current_id) {
-            match type_result {
-                TypeResult::Resolved(TypeKind::Object(object_id)) => {
-                    return resolve_object(object_id, &child_id.0, context);
-                }
-                TypeResult::Resolved(type_kind @ _) => {
-                    // check property for primitive type
-                    return resolve_unique_field(&current_id, &child_id.0, &type_kind);
-                }
-                _ => {}
+        let type_result =
+            if let Some(type_result) = context.scope.type_map.borrow_mut().try_get(&current_id) {
+                Some(type_result.clone())
+            } else {
+                None
             };
-            Ok(type_result.clone())
+        let type_result = if type_result.is_none() {
+            resolve_field(*child, context)?
         } else {
-            unimplemented!();
-        }
+            type_result.unwrap()
+        };
+
+        match type_result {
+            TypeResult::Resolved(TypeKind::Object(object_id)) => {
+                return resolve_object(&object_id, &child_id.0, context);
+            }
+            TypeResult::Resolved(type_kind @ _) => {
+                // check property for primitive type
+                return resolve_unique_field(&current_id, &child_id.0, &type_kind);
+            }
+            _ => {}
+        };
+        Ok(type_result.clone())
     } else {
         // case xxx()
         if let Some(type_result) = context.scope.type_map.borrow_mut().try_get(&current_id) {
             Ok(type_result.clone())
         } else {
             // case xxx.yyy()
-            // Err(create_not_initialized_err(&current_id))
             Ok(TypeResult::Unknown)
         }
     }
@@ -528,13 +535,13 @@ pub fn resolve_hash(hash: Hash, context: &Context) -> Result<TypeResult, String>
                 .type_map
                 .borrow_mut()
                 .insert(key.clone(), type_result.clone());
-        } else {
-            let type_result = resolve_expr(*boxed_exp, context)?;
-            hash_scope
-                .type_map
-                .borrow_mut()
-                .insert(key.clone(), type_result);
+            continue;
         }
+        let type_result = resolve_expr(*boxed_exp, context)?;
+        hash_scope
+            .type_map
+            .borrow_mut()
+            .insert(key.clone(), type_result);
     }
     context.scope.scope_map.borrow_mut().insert(
         IdType::Object(hash_scope_id.clone()),
