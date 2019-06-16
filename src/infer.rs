@@ -204,7 +204,7 @@ pub fn resolve_call(
     // TBD: need to implement correctly
     // especially for field
     // ex. xx.yy();
-    let id = field.id.0.clone();
+    let id = get_id(field.id.clone(), field.child.clone()).0;
     let type_result = resolve_field(field, context)?;
 
     let arg_len = args.len();
@@ -305,6 +305,14 @@ pub fn resolve_call(
         _ => { /* TBD: need implements correctly */ }
     }
     Ok(result)
+}
+
+pub fn get_id(id: ObjectId, field: Option<Box<Field>>) -> ObjectId {
+    if let Some(field) = field {
+        get_id(field.id.clone(), field.child)
+    } else {
+        id
+    }
 }
 
 pub fn resolve_binary(
