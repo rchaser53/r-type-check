@@ -360,38 +360,41 @@ mod test {
     }
 
     #[test]
-    fn hash_set_test() {
+    fn hash_map_nest() {
         assert_eq!(
-            hash_set().easy_parse(r#"abc: 32"#),
+            uni().easy_parse(
+            r#"{
+              abc: {
+                inner_abc: 12
+              },
+              def: "def_value!",
+            }"#
+            ),
             Ok((
-                (
-                    Id(String::from("abc")),
-                    Box::new(Expr::new(Node::Unary(Uni::Number(32))))
-                ),
+                Uni::HashMap(Hash(
+                    ID_POOL.next_id(),
+                    create_hash_map(&[
+                        (
+                            Id(String::from("abc")),
+                            Box::new(Expr::new(Node::Unary(Uni::HashMap(Hash(
+                                ID_POOL.next_id(),
+                                create_hash_map(&[(
+                                    Id(String::from("inner_abc")),
+                                    Box::new(Expr::new(Node::Unary(Uni::Number(12)))),
+                                )])
+                            ))))),
+                        ),
+                        (
+                            Id(String::from("def")),
+                            Box::new(Expr::new(Node::Unary(Uni::String(String::from(
+                                "def_value!",
+                            ))))),
+                        ),
+                    ])
+                )),
                 ""
             ))
         );
-    }
-
-    #[test]
-    fn boolean_test() {
-        assert_eq!(
-            uni().easy_parse(r#"true"#),
-            Ok((Uni::Boolean(Boolean::True), ""))
-        );
-    }
-
-    #[test]
-    fn word_test() {
-        assert_eq!(
-            uni().easy_parse(r#"abc_def"#),
-            Ok((Uni::Id(Id(String::from("abc_def"))), ""))
-        );
-    }
-
-    #[test]
-    fn number_test() {
-        assert_eq!(uni().easy_parse(r#"123"#), Ok((Uni::Number(123), "")));
     }
 
     #[test]
