@@ -7,8 +7,7 @@ use combine::{
     attempt, between, choice, many, many1, none_of, parser, sep_by, sep_by1, token, Parser,
 };
 
-use crate::scope::*;
-use crate::utils::*;
+use crate::expr::*;
 
 #[derive(Clone, Debug, Hash)]
 pub struct Id(pub String);
@@ -93,14 +92,14 @@ impl Boolean {
 }
 
 #[derive(Clone, Debug)]
-pub struct Hash(pub Id, pub HashMap<Id, Box<Uni>>);
+pub struct Hash(pub Id, pub HashMap<Id, Box<Expr>>);
 impl PartialEq for Hash {
     fn eq(&self, other: &Self) -> bool {
         self.1 == other.1
     }
 }
 
-pub type HashSet = (Id, Box<Uni>);
+pub type HashSet = (Id, Box<Expr>);
 
 pub fn uni_<I>() -> impl Parser<Input = I, Output = Uni>
 where
@@ -126,8 +125,8 @@ where
         .skip(token_skip_spaces('}'))
         .map(|hs: Vec<HashSet>| {
             let mut hash_map = HashMap::new();
-            for (id, boxed_uni) in hs.into_iter() {
-                hash_map.insert(id, boxed_uni);
+            for (id, boxed_exp) in hs.into_iter() {
+                hash_map.insert(id, boxed_exp);
             }
             Uni::HashMap(Hash(ID_POOL.next_id(), hash_map))
         })
@@ -141,7 +140,7 @@ where
     let hash_set_ = || {
         skip_spaces(word())
             .and(token_skip_spaces(':'))
-            .and(skip_spaces(uni()))
+            .and(skip_spaces(expr()))
             .map(|((w, _), u)| match w {
                 Uni::Id(id) => (id, Box::new(u)),
                 _ => panic!("should come here Id. but actual: {:?}", w),
@@ -276,10 +275,13 @@ mod test {
             Ok((Uni::HashMap(Hash(ID_POOL.next_id(), HashMap::new())), ""))
         );
 
-        let expect: HashMap<Id, Box<Uni>> = [(Id(String::from("abc")), Box::new(Uni::Number(32)))]
-            .iter()
-            .cloned()
-            .collect();
+        let expect: HashMap<Id, Box<Expr>> = [(
+            Id(String::from("abc")),
+            Box::new(Expr::new(Node::Unary(Uni::Number(32)))),
+        )]
+        .iter()
+        .cloned()
+        .collect();
         assert_eq!(
             uni().easy_parse(
                 r#"{
@@ -289,11 +291,16 @@ mod test {
             Ok((Uni::HashMap(Hash(ID_POOL.next_id(), expect)), ""))
         );
 
-        let expect: HashMap<Id, Box<Uni>> = [
-            (Id(String::from("abc")), Box::new(Uni::Number(32))),
+        let expect: HashMap<Id, Box<Expr>> = [
+            (
+                Id(String::from("abc")),
+                Box::new(Expr::new(Node::Unary(Uni::Number(32)))),
+            ),
             (
                 Id(String::from("def")),
-                Box::new(Uni::String(String::from("def_value!"))),
+                Box::new(Expr::new(Node::Unary(Uni::String(String::from(
+                    "def_value!",
+                ))))),
             ),
         ]
         .iter()
@@ -314,7 +321,13 @@ mod test {
     fn hash_set_test() {
         assert_eq!(
             hash_set().easy_parse(r#"abc: 32"#),
-            Ok(((Id(String::from("abc")), Box::new(Uni::Number(32))), ""))
+            Ok((
+                (
+                    Id(String::from("abc")),
+                    Box::new(Expr::new(Node::Unary(Uni::Number(32))))
+                ),
+                ""
+            ))
         );
     }
 

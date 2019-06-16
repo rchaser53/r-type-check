@@ -491,14 +491,14 @@ pub fn resolve_hash(hash: Hash, context: &Context) -> Result<TypeResult, String>
     let hash_scope = ObjectScope::new(Some(IdType::Local(ScopeId(parent_id))));
     let hash_scope_id = hash_scope.id.clone();
     let hash_map = hash.1;
-    for (key, boxed_uni) in hash_map.into_iter() {
+    for (key, boxed_exp) in hash_map.into_iter() {
         if let Some(type_result) = context.scope.type_map.borrow_mut().try_get(&key) {
             hash_scope
                 .type_map
                 .borrow_mut()
                 .insert(key.clone(), type_result.clone());
         } else {
-            let type_result = resolve_uni(*boxed_uni, context)?;
+            let type_result = resolve_expr(*boxed_exp, context)?;
             hash_scope
                 .type_map
                 .borrow_mut()
