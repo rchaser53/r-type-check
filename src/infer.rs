@@ -210,33 +210,28 @@ pub fn resolve_call(
     let arg_len = args.len();
     let mut arg_type_vec = Vec::with_capacity(arg_len);
 
-    let (should_insert, ret_result) = match type_result {
+    let ret_result = match type_result {
         TypeResult::IdOnly(_) => {
             for index in 0..arg_len {
                 arg_type_vec[index] = OpeaqueType::Unknown
             }
-            (
-                true,
-                TypeResult::Resolved(TypeKind::Function(
-                    id.clone(),
-                    arg_type_vec.clone(),
-                    OpeaqueType::Unknown,
-                )),
-            )
-        }
-        type_result @ _ => (false, type_result.clone()),
-    };
 
-    if should_insert {
-        context.scope.type_map.borrow_mut().insert(
-            id.clone(),
-            TypeResult::Resolved(TypeKind::Function(
+            let type_result = TypeResult::Resolved(TypeKind::Function(
                 id.clone(),
                 arg_type_vec,
                 OpeaqueType::Unknown,
-            )),
-        );
-    }
+            ));
+
+            context
+                .scope
+                .type_map
+                .borrow_mut()
+                .insert(id.clone(), type_result.clone());
+
+            type_result
+        }
+        type_result @ _ => type_result.clone(),
+    };
 
     let fn_context = Context::new();
     let result = match ret_result {
