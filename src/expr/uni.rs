@@ -315,6 +315,38 @@ mod test {
             ),
             Ok((Uni::HashMap(Hash(ID_POOL.next_id(), expect)), ""))
         );
+
+        let expect: HashMap<Id, Box<Expr>> = [
+            (
+                Id(String::from("abc")),
+                Box::new(Expr::new(Node::Fn(Function(
+                    vec![],
+                    vec![Box::new(Statement::Return(Expr::new(Node::Unary(
+                        Uni::Number(3),
+                    ))))],
+                )))),
+            ),
+            (
+                Id(String::from("def")),
+                Box::new(Expr::new(Node::Unary(Uni::String(String::from(
+                    "def_value!",
+                ))))),
+            ),
+        ]
+        .iter()
+        .cloned()
+        .collect();
+        assert_eq!(
+            uni().easy_parse(
+                r#"{
+              abc: fn() {
+                return 3;
+              },
+              def: "def_value!",
+            }"#
+            ),
+            Ok((Uni::HashMap(Hash(ID_POOL.next_id(), expect)), ""))
+        );
     }
 
     #[test]
