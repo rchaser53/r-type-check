@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use combine::error::ParseError;
 use combine::parser::char::{digit, letter};
 use combine::stream::Stream;
-use combine::{attempt, between, choice, many, many1, none_of, parser, sep_by, sep_by1, Parser};
+use combine::{
+    attempt, between, choice, many, many1, none_of, parser, sep_by, sep_by1, token, Parser,
+};
 
 use crate::scope::*;
 use crate::utils::*;
@@ -209,7 +211,8 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    attempt(preserved()).or(many1(letter()).map(|e: String| Uni::Id(Id(e.into()))))
+    attempt(preserved())
+        .or(many1(attempt(letter()).or(token('_'))).map(|e: String| Uni::Id(Id(e.into()))))
 }
 
 pub fn array<I>() -> impl Parser<Input = I, Output = Uni>
@@ -320,6 +323,14 @@ mod test {
         assert_eq!(
             uni().easy_parse(r#"true"#),
             Ok((Uni::Boolean(Boolean::True), ""))
+        );
+    }
+
+    #[test]
+    fn word_test() {
+        assert_eq!(
+            uni().easy_parse(r#"abc_def"#),
+            Ok((Uni::Id(Id(String::from("abc_def"))), ""))
         );
     }
 
