@@ -211,7 +211,7 @@ mod test {
 
     fn helper<'a>(input: &'a str) -> Result<Statement, easy::Errors<char, &'a str, usize>> {
         statement()
-            .easy_parse(input)
+            .easy_parse(input.trim())
             .map(|r| r.0)
             .map_err(|err| err.map_position(|p| p.translate_position(input)))
     }
