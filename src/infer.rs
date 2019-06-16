@@ -529,20 +529,15 @@ pub fn resolve_hash(hash: Hash, context: &Context) -> Result<TypeResult, String>
     let hash_scope = ObjectScope::new(Some(IdType::Local(ScopeId(parent_id))));
     let hash_scope_id = hash_scope.id.clone();
     let hash_map = hash.1;
+
+    // TBD: need to implement to infer hash_map type correctly
     for (key, boxed_exp) in hash_map.into_iter() {
-        if let Some(type_result) = context.scope.type_map.borrow_mut().try_get(&key) {
-            hash_scope
-                .type_map
-                .borrow_mut()
-                .insert(key.clone(), type_result.clone());
-            continue;
-        }
-        let type_result = resolve_expr(*boxed_exp, context)?;
         hash_scope
             .type_map
             .borrow_mut()
-            .insert(key.clone(), type_result);
+            .insert(key.clone(), resolve_expr(*boxed_exp, context)?);
     }
+
     context.scope.scope_map.borrow_mut().insert(
         IdType::Object(hash_scope_id.clone()),
         Box::new(Scope::Object(hash_scope)),
