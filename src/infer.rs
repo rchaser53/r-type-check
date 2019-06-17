@@ -395,7 +395,7 @@ pub fn resolve_uni(uni: Uni, context: &Context) -> Result<TypeResult, String> {
         Uni::Number(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
         Uni::Boolean(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean)),
         Uni::Array(unis) => resolve_array(unis, context)?,
-        Uni::HashMap(hash) => resolve_hash(hash, context)?,
+        Uni::HashMap(hash) => resolve_hash(hash, None, context)?,
         Uni::Field(field) => resolve_field(field, context)?,
         Uni::Null => unimplemented!(),
     };
@@ -534,8 +534,12 @@ pub fn resolve_array(mut unis: Vec<Uni>, context: &Context) -> Result<TypeResult
     }
 }
 
-pub fn resolve_hash(hash: Hash, context: &Context) -> Result<TypeResult, String> {
-    let hash_scope = ObjectScope::new(None, None);
+pub fn resolve_hash(
+    hash: Hash,
+    parent_id: Option<IdType>,
+    context: &Context,
+) -> Result<TypeResult, String> {
+    let hash_scope = ObjectScope::new(parent_id, None);
     let hash_scope_id = if let Some(left_id) = context.current_left_id.borrow_mut().clone() {
         ObjectId(left_id.clone())
     } else {
@@ -545,13 +549,41 @@ pub fn resolve_hash(hash: Hash, context: &Context) -> Result<TypeResult, String>
         return Ok(TypeResult::Unknown);
     };
 
-    // TBD: need to implement to infer hash_map type correctly
     for (key, boxed_exp) in hash.0.into_iter() {
         context.current_left_id.replace(Some(key.clone()));
+        let type_result = resolve_expr(*boxed_exp.clone(), context)?;
+
+        let type_result = match type_result {
+            // the case for { abc: { def: xxx } }
+            TypeResult::Resolved(TypeKind::Scope(id_type)) => {
+                match id_type {
+                    IdType::Local(_local_id) => unimplemented!(),
+                    IdType::Object(object_id) => {
+                        context.current_left_id.replace(Some(object_id.0.clone()));
+                        match (*boxed_exp).clone().node {
+                            Node::Unary(Uni::HashMap(hash)) => {
+                                resolve_hash(
+                                    hash,
+                                    Some(IdType::Object(hash_scope_id.clone())),
+                                    context,
+                                )?;
+                            }
+                            _ => {
+                                resolve_expr(*boxed_exp, context)?;
+                            }
+                        };
+                    }
+                };
+
+                TypeResult::Unknown
+            }
+            type_result @ _ => type_result,
+        };
+
         hash_scope
             .type_map
             .borrow_mut()
-            .insert(key.clone(), resolve_expr(*boxed_exp, context)?);
+            .insert(key.clone(), type_result);
         context.current_left_id.replace(None);
     }
 
