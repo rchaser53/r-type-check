@@ -416,8 +416,11 @@ pub fn resolve_field(field: Field, context: &Context) -> Result<TypeResult, Stri
         };
 
         match type_result {
-            TypeResult::Resolved(TypeKind::Object(object_id)) => {
-                return resolve_object(&object_id, &child_id.0, context);
+            TypeResult::Resolved(TypeKind::Scope(id_type)) => {
+                return match id_type {
+                    IdType::Object(object_id) => resolve_object(&object_id, &child_id.0, context),
+                    IdType::Local(_) => unimplemented!(),
+                };
             }
             TypeResult::Resolved(type_kind @ _) => {
                 // check property for primitive type
@@ -542,7 +545,9 @@ pub fn resolve_hash(hash: Hash, context: &Context) -> Result<TypeResult, String>
         IdType::Object(hash_scope_id.clone()),
         Box::new(Scope::Object(hash_scope)),
     );
-    Ok(TypeResult::Resolved(TypeKind::Object(hash_scope_id)))
+    Ok(TypeResult::Resolved(TypeKind::Scope(IdType::Object(
+        hash_scope_id,
+    ))))
 }
 
 pub fn resolve_type_result_with_op(

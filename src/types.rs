@@ -7,7 +7,7 @@ use crate::scope::*;
 pub enum TypeKind {
     PrimitiveType(PrimitiveType),
     Function(Id, Vec<OpeaqueType>, OpeaqueType),
-    Object(ObjectId),
+    Scope(IdType),
 }
 
 impl fmt::Debug for TypeKind {
@@ -17,7 +17,10 @@ impl fmt::Debug for TypeKind {
             TypeKind::Function(_, args, ret_type) => {
                 write!(f, "args:{:?} return:{:?}", args, ret_type)
             }
-            TypeKind::Object(id) => write!(f, "object id:{:?}", id),
+            TypeKind::Scope(id_type) => match id_type {
+                IdType::Local(local_id) => write!(f, "local id:{:?}", local_id),
+                IdType::Object(object_id) => write!(f, "object id:{:?}", object_id),
+            },
         }
     }
 }
@@ -39,8 +42,8 @@ impl PartialEq for TypeKind {
                     false
                 }
             }
-            TypeKind::Object(left) => {
-                if let TypeKind::Object(right) = other {
+            TypeKind::Scope(left) => {
+                if let TypeKind::Scope(right) = other {
                     left == right
                 } else {
                     false
