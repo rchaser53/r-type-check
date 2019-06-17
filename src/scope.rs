@@ -30,20 +30,25 @@ pub enum Scope {
 }
 
 /// scope_map in ObjectScope has only ObjectScope
+/// below case is id is None
+/// {
+///   abc: "def"
+/// };
+///
 #[derive(Clone, Debug)]
 pub struct ObjectScope {
     pub parent_id: Option<IdType>,
-    pub id: ObjectId,
+    pub id: Option<ObjectId>,
     pub scope_map: RefCell<HashMap<ObjectId, Box<ObjectScope>>>,
     pub type_map: RefCell<TypeMap>,
     pub function_map: RefCell<HashMap<Id, Function>>,
 }
 
 impl ObjectScope {
-    pub fn new(parent_id: Option<IdType>) -> Self {
+    pub fn new(parent_id: Option<IdType>, id: Option<ObjectId>) -> Self {
         ObjectScope {
             parent_id,
-            id: ObjectId(ID_POOL.next_id()),
+            id,
             scope_map: RefCell::new(HashMap::new()),
             type_map: RefCell::new(TypeMap::new()),
             function_map: RefCell::new(HashMap::new()),

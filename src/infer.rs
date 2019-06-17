@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::env;
 
 use crate::error::*;
@@ -13,10 +14,12 @@ use crate::DEBUG_INFO;
 #[derive(Clone, Debug)]
 pub struct Context {
     pub scope: LocalScope,
+    pub current_left_id: RefCell<Option<Id>>,
 }
 impl Context {
     pub fn new() -> Self {
         Context {
+            current_left_id: RefCell::new(None),
             scope: LocalScope::new(None),
         }
     }
@@ -32,6 +35,7 @@ pub fn resolve_statement(
         match statement {
             Statement::Let(lets, body) => {
                 for Assign(id, exp) in lets {
+                    context.current_left_id.replace(Some(id.clone()));
                     let right_type_result = resolve_expr(exp.clone(), &context)?;
 
                     match exp.node {
@@ -51,6 +55,7 @@ pub fn resolve_statement(
                         .borrow_mut()
                         .try_insert(id.clone(), right_type_result)?;
                 }
+                context.current_left_id.replace(None);
                 let unboxed_body = body.into_iter().map(|statement| *statement).collect();
                 resolve_statement(unboxed_body, context)?;
             }
@@ -58,7 +63,9 @@ pub fn resolve_statement(
                 resolve_expr(expr, context)?;
             }
             Statement::Assign(Assign(id, expr)) => {
+                context.current_left_id.replace(Some(id.clone()));
                 resolve_assign(id, expr, context)?;
+                context.current_left_id.replace(None);
             }
             Statement::Return(expr) => {
                 let type_result = resolve_expr(expr, context)?;
@@ -528,17 +535,24 @@ pub fn resolve_array(mut unis: Vec<Uni>, context: &Context) -> Result<TypeResult
 }
 
 pub fn resolve_hash(hash: Hash, context: &Context) -> Result<TypeResult, String> {
-    let parent_id = context.scope.id.0.clone();
-    let hash_scope = ObjectScope::new(Some(IdType::Local(ScopeId(parent_id))));
-    let hash_scope_id = hash_scope.id.clone();
-    let hash_map = hash.0;
+    let hash_scope = ObjectScope::new(None, None);
+    let hash_scope_id = if let Some(left_id) = context.current_left_id.borrow_mut().clone() {
+        ObjectId(left_id.clone())
+    } else {
+        // this is a case Statement::Expr(Expr::Unary(Uni::Hash))
+        // so it's not used. like below
+        // { abc: 123 };
+        return Ok(TypeResult::Unknown);
+    };
 
     // TBD: need to implement to infer hash_map type correctly
-    for (key, boxed_exp) in hash_map.into_iter() {
+    for (key, boxed_exp) in hash.0.into_iter() {
+        context.current_left_id.replace(Some(key.clone()));
         hash_scope
             .type_map
             .borrow_mut()
             .insert(key.clone(), resolve_expr(*boxed_exp, context)?);
+        context.current_left_id.replace(None);
     }
 
     context.scope.scope_map.borrow_mut().insert(
