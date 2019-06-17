@@ -103,10 +103,10 @@ impl Boolean {
 }
 
 #[derive(Clone, Debug)]
-pub struct Hash(pub Id, pub HashMap<Id, Box<Expr>>);
+pub struct Hash(pub HashMap<Id, Box<Expr>>);
 impl PartialEq for Hash {
     fn eq(&self, other: &Self) -> bool {
-        self.1 == other.1
+        self.0 == other.0
     }
 }
 
@@ -139,7 +139,7 @@ where
             for (id, boxed_exp) in hs.into_iter() {
                 hash_map.insert(id, boxed_exp);
             }
-            Uni::HashMap(Hash(ID_POOL.next_id(), hash_map))
+            Uni::HashMap(Hash(hash_map))
         })
 }
 
@@ -287,7 +287,7 @@ mod test {
                 r#"{
             }"#
             ),
-            Ok((Uni::HashMap(Hash(ID_POOL.next_id(), HashMap::new())), ""))
+            Ok((Uni::HashMap(Hash(HashMap::new())), ""))
         );
 
         assert_eq!(
@@ -297,13 +297,10 @@ mod test {
             }"#
             ),
             Ok((
-                Uni::HashMap(Hash(
-                    ID_POOL.next_id(),
-                    create_hash_map(&[(
-                        Id(String::from("abc")),
-                        Box::new(Expr::new(Node::Unary(Uni::Number(32)))),
-                    )])
-                )),
+                Uni::HashMap(Hash(create_hash_map(&[(
+                    Id(String::from("abc")),
+                    Box::new(Expr::new(Node::Unary(Uni::Number(32)))),
+                )]))),
                 ""
             ))
         );
@@ -316,21 +313,18 @@ mod test {
             }"#
             ),
             Ok((
-                Uni::HashMap(Hash(
-                    ID_POOL.next_id(),
-                    create_hash_map(&[
-                        (
-                            Id(String::from("abc")),
-                            Box::new(Expr::new(Node::Unary(Uni::Number(32)))),
-                        ),
-                        (
-                            Id(String::from("def")),
-                            Box::new(Expr::new(Node::Unary(Uni::String(String::from(
-                                "def_value!",
-                            ))))),
-                        ),
-                    ])
-                )),
+                Uni::HashMap(Hash(create_hash_map(&[
+                    (
+                        Id(String::from("abc")),
+                        Box::new(Expr::new(Node::Unary(Uni::Number(32)))),
+                    ),
+                    (
+                        Id(String::from("def")),
+                        Box::new(Expr::new(Node::Unary(Uni::String(String::from(
+                            "def_value!",
+                        ))))),
+                    ),
+                ]))),
                 ""
             ))
         );
@@ -345,26 +339,23 @@ mod test {
             }"#
             ),
             Ok((
-                Uni::HashMap(Hash(
-                    ID_POOL.next_id(),
-                    create_hash_map(&[
-                        (
-                            Id(String::from("abc")),
-                            Box::new(Expr::new(Node::Fn(Function(
-                                vec![],
-                                vec![Box::new(Statement::Return(Expr::new(Node::Unary(
-                                    Uni::Number(3),
-                                ))))],
-                            )))),
-                        ),
-                        (
-                            Id(String::from("def")),
-                            Box::new(Expr::new(Node::Unary(Uni::String(String::from(
-                                "def_value!",
-                            ))))),
-                        ),
-                    ])
-                )),
+                Uni::HashMap(Hash(create_hash_map(&[
+                    (
+                        Id(String::from("abc")),
+                        Box::new(Expr::new(Node::Fn(Function(
+                            vec![],
+                            vec![Box::new(Statement::Return(Expr::new(Node::Unary(
+                                Uni::Number(3),
+                            ))))],
+                        )))),
+                    ),
+                    (
+                        Id(String::from("def")),
+                        Box::new(Expr::new(Node::Unary(Uni::String(String::from(
+                            "def_value!",
+                        ))))),
+                    ),
+                ]))),
                 ""
             ))
         );
@@ -382,27 +373,23 @@ mod test {
             }"#
             ),
             Ok((
-                Uni::HashMap(Hash(
-                    ID_POOL.next_id(),
-                    create_hash_map(&[
-                        (
-                            Id(String::from("abc")),
-                            Box::new(Expr::new(Node::Unary(Uni::HashMap(Hash(
-                                ID_POOL.next_id(),
-                                create_hash_map(&[(
-                                    Id(String::from("inner_abc")),
-                                    Box::new(Expr::new(Node::Unary(Uni::Number(12)))),
-                                )])
-                            ))))),
-                        ),
-                        (
-                            Id(String::from("def")),
-                            Box::new(Expr::new(Node::Unary(Uni::String(String::from(
-                                "def_value!",
-                            ))))),
-                        ),
-                    ])
-                )),
+                Uni::HashMap(Hash(create_hash_map(&[
+                    (
+                        Id(String::from("abc")),
+                        Box::new(Expr::new(Node::Unary(Uni::HashMap(Hash(create_hash_map(
+                            &[(
+                                Id(String::from("inner_abc")),
+                                Box::new(Expr::new(Node::Unary(Uni::Number(12)))),
+                            )]
+                        )))))),
+                    ),
+                    (
+                        Id(String::from("def")),
+                        Box::new(Expr::new(Node::Unary(Uni::String(String::from(
+                            "def_value!",
+                        ))))),
+                    ),
+                ]))),
                 ""
             ))
         );

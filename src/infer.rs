@@ -531,7 +531,7 @@ pub fn resolve_hash(hash: Hash, context: &Context) -> Result<TypeResult, String>
     let parent_id = context.scope.id.0.clone();
     let hash_scope = ObjectScope::new(Some(IdType::Local(ScopeId(parent_id))));
     let hash_scope_id = hash_scope.id.clone();
-    let hash_map = hash.1;
+    let hash_map = hash.0;
 
     // TBD: need to implement to infer hash_map type correctly
     for (key, boxed_exp) in hash_map.into_iter() {
