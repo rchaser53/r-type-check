@@ -218,7 +218,7 @@ pub fn resolve_call(
     // especially for field
     // ex. xx.yy();
     let id = get_id(field.id.clone(), field.child.clone()).0;
-    let type_result = resolve_field(field, context)?;
+    let type_result = resolve_field(field, vec![], context)?;
 
     let arg_len = args.len();
     let mut arg_type_vec = Vec::with_capacity(arg_len);
@@ -396,28 +396,33 @@ pub fn resolve_uni(uni: Uni, context: &Context) -> Result<TypeResult, String> {
         Uni::Boolean(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean)),
         Uni::Array(unis) => resolve_array(unis, context)?,
         Uni::HashMap(hash) => resolve_hash(hash, None, context)?,
-        Uni::Field(field) => resolve_field(field, context)?,
+        Uni::Field(field) => resolve_field(field, vec![], context)?,
         Uni::Null => unimplemented!(),
     };
     Ok(result)
 }
 
 /// xxx.yyy comes now. xxx is possibility for every type
-pub fn resolve_field(field: Field, context: &Context) -> Result<TypeResult, String> {
+pub fn resolve_field(
+    field: Field,
+    mut resolve_ids: Vec<ObjectId>,
+    context: &Context,
+) -> Result<TypeResult, String> {
     DEBUG_INFO!("resolve_field", &context);
 
-    let current_id = field.id.0.clone();
+    let current_id = field.id.clone();
     if let Some(child) = field.child {
         let child_id = child.id.clone();
         // try to get object scope id
         let type_result =
-            if let Some(type_result) = context.scope.type_map.borrow_mut().try_get(&current_id) {
+            if let Some(type_result) = context.scope.type_map.borrow_mut().try_get(&current_id.0) {
                 Some(type_result.clone())
             } else {
                 None
             };
         let type_result = if type_result.is_none() {
-            resolve_field(*child, context)?
+            resolve_ids.push(current_id.clone());
+            return resolve_field(*child, resolve_ids, context);
         } else {
             type_result.unwrap()
         };
@@ -431,19 +436,39 @@ pub fn resolve_field(field: Field, context: &Context) -> Result<TypeResult, Stri
             }
             TypeResult::Resolved(type_kind @ _) => {
                 // check property for primitive type
-                return resolve_unique_field(&current_id, &child_id.0, &type_kind);
+                return resolve_unique_field(&current_id.0, &child_id.0, &type_kind);
             }
             _ => {}
         };
         Ok(type_result.clone())
     } else {
-        // case xxx()
-        if let Some(type_result) = context.scope.type_map.borrow_mut().try_get(&current_id) {
-            Ok(type_result.clone())
-        } else {
-            // case xxx.yyy()
-            Ok(TypeResult::Unknown)
+        if let Some(type_result) = context.scope.type_map.borrow_mut().try_get(&current_id.0) {
+            return Ok(type_result.clone());
         }
+
+        // TBD: need to implement multi nest
+        let result_scope = context.scope.clone();
+        for resolve_id in resolve_ids {
+            if let Some(scope) = result_scope
+                .scope_map
+                .borrow_mut()
+                .get(&IdType::Object(resolve_id))
+            {
+                match *scope.clone() {
+                    Scope::Local(_) => unimplemented!(),
+                    Scope::Object(object_scope) => {
+                        return object_scope
+                            .clone()
+                            .type_map
+                            .borrow_mut()
+                            .try_get(&current_id.0)
+                            .cloned()
+                            .ok_or(String::from("temp_error"));
+                    }
+                }
+            }
+        }
+        Ok(TypeResult::Unknown)
     }
 }
 
@@ -574,7 +599,6 @@ pub fn resolve_hash(
                         };
                     }
                 };
-
                 TypeResult::Unknown
             }
             type_result @ _ => type_result,
@@ -1255,6 +1279,26 @@ mod test {
                   return abc.def;
                 }
                 return abc.def + 456;
+            )
+        "#;
+        assert_infer!(
+            input,
+            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                PrimitiveType::Void
+            )))
+        );
+    }
+
+    #[test]
+    fn hash_map_nest_infer() {
+        let input = r#"
+            let abc = { def: {
+              ghi: 123
+            } } in (
+                if (true) {
+                  return 456;
+                }
+                return abc.def.ghi;
             )
         "#;
         assert_infer!(
