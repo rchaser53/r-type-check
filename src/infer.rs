@@ -420,6 +420,7 @@ pub fn resolve_field(
             } else {
                 None
             };
+
         let type_result = if type_result.is_none() {
             resolve_ids.push(current_id.clone());
             return resolve_field(*child, resolve_ids, context);
@@ -427,19 +428,8 @@ pub fn resolve_field(
             type_result.unwrap()
         };
 
-        match type_result {
-            TypeResult::Resolved(TypeKind::Scope(id_type)) => {
-                return match id_type {
-                    IdType::Object(object_id) => resolve_object(&object_id, &child_id.0, context),
-                    IdType::Local(_) => unimplemented!(),
-                };
-            }
-            TypeResult::Resolved(type_kind @ _) => {
-                // check property for primitive type
-                return resolve_unique_field(&current_id.0, &child_id.0, &type_kind);
-            }
-            _ => {}
-        };
+        let type_result = resolve_field_object(*child, current_id.0, type_result, context)?;
+
         Ok(type_result.clone())
     } else {
         if let Some(type_result) = context.scope.type_map.borrow_mut().try_get(&current_id.0) {
@@ -447,13 +437,12 @@ pub fn resolve_field(
         }
 
         // TBD: need to implement multi nest
-
         if resolve_ids.len() == 0 {
             return Ok(TypeResult::Unknown);
         }
 
         let (first_id, resolve_ids) = resolve_ids.split_first().unwrap();
-        let result_scope = if let Some(scope) = context
+        let mut result_scope = if let Some(scope) = context
             .scope
             .scope_map
             .borrow_mut()
@@ -468,15 +457,12 @@ pub fn resolve_field(
         };
 
         for resolve_id in resolve_ids {
-            if let Some(scope) = result_scope.scope_map.borrow_mut().get(resolve_id) {
-                return scope
-                    .clone()
-                    .type_map
-                    .borrow_mut()
-                    .try_get(&current_id.0)
-                    .cloned()
-                    .ok_or(String::from("temp_error"));
-            }
+            let temp = if let Some(scope) = result_scope.scope_map.borrow_mut().get(resolve_id) {
+                scope.clone()
+            } else {
+                return Err(String::from("temp_error"));
+            };
+            result_scope = *temp;
         }
 
         result_scope
@@ -486,6 +472,33 @@ pub fn resolve_field(
             .try_get(&current_id.0)
             .cloned()
             .ok_or(String::from("temp_error"))
+    }
+}
+
+pub fn resolve_field_object(
+    field: Field,
+    current_id: Id,
+    type_result: TypeResult,
+    context: &Context,
+) -> Result<TypeResult, String> {
+    match type_result {
+        TypeResult::Resolved(TypeKind::Scope(id_type)) => match id_type {
+            IdType::Object(object_id) => {
+                let type_result = resolve_object(&object_id, &field.id.0, context);
+                let current_id = field.id.0.clone();
+                if let Some(child) = field.child {
+                    resolve_field_object(*child, current_id, type_result?, context)
+                } else {
+                    type_result
+                }
+            }
+            IdType::Local(_) => unimplemented!(),
+        },
+        TypeResult::Resolved(type_kind @ _) => {
+            // check property for primitive type
+            resolve_unique_field(&current_id, &field.id.0, &type_kind)
+        }
+        type_result @ _ => Ok(type_result),
     }
 }
 
@@ -504,7 +517,7 @@ pub fn resolve_object(
         if let Scope::Object(object_map) = *boxed_scope.clone() {
             // try to get field type_result
             if let Some(type_result) = object_map.type_map.borrow_mut().try_get(&id) {
-                return Ok(type_result.clone());
+                Ok(type_result.clone())
             } else {
                 unimplemented!()
             }
@@ -597,27 +610,20 @@ pub fn resolve_hash(
 
         let type_result = match type_result {
             // the case for { abc: { def: xxx } }
-            TypeResult::Resolved(TypeKind::Scope(id_type)) => {
-                match id_type {
-                    IdType::Local(_local_id) => unimplemented!(),
-                    IdType::Object(object_id) => {
-                        context.current_left_id.replace(Some(object_id.0.clone()));
-                        match (*boxed_exp).clone().node {
-                            Node::Unary(Uni::HashMap(hash)) => {
-                                resolve_hash(
-                                    hash,
-                                    Some(IdType::Object(hash_scope_id.clone())),
-                                    context,
-                                )?;
-                            }
-                            _ => {
-                                resolve_expr(*boxed_exp, context)?;
-                            }
-                        };
+            TypeResult::Resolved(TypeKind::Scope(id_type)) => match id_type {
+                IdType::Local(_local_id) => unimplemented!(),
+                IdType::Object(object_id) => {
+                    context.current_left_id.replace(Some(object_id.0.clone()));
+                    match (*boxed_exp).clone().node {
+                        Node::Unary(Uni::HashMap(hash)) => resolve_hash(
+                            hash,
+                            Some(IdType::Object(hash_scope_id.clone())),
+                            context,
+                        )?,
+                        _ => resolve_expr(*boxed_exp, context)?,
                     }
-                };
-                TypeResult::Unknown
-            }
+                }
+            },
             type_result @ _ => type_result,
         };
 
@@ -1306,6 +1312,25 @@ mod test {
         );
     }
 
+    #[test]
+    fn hash_map_nest_infer() {
+        let input = r#"
+            let abc = { def: {
+              ghi: 123
+            } } in (
+                if (true) {
+                  return 456;
+                }
+                return abc.def.ghi;
+            )
+        "#;
+        assert_infer!(
+            input,
+            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                PrimitiveType::Void
+            )))
+        );
+    }
 
     #[test]
     fn hash_map_call_infer() {
