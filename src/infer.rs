@@ -447,28 +447,45 @@ pub fn resolve_field(
         }
 
         // TBD: need to implement multi nest
-        let result_scope = context.scope.clone();
+
+        if resolve_ids.len() == 0 {
+            return Ok(TypeResult::Unknown);
+        }
+
+        let (first_id, resolve_ids) = resolve_ids.split_first().unwrap();
+        let result_scope = if let Some(scope) = context
+            .scope
+            .scope_map
+            .borrow_mut()
+            .get(&IdType::Object(first_id.clone()))
+        {
+            match *scope.clone() {
+                Scope::Local(_) => unreachable!(),
+                Scope::Object(object_scope) => object_scope,
+            }
+        } else {
+            return Ok(TypeResult::Unknown);
+        };
+
         for resolve_id in resolve_ids {
-            if let Some(scope) = result_scope
-                .scope_map
-                .borrow_mut()
-                .get(&IdType::Object(resolve_id))
-            {
-                match *scope.clone() {
-                    Scope::Local(_) => unimplemented!(),
-                    Scope::Object(object_scope) => {
-                        return object_scope
-                            .clone()
-                            .type_map
-                            .borrow_mut()
-                            .try_get(&current_id.0)
-                            .cloned()
-                            .ok_or(String::from("temp_error"));
-                    }
-                }
+            if let Some(scope) = result_scope.scope_map.borrow_mut().get(resolve_id) {
+                return scope
+                    .clone()
+                    .type_map
+                    .borrow_mut()
+                    .try_get(&current_id.0)
+                    .cloned()
+                    .ok_or(String::from("temp_error"));
             }
         }
-        Ok(TypeResult::Unknown)
+
+        result_scope
+            .clone()
+            .type_map
+            .borrow_mut()
+            .try_get(&current_id.0)
+            .cloned()
+            .ok_or(String::from("temp_error"))
     }
 }
 
