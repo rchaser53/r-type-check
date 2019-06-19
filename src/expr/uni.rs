@@ -188,26 +188,30 @@ where
                         .clone()
                         .into_iter()
                         .fold(None, |previous: Option<Field>, id| {
-                            fn set_field_to_leaf(mut field: Field, id: Id) -> Field {
+                            fn set_field_to_leaf(
+                                mut field: Field,
+                                parent_id: ObjectId,
+                                id: Id,
+                            ) -> Field {
                                 if field.child.is_none() {
-                                    field.child = Some(Box::new(Field::new(
-                                        Some(field.id.clone()),
-                                        id,
-                                        None,
-                                    )));
+                                    field.child =
+                                        Some(Box::new(Field::new(Some(parent_id), id, None)));
                                     field
                                 } else {
-                                    set_field_to_leaf(*field.child.unwrap(), id)
+                                    let child = *field.child.unwrap().clone();
+                                    let child_id = child.id.clone();
+                                    field.child =
+                                        Some(Box::new(set_field_to_leaf(child, child_id, id)));
+                                    field
                                 }
                             }
 
                             // 初回のみ
                             let result = if let Some(previous) = previous {
-                                set_field_to_leaf(previous, id.clone())
+                                set_field_to_leaf(previous.clone(), previous.id, id.clone())
                             } else {
                                 Field::new(Some(ObjectId(first_word.clone())), id.clone(), None)
                             };
-
                             Some(result)
                         });
 
@@ -445,6 +449,30 @@ mod test {
                             Some(ObjectId(Id(String::from("def")))),
                             Id(String::from("ghi")),
                             None
+                        )))
+                    )))
+                )),
+                ""
+            ))
+        );
+
+        assert_eq!(
+            uni().easy_parse(r#"abc.def.ghi.jkl"#),
+            Ok((
+                Uni::Field(Field::new(
+                    None,
+                    Id(String::from("abc")),
+                    Some(Box::new(Field::new(
+                        Some(ObjectId(Id(String::from("abc")))),
+                        Id(String::from("def")),
+                        Some(Box::new(Field::new(
+                            Some(ObjectId(Id(String::from("def")))),
+                            Id(String::from("ghi")),
+                            Some(Box::new(Field::new(
+                                Some(ObjectId(Id(String::from("ghi")))),
+                                Id(String::from("jkl")),
+                                None
+                            )))
                         )))
                     )))
                 )),
