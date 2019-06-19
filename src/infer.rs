@@ -1306,25 +1306,6 @@ mod test {
         );
     }
 
-    #[test]
-    fn hash_map_nest_infer() {
-        let input = r#"
-            let abc = { def: {
-              ghi: 123
-            } } in (
-                if (true) {
-                  return 456;
-                }
-                return abc.def.ghi;
-            )
-        "#;
-        assert_infer!(
-            input,
-            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
-                PrimitiveType::Void
-            )))
-        );
-    }
 
     #[test]
     fn hash_map_call_infer() {

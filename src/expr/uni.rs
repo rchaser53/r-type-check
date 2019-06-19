@@ -167,41 +167,60 @@ where
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
     skip_spaces(sep_by1(word(), token_skip_spaces('.'))).map(|mut words: Vec<Uni>| {
-        let length = words.len();
-        if length > 1 {
-            if let Some(result) = words
+        if words.len() == 1 {
+            words.pop().unwrap()
+        } else {
+            let ids: Vec<Id> = words
                 .into_iter()
-                .fold(None, |previous: Option<Field>, next| {
-                    let id = match next {
+                .map(|word| {
+                    let result = match word {
                         Uni::Id(id) => id,
                         _ => unreachable!(),
                     };
-
-                    fn set_field_to_leaf(mut field: Field, id: Id) -> Field {
-                        if field.child.is_none() {
-                            field.child =
-                                Some(Box::new(Field::new(Some(field.id.clone()), id, None)));
-                            field
-                        } else {
-                            set_field_to_leaf(*field.child.unwrap(), id)
-                        }
-                    }
-
-                    let result = if let Some(previous) = previous {
-                        set_field_to_leaf(previous, id)
-                    } else {
-                        Field::new(None, id, None)
-                    };
-
-                    Some(result)
+                    result
                 })
-            {
-                Uni::Field(result)
+                .collect();
+
+            if let Some((first_word, left_words)) = ids.split_first() {
+                let mut first_field = Field::new(None, first_word.clone(), None);
+                let child =
+                    left_words
+                        .clone()
+                        .into_iter()
+                        .fold(None, |previous: Option<Field>, id| {
+                            fn set_field_to_leaf(mut field: Field, id: Id) -> Field {
+                                if field.child.is_none() {
+                                    field.child = Some(Box::new(Field::new(
+                                        Some(field.id.clone()),
+                                        id,
+                                        None,
+                                    )));
+                                    field
+                                } else {
+                                    set_field_to_leaf(*field.child.unwrap(), id)
+                                }
+                            }
+
+                            // 初回のみ
+                            let result = if let Some(previous) = previous {
+                                set_field_to_leaf(previous, id.clone())
+                            } else {
+                                Field::new(Some(ObjectId(first_word.clone())), id.clone(), None)
+                            };
+
+                            Some(result)
+                        });
+
+                first_field.child = if let Some(child) = child {
+                    Some(Box::new(child))
+                } else {
+                    None
+                };
+
+                Uni::Field(first_field)
             } else {
-                panic!("uni field: should not come here");
+                unreachable!()
             }
-        } else {
-            words.pop().unwrap()
         }
     })
 }
@@ -407,6 +426,26 @@ mod test {
                         Some(ObjectId(Id(String::from("abc")))),
                         Id(String::from("def")),
                         None
+                    )))
+                )),
+                ""
+            ))
+        );
+
+        assert_eq!(
+            uni().easy_parse(r#"abc.def.ghi"#),
+            Ok((
+                Uni::Field(Field::new(
+                    None,
+                    Id(String::from("abc")),
+                    Some(Box::new(Field::new(
+                        Some(ObjectId(Id(String::from("abc")))),
+                        Id(String::from("def")),
+                        Some(Box::new(Field::new(
+                            Some(ObjectId(Id(String::from("def")))),
+                            Id(String::from("ghi")),
+                            None
+                        )))
                     )))
                 )),
                 ""
