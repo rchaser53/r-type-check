@@ -412,7 +412,6 @@ pub fn resolve_field(
 
     let current_id = field.id.clone();
     if let Some(child) = field.child {
-        let child_id = child.id.clone();
         // try to get object scope id
         let type_result =
             if let Some(type_result) = context.scope.type_map.borrow_mut().try_get(&current_id.0) {
@@ -1322,6 +1321,26 @@ mod test {
                   return 456;
                 }
                 return abc.def.ghi;
+            )
+        "#;
+        assert_infer!(
+            input,
+            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                PrimitiveType::Void
+            )))
+        );
+
+        let input = r#"
+            let abc = { def: {
+              ghi: {
+                jkl: 123
+              },
+              ghi2: 222
+            } } in (
+                if (true) {
+                  return abc.def.ghi2;
+                }
+                return abc.def.ghi.jkl;
             )
         "#;
         assert_infer!(
