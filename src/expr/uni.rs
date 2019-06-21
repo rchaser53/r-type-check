@@ -244,9 +244,9 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    attempt(preserved()).or(attempt(letter())
-        .or(token('_'))
-        .and(many(attempt(letter()).or(token('_')).or(digit())))
+    let letter_underscore = || attempt(attempt(letter()).or(token('_')));
+    attempt(preserved()).or(letter_underscore()
+        .and(many(letter_underscore().or(digit())))
         .map(|(c, e): (char, String)| Uni::Id(Id(c.to_string() + &e))))
 }
 
