@@ -1338,9 +1338,9 @@ mod test {
               ghi2: 222
             } } in (
                 if (true) {
-                  return abc.def.ghi2;
+                  return abc.def.ghi2 + 222;
                 }
-                return abc.def.ghi.jkl;
+                return 111 * abc.def.ghi.jkl;
             )
         "#;
         assert_infer!(
@@ -1348,6 +1348,27 @@ mod test {
             Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
                 PrimitiveType::Void
             )))
+        );
+
+        let input = r#"
+            let abc = { def: {
+              ghi: {
+                jkl: 123
+              },
+              ghi2: 222
+            } } in (
+                if (true) {
+                  return "aaa";
+                }
+                return abc.def.ghi.jkl;
+            )
+        "#;
+        assert_infer!(
+            input,
+            Err(create_conflict_type_return_err(
+                &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
+                &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::String)),
+            ))
         );
     }
 
