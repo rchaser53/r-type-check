@@ -1390,6 +1390,30 @@ mod test {
                 &TypeKind::PrimitiveType(PrimitiveType::String),
             ))
         );
+
+        let input = r#"
+            let abc = {
+              def: {
+                ghi: fn() {
+                  return 123
+                },
+                jkl: {
+                  mno: fn() {
+                    return "pqr";
+                  }
+                }
+              }
+            } in (
+                abc.def.ghi() + abc.def.jkl.mno();
+            )
+        "#;
+        assert_infer!(
+            input,
+            Err(create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+                &TypeKind::PrimitiveType(PrimitiveType::String),
+            ))
+        );
     }
 
     #[test]
