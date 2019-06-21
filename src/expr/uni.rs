@@ -244,8 +244,10 @@ where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
 {
-    attempt(preserved())
-        .or(many1(attempt(letter()).or(token('_'))).map(|e: String| Uni::Id(Id(e.into()))))
+    attempt(preserved()).or(attempt(letter())
+        .or(token('_'))
+        .and(many(attempt(letter()).or(token('_')).or(digit())))
+        .map(|(c, e): (char, String)| Uni::Id(Id(c.to_string() + &e))))
 }
 
 pub fn array<I>() -> impl Parser<Input = I, Output = Uni>
@@ -301,6 +303,14 @@ mod test {
 
     fn create_hash_map(input: &[(Id, Box<Expr>)]) -> HashMap<Id, Box<Expr>> {
         input.iter().cloned().collect()
+    }
+
+    #[test]
+    fn word_test() {
+        assert_eq!(
+            uni().easy_parse(r#"abc1"#),
+            Ok((Uni::Id(Id(String::from("abc1"))), ""))
+        );
     }
 
     #[test]
