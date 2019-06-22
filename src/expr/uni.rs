@@ -2,9 +2,11 @@ use std::collections::HashMap;
 
 use combine::error::ParseError;
 use combine::parser::char::{digit, letter};
+use combine::stream::state::{DefaultPositioned, SourcePosition, State};
 use combine::stream::Stream;
 use combine::{
-    attempt, between, choice, many, many1, none_of, parser, sep_by, sep_by1, token, Parser,
+    attempt, between, choice, easy, many, many1, none_of, parser, position, sep_by, sep_by1, token,
+    Parser,
 };
 
 use crate::expr::*;
@@ -298,11 +300,36 @@ parser! {
     }
 }
 
+pub type MyStream<'a> = easy::Stream<State<&'a str, <&'a str as DefaultPositioned>::Positioner>>;
+parser! {
+   fn test_pos_parser['a]()(MyStream<'a>) -> Uni
+    {
+        many1(uni_())
+        .and(position())
+        .map(|(name, pos): (Vec<_>, SourcePosition)|{
+            Uni::Id(Id(String::from("sugya-n")))
+        })
+    }
+}
+
 mod test {
     use crate::expr::uni::*;
+    use combine::stream::state::State;
 
     fn create_hash_map(input: &[(Id, Box<Expr>)]) -> HashMap<Id, Box<Expr>> {
         input.iter().cloned().collect()
+    }
+
+    #[test]
+    fn test_pos_parser_test() {
+        assert_eq!(
+            test_pos_parser().easy_parse(State::new(r#"[
+              123,
+              456,
+              789
+            ]"#),),
+            Ok((Uni::Id(Id(String::from("abc1"))), State::new(r#""#)))
+        );
     }
 
     #[test]
