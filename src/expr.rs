@@ -1,7 +1,7 @@
 use combine::stream::state::SourcePosition;
 use combine::{attempt, between, many, parser, position, sep_by};
 
-use crate::pos::MyStream;
+use crate::pos::{MyStream, Position};
 use crate::scope::*;
 use crate::statement::*;
 use crate::utils::*;
@@ -16,6 +16,7 @@ use uni::{field, uni as create_uni, word, Field, Id, Uni};
 pub struct Expr {
     pub id: Id,
     pub node: Node,
+    pub position: Position,
 }
 
 impl Expr {
@@ -23,6 +24,7 @@ impl Expr {
         Expr {
             id: ID_POOL.next_id(),
             node,
+            position: Default::default(),
         }
     }
 
@@ -222,10 +224,13 @@ parser! {
 parser! {
    pub fn expr['a]()(MyStream<'a>) -> Expr
     {
-        expr_()
+        position()
+        .and(expr_())
         .and(position())
-        .map(|(name, _pos): (Expr, SourcePosition)|{
-            name
+        .map(|((lo, mut exp), hi): ((SourcePosition, Expr), SourcePosition)| {
+            exp.position.hi = hi;
+            exp.position.lo = lo;
+            exp
         })
     }
 }
