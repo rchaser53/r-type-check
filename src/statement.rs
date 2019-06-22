@@ -39,7 +39,7 @@ parser! {
     }
 }
 
-fn if_condition<I>() -> impl Parser<Input = I, Output = Expr>
+pub fn if_condition<I>() -> impl Parser<Input = I, Output = Expr>
 where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
@@ -47,7 +47,7 @@ where
     between(token_skip_spaces('('), token_skip_spaces(')'), expr()).map(|expr| expr)
 }
 
-fn assign_<I>() -> impl Parser<Input = I, Output = Assign>
+pub fn assign_<I>() -> impl Parser<Input = I, Output = Assign>
 where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
@@ -65,7 +65,7 @@ where
         })
 }
 
-fn return_<I>() -> impl Parser<Input = I, Output = Statement>
+pub fn return_<I>() -> impl Parser<Input = I, Output = Statement>
 where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
@@ -81,7 +81,7 @@ where
         })
 }
 
-fn let_<I>() -> impl Parser<Input = I, Output = Statement>
+pub fn let_<I>() -> impl Parser<Input = I, Output = Statement>
 where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
@@ -107,7 +107,7 @@ where
     })
 }
 
-fn expr_statement<I>() -> impl Parser<Input = I, Output = Statement>
+pub fn expr_statement<I>() -> impl Parser<Input = I, Output = Statement>
 where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
@@ -115,7 +115,7 @@ where
     attempt(expr_statement_with_semicolon()).or(expr_statement_no_semicolon())
 }
 
-fn expr_statement_with_semicolon<I>() -> impl Parser<Input = I, Output = Statement>
+pub fn expr_statement_with_semicolon<I>() -> impl Parser<Input = I, Output = Statement>
 where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
@@ -125,7 +125,7 @@ where
         .map(|exp| Statement::Expr(exp))
 }
 
-fn expr_statement_no_semicolon<I>() -> impl Parser<Input = I, Output = Statement>
+pub fn expr_statement_no_semicolon<I>() -> impl Parser<Input = I, Output = Statement>
 where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
@@ -133,7 +133,7 @@ where
     skip_spaces(expr()).map(|exp| Statement::Expr(exp))
 }
 
-fn if_<I>() -> impl Parser<Input = I, Output = Statement>
+pub fn if_<I>() -> impl Parser<Input = I, Output = Statement>
 where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
@@ -150,7 +150,7 @@ where
     )
 }
 
-fn else_if_<I>() -> impl Parser<Input = I, Output = Vec<(Expr, Vec<Box<Statement>>)>>
+pub fn else_if_<I>() -> impl Parser<Input = I, Output = Vec<(Expr, Vec<Box<Statement>>)>>
 where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
@@ -179,7 +179,7 @@ where
     )
 }
 
-fn create_if<I, T>(
+pub fn create_if<I, T>(
     input: impl Parser<Input = I, Output = T>,
 ) -> impl Parser<Input = I, Output = (Expr, Vec<Box<Statement>>)>
 where
@@ -198,7 +198,7 @@ where
         })
 }
 
-fn assign<I>() -> impl Parser<Input = I, Output = Statement>
+pub fn assign<I>() -> impl Parser<Input = I, Output = Statement>
 where
     I: Stream<Item = char>,
     I::Error: ParseError<I::Item, I::Range, I::Position>,
