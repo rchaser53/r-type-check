@@ -109,12 +109,3 @@ parser! {
         bin_op_()
     }
 }
-
-mod test {
-    use crate::expr::bin_op::*;
-
-    #[test]
-    fn bin_op_test() {
-        assert_eq!(bin_op().easy_parse(r#"+"#), Ok((BinOpKind::Add, "")));
-    }
-}

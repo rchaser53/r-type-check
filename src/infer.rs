@@ -838,12 +838,14 @@ pub fn resolve_op_one_side(
 mod test {
     use crate::ast::*;
     use crate::infer::*;
+
+    use combine::stream::state::State;
     use combine::Parser;
 
     macro_rules! assert_infer {
         ($input: expr, $expected: expr) => {
             let mut context = Context::new();
-            if let Ok((statements, _)) = ast().easy_parse($input) {
+            if let Ok((statements, _)) = ast().easy_parse(State::new($input)) {
                 assert_eq!(resolve_statement(statements, &mut context), $expected);
             } else {
                 panic!("should not come here");

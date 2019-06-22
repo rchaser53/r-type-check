@@ -1,21 +1,22 @@
 use combine::char::spaces;
-use combine::error::ParseError;
-use combine::stream::Stream;
-use combine::{many, Parser};
+use combine::many;
 
 use crate::expr::uni::*;
 use crate::expr::Node::*;
+use crate::pos::MyStream;
 use crate::statement::*;
 
-pub fn ast<I>() -> impl Parser<Input = I, Output = Vec<Statement>>
-where
-    I: Stream<Item = char>,
-    I::Error: ParseError<I::Item, I::Range, I::Position>,
-{
-    spaces().with(many(statement()))
+parser! {
+   pub fn ast['a]()(MyStream<'a>) -> Vec<Statement>
+    {
+        spaces().with(many(statement()))
+    }
 }
 
 mod test {
+    use combine::stream::state::State;
+    use combine::Parser;
+
     use crate::ast::*;
     use crate::expr::*;
     use crate::statement::Assign;
@@ -23,47 +24,45 @@ mod test {
 
     #[test]
     fn assigns_test() {
-        let input = r#"
+        let input = State::new(
+            r#"
 abc = 123;
-def = 456;"#;
+def = 456;"#,
+        );
         assert_eq!(
-            ast().easy_parse(input),
-            Ok((
-                vec![
-                    Statement::Assign(Assign(
-                        Id(String::from("abc")),
-                        Expr::new(Unary(Uni::Number(123)))
-                    )),
-                    Statement::Assign(Assign(
-                        Id(String::from("def")),
-                        Expr::new(Unary(Uni::Number(456)))
-                    )),
-                ],
-                ""
-            ))
+            ast().easy_parse(input).unwrap().0,
+            vec![
+                Statement::Assign(Assign(
+                    Id(String::from("abc")),
+                    Expr::new(Unary(Uni::Number(123)))
+                )),
+                Statement::Assign(Assign(
+                    Id(String::from("def")),
+                    Expr::new(Unary(Uni::Number(456)))
+                )),
+            ],
         );
     }
 
     #[test]
     fn lets_test() {
-        let input = r#"
+        let input = State::new(
+            r#"
 let abc = 123 in
-def = 456;"#;
+def = 456;"#,
+        );
         assert_eq!(
-            ast().easy_parse(input),
-            Ok((
-                vec![Statement::Let(
-                    vec![Assign(
-                        Id(String::from("abc")),
-                        Expr::new(Unary(Uni::Number(123))),
-                    )],
-                    vec![Box::new(Statement::Assign(Assign(
-                        Id(String::from("def")),
-                        Expr::new(Unary(Uni::Number(456)))
-                    )))]
-                ),],
-                ""
-            ))
+            ast().easy_parse(input).unwrap().0,
+            vec![Statement::Let(
+                vec![Assign(
+                    Id(String::from("abc")),
+                    Expr::new(Unary(Uni::Number(123))),
+                )],
+                vec![Box::new(Statement::Assign(Assign(
+                    Id(String::from("def")),
+                    Expr::new(Unary(Uni::Number(456)))
+                )))]
+            ),],
         );
     }
 }
