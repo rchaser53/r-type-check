@@ -269,196 +269,189 @@ parser! {
     }
 }
 
-// mod test {
-//     use crate::expr::uni::*;
+mod test {
+    use crate::new_expr::uni::*;
+    use combine::stream::state::State;
+    use combine::Parser;
 
-//     fn create_hash_map(input: &[(Id, Box<Expr>)]) -> HashMap<Id, Box<Expr>> {
-//         input.iter().cloned().collect()
-//     }
+    fn create_hash_map(input: &[(Id, Box<Expr>)]) -> HashMap<Id, Box<Expr>> {
+        input.iter().cloned().collect()
+    }
 
-//     #[test]
-//     fn word_test() {
-//         assert_eq!(
-//             uni().easy_parse(r#"abc1"#),
-//             Ok((Uni::Id(Id(String::from("abc1"))), ""))
-//         );
-//     }
+    #[test]
+    fn word_test() {
+        assert_eq!(
+            uni().easy_parse(State::new(r#"abc1"#)).unwrap().0,
+            Uni::Id(Id(String::from("abc1")))
+        );
+    }
 
-//     #[test]
-//     fn hash_map_test() {
-//         assert_eq!(
-//             uni().easy_parse(
-//                 r#"{
-//             }"#
-//             ),
-//             Ok((Uni::HashMap(Hash(HashMap::new())), ""))
-//         );
+    #[test]
+    fn hash_map_test() {
+        assert_eq!(
+            uni().easy_parse(State::new(r#"{}"#)).unwrap().0,
+            Uni::HashMap(Hash(HashMap::new()))
+        );
 
-//         assert_eq!(
-//             uni().easy_parse(
-//                 r#"{
-//               abc: 32
-//             }"#
-//             ),
-//             Ok((
-//                 Uni::HashMap(Hash(create_hash_map(&[(
-//                     Id(String::from("abc")),
-//                     Box::new(Expr::new(Node::Unary(Uni::Number(32)))),
-//                 )]))),
-//                 ""
-//             ))
-//         );
+        assert_eq!(
+            uni()
+                .easy_parse(State::new(
+                    r#"{
+              abc: 32
+            }"#
+                ))
+                .unwrap()
+                .0,
+            Uni::HashMap(Hash(create_hash_map(&[(
+                Id(String::from("abc")),
+                Box::new(Expr::new(Node::Unary(Uni::Number(32)))),
+            )]))),
+        );
 
-//         assert_eq!(
-//             uni().easy_parse(
-//                 r#"{
-//               abc: 32,
-//               def: "def_value!",
-//             }"#
-//             ),
-//             Ok((
-//                 Uni::HashMap(Hash(create_hash_map(&[
-//                     (
-//                         Id(String::from("abc")),
-//                         Box::new(Expr::new(Node::Unary(Uni::Number(32)))),
-//                     ),
-//                     (
-//                         Id(String::from("def")),
-//                         Box::new(Expr::new(Node::Unary(Uni::String(String::from(
-//                             "def_value!",
-//                         ))))),
-//                     ),
-//                 ]))),
-//                 ""
-//             ))
-//         );
+        assert_eq!(
+            uni()
+                .easy_parse(State::new(
+                    r#"{
+              abc: 32,
+              def: "def_value!",
+            }"#
+                ))
+                .unwrap()
+                .0,
+            Uni::HashMap(Hash(create_hash_map(&[
+                (
+                    Id(String::from("abc")),
+                    Box::new(Expr::new(Node::Unary(Uni::Number(32)))),
+                ),
+                (
+                    Id(String::from("def")),
+                    Box::new(Expr::new(Node::Unary(Uni::String(String::from(
+                        "def_value!",
+                    ))))),
+                ),
+            ]))),
+        );
 
-//         assert_eq!(
-//             uni().easy_parse(
-//                 r#"{
-//               abc: fn() {
-//                 return 3;
-//               },
-//               def: "def_value!",
-//             }"#
-//             ),
-//             Ok((
-//                 Uni::HashMap(Hash(create_hash_map(&[
-//                     (
-//                         Id(String::from("abc")),
-//                         Box::new(Expr::new(Node::Fn(Function(
-//                             vec![],
-//                             vec![Box::new(Statement::Return(Expr::new(Node::Unary(
-//                                 Uni::Number(3),
-//                             ))))],
-//                         )))),
-//                     ),
-//                     (
-//                         Id(String::from("def")),
-//                         Box::new(Expr::new(Node::Unary(Uni::String(String::from(
-//                             "def_value!",
-//                         ))))),
-//                     ),
-//                 ]))),
-//                 ""
-//             ))
-//         );
-//     }
+        assert_eq!(
+            uni()
+                .easy_parse(State::new(
+                    r#"{
+              abc: fn() {
+                return 3;
+              },
+              def: "def_value!",
+            }"#
+                ))
+                .unwrap()
+                .0,
+            Uni::HashMap(Hash(create_hash_map(&[
+                (
+                    Id(String::from("abc")),
+                    Box::new(Expr::new(Node::Fn(Function(
+                        vec![],
+                        vec![Box::new(Statement::Return(Expr::new(Node::Unary(
+                            Uni::Number(3),
+                        ))))],
+                    )))),
+                ),
+                (
+                    Id(String::from("def")),
+                    Box::new(Expr::new(Node::Unary(Uni::String(String::from(
+                        "def_value!",
+                    ))))),
+                ),
+            ]))),
+        );
+    }
 
-//     #[test]
-//     fn hash_map_nest() {
-//         assert_eq!(
-//             uni().easy_parse(
-//                 r#"{
-//               abc: {
-//                 inner_abc: 12
-//               },
-//               def: "def_value!",
-//             }"#
-//             ),
-//             Ok((
-//                 Uni::HashMap(Hash(create_hash_map(&[
-//                     (
-//                         Id(String::from("abc")),
-//                         Box::new(Expr::new(Node::Unary(Uni::HashMap(Hash(create_hash_map(
-//                             &[(
-//                                 Id(String::from("inner_abc")),
-//                                 Box::new(Expr::new(Node::Unary(Uni::Number(12)))),
-//                             )]
-//                         )))))),
-//                     ),
-//                     (
-//                         Id(String::from("def")),
-//                         Box::new(Expr::new(Node::Unary(Uni::String(String::from(
-//                             "def_value!",
-//                         ))))),
-//                     ),
-//                 ]))),
-//                 ""
-//             ))
-//         );
-//     }
+    #[test]
+    fn hash_map_nest() {
+        assert_eq!(
+            uni()
+                .easy_parse(State::new(
+                    r#"{
+              abc: {
+                inner_abc: 12
+              },
+              def: "def_value!",
+            }"#
+                ))
+                .unwrap()
+                .0,
+            Uni::HashMap(Hash(create_hash_map(&[
+                (
+                    Id(String::from("abc")),
+                    Box::new(Expr::new(Node::Unary(Uni::HashMap(Hash(create_hash_map(
+                        &[(
+                            Id(String::from("inner_abc")),
+                            Box::new(Expr::new(Node::Unary(Uni::Number(12)))),
+                        )]
+                    )))))),
+                ),
+                (
+                    Id(String::from("def")),
+                    Box::new(Expr::new(Node::Unary(Uni::String(String::from(
+                        "def_value!",
+                    ))))),
+                ),
+            ]))),
+        );
+    }
 
-//     #[test]
-//     fn field_test() {
-//         assert_eq!(
-//             uni().easy_parse(r#"abc.def"#),
-//             Ok((
-//                 Uni::Field(Field::new(
-//                     None,
-//                     Id(String::from("abc")),
-//                     Some(Box::new(Field::new(
-//                         Some(ObjectId(Id(String::from("abc")))),
-//                         Id(String::from("def")),
-//                         None
-//                     )))
-//                 )),
-//                 ""
-//             ))
-//         );
+    #[test]
+    fn field_test() {
+        assert_eq!(
+            uni().easy_parse(State::new(r#"abc.def"#)).unwrap().0,
+            Uni::Field(Field::new(
+                None,
+                Id(String::from("abc")),
+                Some(Box::new(Field::new(
+                    Some(ObjectId(Id(String::from("abc")))),
+                    Id(String::from("def")),
+                    None
+                )))
+            )),
+        );
 
-//         assert_eq!(
-//             uni().easy_parse(r#"abc.def.ghi"#),
-//             Ok((
-//                 Uni::Field(Field::new(
-//                     None,
-//                     Id(String::from("abc")),
-//                     Some(Box::new(Field::new(
-//                         Some(ObjectId(Id(String::from("abc")))),
-//                         Id(String::from("def")),
-//                         Some(Box::new(Field::new(
-//                             Some(ObjectId(Id(String::from("def")))),
-//                             Id(String::from("ghi")),
-//                             None
-//                         )))
-//                     )))
-//                 )),
-//                 ""
-//             ))
-//         );
+        assert_eq!(
+            uni().easy_parse(State::new(r#"abc.def.ghi"#)).unwrap().0,
+            Uni::Field(Field::new(
+                None,
+                Id(String::from("abc")),
+                Some(Box::new(Field::new(
+                    Some(ObjectId(Id(String::from("abc")))),
+                    Id(String::from("def")),
+                    Some(Box::new(Field::new(
+                        Some(ObjectId(Id(String::from("def")))),
+                        Id(String::from("ghi")),
+                        None
+                    )))
+                )))
+            )),
+        );
 
-//         assert_eq!(
-//             uni().easy_parse(r#"abc.def.ghi.jkl"#),
-//             Ok((
-//                 Uni::Field(Field::new(
-//                     None,
-//                     Id(String::from("abc")),
-//                     Some(Box::new(Field::new(
-//                         Some(ObjectId(Id(String::from("abc")))),
-//                         Id(String::from("def")),
-//                         Some(Box::new(Field::new(
-//                             Some(ObjectId(Id(String::from("def")))),
-//                             Id(String::from("ghi")),
-//                             Some(Box::new(Field::new(
-//                                 Some(ObjectId(Id(String::from("ghi")))),
-//                                 Id(String::from("jkl")),
-//                                 None
-//                             )))
-//                         )))
-//                     )))
-//                 )),
-//                 ""
-//             ))
-//         );
-//     }
-// }
+        assert_eq!(
+            uni()
+                .easy_parse(State::new(r#"abc.def.ghi.jkl"#))
+                .unwrap()
+                .0,
+            Uni::Field(Field::new(
+                None,
+                Id(String::from("abc")),
+                Some(Box::new(Field::new(
+                    Some(ObjectId(Id(String::from("abc")))),
+                    Id(String::from("def")),
+                    Some(Box::new(Field::new(
+                        Some(ObjectId(Id(String::from("def")))),
+                        Id(String::from("ghi")),
+                        Some(Box::new(Field::new(
+                            Some(ObjectId(Id(String::from("ghi")))),
+                            Id(String::from("jkl")),
+                            None
+                        )))
+                    )))
+                )))
+            )),
+        );
+    }
+}

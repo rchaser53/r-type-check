@@ -109,13 +109,3 @@ parser! {
         bin_op_()
     }
 }
-
-mod test {
-    use crate::expr::bin_op::*;
-    use combine::Parser;
-
-    #[test]
-    fn bin_op_test() {
-        assert_eq!(bin_op().easy_parse(r#"+"#).unwrap().0, BinOpKind::Add);
-    }
-}

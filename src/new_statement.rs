@@ -184,3 +184,287 @@ parser! {
         assign_().map(|assign| Statement::Assign(assign))
     }
 }
+
+mod test {
+    use combine::stream::state::{State, SourcePosition};
+    use combine::Parser;
+    use combine::easy;
+
+    use crate::new_expr::bin_op::*;
+    use crate::new_statement::*;
+
+    fn helper<'a>(input: State<&'a str, SourcePosition>) -> Result<Statement, easy::Errors<char, &'a str, SourcePosition>> {
+        statement()
+            .easy_parse(input)
+            .map(|r| r.0)
+    }
+
+    macro_rules! assert_statement {
+        ($input: expr, $expected: expr) => {
+            let statement = match helper($input) {
+                Ok(statement) => statement,
+                Err(err) => panic!(err),
+            };
+            assert_eq!(statement, $expected);
+        };
+    }
+
+    #[test]
+    fn assign_test() {
+        assert_statement!(
+            State::new(r#"abc = "aaa";"#),
+            Statement::Assign(Assign(
+                Id(String::from("abc")),
+                Expr::new(Unary(Uni::String(String::from("aaa"))))
+            ))
+        );
+    }
+
+    #[test]
+    fn return_test() {
+        assert_statement!(
+            State::new(r#"return "aaa";"#),
+            Statement::Return(Expr::new(Unary(Uni::String(String::from("aaa")))))
+        );
+    }
+
+    #[test]
+    fn if_test() {
+        assert_statement!(
+            State::new(r#"if (i < 10) {
+              let abc = "aaa" in
+            }"#),
+            Statement::If(vec![(
+                Expr::new(Binary(
+                    Box::new(Expr::new(Unary(Uni::Id(Id(String::from("i")))))),
+                    BinOpKind::Lt,
+                    Box::new(Expr::new(Unary(Uni::Number(10))))
+                )),
+                vec![Box::new(Statement::Let(
+                    vec![Assign(
+                        Id(String::from("abc")),
+                        Expr::new(Unary(Uni::String(String::from("aaa")))),
+                    )],
+                    vec![],
+                ))]
+            )])
+        );
+
+        assert_statement!(
+            State::new(r#"if (i < 10) {
+              let abc = "aaa" in
+            } else {
+              let def = "bbb" in
+            }"#),
+            Statement::If(vec![
+                (
+                    Expr::new(Binary(
+                        Box::new(Expr::new(Unary(Uni::Id(Id(String::from("i")))))),
+                        BinOpKind::Lt,
+                        Box::new(Expr::new(Unary(Uni::Number(10))))
+                    )),
+                    vec![Box::new(Statement::Let(
+                        vec![Assign(
+                            Id(String::from("abc")),
+                            Expr::new(Unary(Uni::String(String::from("aaa")))),
+                        )],
+                        vec![],
+                    ))]
+                ),
+                (
+                    Expr::new(Unary(Uni::Boolean(Boolean::True))),
+                    vec![Box::new(Statement::Let(
+                        vec![Assign(
+                            Id(String::from("def")),
+                            Expr::new(Unary(Uni::String(String::from("bbb")))),
+                        )],
+                        vec![],
+                    ))]
+                )
+            ])
+        );
+
+        assert_statement!(
+            State::new(r#"if (i < 10) {
+              let abc = "aaa" in
+            } else if (j > 100) {
+              let def = "bbb" in
+            }"#),
+            Statement::If(vec![
+                (
+                    Expr::new(Binary(
+                        Box::new(Expr::new(Unary(Uni::Id(Id(String::from("i")))))),
+                        BinOpKind::Lt,
+                        Box::new(Expr::new(Unary(Uni::Number(10))))
+                    )),
+                    vec![Box::new(Statement::Let(
+                        vec![Assign(
+                            Id(String::from("abc")),
+                            Expr::new(Unary(Uni::String(String::from("aaa")))),
+                        )],
+                        vec![],
+                    ))]
+                ),
+                (
+                    Expr::new(Binary(
+                        Box::new(Expr::new(Unary(Uni::Id(Id(String::from("j")))))),
+                        BinOpKind::Gt,
+                        Box::new(Expr::new(Unary(Uni::Number(100))))
+                    )),
+                    vec![Box::new(Statement::Let(
+                        vec![Assign(
+                            Id(String::from("def")),
+                            Expr::new(Unary(Uni::String(String::from("bbb")))),
+                        )],
+                        vec![],
+                    ))]
+                )
+            ])
+        );
+
+        assert_statement!(
+            State::new(r#"if (i < 10) {
+              let abc = "aaa" in
+            } else if (j > 100) {
+              let def = "bbb" in
+            } else {
+              let ghi = "ccc" in
+            }"#),
+            Statement::If(vec![
+                (
+                    Expr::new(Binary(
+                        Box::new(Expr::new(Unary(Uni::Id(Id(String::from("i")))))),
+                        BinOpKind::Lt,
+                        Box::new(Expr::new(Unary(Uni::Number(10))))
+                    )),
+                    vec![Box::new(Statement::Let(
+                        vec![Assign(
+                            Id(String::from("abc")),
+                            Expr::new(Unary(Uni::String(String::from("aaa")))),
+                        )],
+                        vec![],
+                    ))]
+                ),
+                (
+                    Expr::new(Binary(
+                        Box::new(Expr::new(Unary(Uni::Id(Id(String::from("j")))))),
+                        BinOpKind::Gt,
+                        Box::new(Expr::new(Unary(Uni::Number(100))))
+                    )),
+                    vec![Box::new(Statement::Let(
+                        vec![Assign(
+                            Id(String::from("def")),
+                            Expr::new(Unary(Uni::String(String::from("bbb")))),
+                        )],
+                        vec![],
+                    ))]
+                ),
+                (
+                    Expr::new(Unary(Uni::Boolean(Boolean::True))),
+                    vec![Box::new(Statement::Let(
+                        vec![Assign(
+                            Id(String::from("ghi")),
+                            Expr::new(Unary(Uni::String(String::from("ccc")))),
+                        )],
+                        vec![],
+                    ))]
+                )
+            ])
+        );
+    }
+
+    #[test]
+    fn expr_statement_test() {
+        assert_statement!(
+            State::new(r#"1 + 2;"#),
+            Statement::Expr(Expr::new(Binary(
+                Box::new(Expr::new(Unary(Uni::Number(1)))),
+                BinOpKind::Add,
+                Box::new(Expr::new(Unary(Uni::Number(2)))),
+            )))
+        );
+    }
+
+    #[test]
+    fn let_test() {
+        assert_statement!(
+            State::new(r#"let abc = "aaa" in
+              abc + "def";
+            "#),
+            Statement::Let(
+                vec![Assign(
+                    Id(String::from("abc")),
+                    Expr::new(Unary(Uni::String(String::from("aaa")))),
+                )],
+                vec![Box::new(Statement::Expr(Expr::new(Binary(
+                    Box::new(Expr::new(Unary(Uni::Id(Id(String::from("abc")))))),
+                    BinOpKind::Add,
+                    Box::new(Expr::new(Unary(Uni::String(String::from("def"))))),
+                )))),]
+            )
+        );
+
+        assert_statement!(
+            State::new(r#"let abc = fn(aaa) {
+              return aaa + 123;
+            } in
+              abc(456) + "def";
+            "#),
+            Statement::Let(
+                vec![Assign(
+                    Id(String::from("abc")),
+                    Expr::new(Fn(Function(
+                        vec![Id(String::from("aaa"))],
+                        vec![Box::new(Statement::Return(Expr::new(Binary(
+                            Box::new(Expr::new(Unary(Uni::Id(Id(String::from("aaa")))))),
+                            BinOpKind::Add,
+                            Box::new(Expr::new(Unary(Uni::Number(123)))),
+                        ))))]
+                    ))),
+                )],
+                vec![Box::new(Statement::Expr(Expr::new(Binary(
+                    Box::new(Expr::new(Call(
+                        Field::new(None, Id(String::from("abc")), None),
+                        vec![Box::new(Expr::new(Unary(Uni::Number(456))))]
+                    ))),
+                    BinOpKind::Add,
+                    Box::new(Expr::new(Unary(Uni::String(String::from("def"))))),
+                )))),]
+            )
+        );
+
+        assert_statement!(
+            State::new(r#"let abc = (1 + 3) * 4 in (
+              abc = abc + 2;
+              return abc;
+            )"#),
+            Statement::Let(
+                vec![Assign(
+                    Id(String::from("abc")),
+                    Expr::new(Binary(
+                        Box::new(Expr::new(Binary(
+                            Box::new(Expr::new(Unary(Uni::Number(1)))),
+                            BinOpKind::Add,
+                            Box::new(Expr::new(Unary(Uni::Number(3)))),
+                        ))),
+                        BinOpKind::Mul,
+                        Box::new(Expr::new(Unary(Uni::Number(4)))),
+                    ))
+                )],
+                vec![
+                    Box::new(Statement::Assign(Assign(
+                        Id(String::from("abc")),
+                        Expr::new(Binary(
+                            Box::new(Expr::new(Unary(Uni::Id(Id(String::from("abc")))))),
+                            BinOpKind::Add,
+                            Box::new(Expr::new(Unary(Uni::Number(2)))),
+                        ))
+                    )),),
+                    Box::new(Statement::Return(Expr::new(Unary(Uni::Id(Id(
+                        String::from("abc")
+                    ))))))
+                ],
+            )
+        );
+    }
+}
