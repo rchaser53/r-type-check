@@ -9,6 +9,7 @@ extern crate combine;
 pub mod ast;
 pub mod error;
 pub mod expr;
+pub mod new_expr;
 pub mod infer;
 pub mod pos;
 pub mod scope;
