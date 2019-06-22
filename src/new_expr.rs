@@ -5,7 +5,7 @@ use crate::expr::bin_op::{bin_op as bin_op_, BinOpKind};
 use crate::expr::uni::{field, word, Field, Id, Uni};
 use crate::pos::{uni as create_uni, MyStream};
 use crate::scope::*;
-use crate::statement::*;
+use crate::new_statement::*;
 use crate::utils::*;
 
 #[derive(Clone, Debug)]
@@ -220,8 +220,354 @@ parser! {
     {
         expr_()
         .and(position())
-        .map(|(name, pos): (Expr, SourcePosition)|{
+        .map(|(name, _pos): (Expr, SourcePosition)|{
             name
         })
     }
+}
+
+mod test {
+    use combine::stream::state::State;
+    use combine::Parser;
+
+    use crate::expr::bin_op::*;
+    use crate::expr::uni::*;
+    use crate::expr::Node::*;
+    use crate::expr::*;
+    use crate::scope::*;
+
+    #[test]
+    fn unary_test() {
+        assert_eq!(
+            expr().easy_parse(State::new(r#""abc""#)).unwrap().0,
+            Expr::new(Unary(Uni::String(String::from("abc")))),
+        );
+    }
+
+    #[test]
+    fn add_test() {
+        assert_eq!(
+            expr().easy_parse(State::new(r#"1 + 2"#)).unwrap().0,
+            Expr::new(Binary(
+                Box::new(Expr::new(Unary(Uni::Number(1)))),
+                BinOpKind::Add,
+                Box::new(Expr::new(Unary(Uni::Number(2)))),
+            )),
+        );
+    }
+
+    #[test]
+    fn call_test() {
+        assert_eq!(
+            expr().easy_parse(State::new(r#"ab()"#)).unwrap().0,
+            Expr::new(Call(Field::new(None, Id(String::from("ab")), None), vec![])),
+        );
+
+        assert_eq!(
+            expr().easy_parse(State::new(r#"ab( cde )"#)).unwrap().0,
+            Expr::new(Call(
+                Field::new(None, Id(String::from("ab")), None),
+                vec![Box::new(Expr::new(Unary(Uni::Id(Id(String::from("cde"))))))]
+            ))
+        );
+
+        assert_eq!(
+            expr()
+                .easy_parse(State::new(r#"ab( cde , fgh )"#))
+                .unwrap()
+                .0,
+            Expr::new(Call(
+                Field::new(None, Id(String::from("ab")), None),
+                vec![
+                    Box::new(Expr::new(Unary(Uni::Id(Id(String::from("cde")))))),
+                    Box::new(Expr::new(Unary(Uni::Id(Id(String::from("fgh"))))))
+                ]
+            )),
+        );
+
+        assert_eq!(
+            expr()
+                .easy_parse(State::new(r#"ab.field( cde , fgh )"#))
+                .unwrap()
+                .0,
+            Expr::new(Call(
+                Field::new(
+                    None,
+                    Id(String::from("ab")),
+                    Some(Box::new(Field::new(
+                        Some(ObjectId(Id(String::from("ab")))),
+                        Id(String::from("field")),
+                        None
+                    )))
+                ),
+                vec![
+                    Box::new(Expr::new(Unary(Uni::Id(Id(String::from("cde")))))),
+                    Box::new(Expr::new(Unary(Uni::Id(Id(String::from("fgh"))))))
+                ]
+            )),
+        );
+    }
+
+    #[test]
+    fn call_binary() {
+        assert_eq!(
+            expr().easy_parse(State::new(r#"abc() * 3"#)).unwrap().0,
+            Expr::new(Binary(
+                Box::new(Expr::new(Call(
+                    Field::new(None, Id(String::from("abc")), None),
+                    vec![]
+                ))),
+                BinOpKind::Mul,
+                Box::new(Expr::new(Unary(Uni::Number(3)))),
+            )),
+        );
+
+        assert_eq!(
+            expr()
+                .easy_parse(State::new(r#"abc( def ) * 3"#))
+                .unwrap()
+                .0,
+            Expr::new(Binary(
+                Box::new(Expr::new(Call(
+                    Field::new(None, Id(String::from("abc")), None),
+                    vec![Box::new(Expr::new(Unary(Uni::Id(Id(String::from("def")))))),]
+                ))),
+                BinOpKind::Mul,
+                Box::new(Expr::new(Unary(Uni::Number(3)))),
+            )),
+        );
+
+        assert_eq!(
+            expr()
+                .easy_parse(State::new(r#"(abc( def ) + 1) * 2"#))
+                .unwrap()
+                .0,
+            Expr::new(Binary(
+                Box::new(Expr::new(Binary(
+                    Box::new(Expr::new(Call(
+                        Field::new(None, Id(String::from("abc")), None),
+                        vec![Box::new(Expr::new(Unary(Uni::Id(Id(String::from("def")))))),]
+                    ))),
+                    BinOpKind::Add,
+                    Box::new(Expr::new(Unary(Uni::Number(1)))),
+                ))),
+                BinOpKind::Mul,
+                Box::new(Expr::new(Unary(Uni::Number(2)))),
+            )),
+        );
+    }
+
+    #[test]
+    fn three() {
+        assert_eq!(
+            expr().easy_parse(State::new(r#"1 + 2 * 3"#)).unwrap().0,
+            Expr::new(Binary(
+                Box::new(Expr::new(Unary(Uni::Number(1)))),
+                BinOpKind::Add,
+                Box::new(Expr::new(Binary(
+                    Box::new(Expr::new(Unary(Uni::Number(2)))),
+                    BinOpKind::Mul,
+                    Box::new(Expr::new(Unary(Uni::Number(3)))),
+                ))),
+            )),
+        );
+
+        assert_eq!(
+            expr().easy_parse(State::new(r#"1 * 2 + 3"#)).unwrap().0,
+            Expr::new(Binary(
+                Box::new(Expr::new(Binary(
+                    Box::new(Expr::new(Unary(Uni::Number(1)))),
+                    BinOpKind::Mul,
+                    Box::new(Expr::new(Unary(Uni::Number(2)))),
+                ))),
+                BinOpKind::Add,
+                Box::new(Expr::new(Unary(Uni::Number(3)))),
+            )),
+        );
+    }
+
+    #[test]
+    fn four() {
+        assert_eq!(
+            expr().easy_parse(State::new(r#"1 * 2 * 3 - 5"#)).unwrap().0,
+            Expr::new(Binary(
+                Box::new(Expr::new(Binary(
+                    Box::new(Expr::new(Unary(Uni::Number(1)))),
+                    BinOpKind::Mul,
+                    Box::new(Expr::new(Binary(
+                        Box::new(Expr::new(Unary(Uni::Number(2)))),
+                        BinOpKind::Mul,
+                        Box::new(Expr::new(Unary(Uni::Number(3)))),
+                    )))
+                ))),
+                BinOpKind::Sub,
+                Box::new(Expr::new(Unary(Uni::Number(5)))),
+            )),
+        );
+
+        assert_eq!(
+            expr().easy_parse(State::new(r#"1 * 2 - 3 / 5"#)).unwrap().0,
+            Expr::new(Binary(
+                Box::new(Expr::new(Binary(
+                    Box::new(Expr::new(Unary(Uni::Number(1)))),
+                    BinOpKind::Mul,
+                    Box::new(Expr::new(Unary(Uni::Number(2)))),
+                ))),
+                BinOpKind::Sub,
+                Box::new(Expr::new(Binary(
+                    Box::new(Expr::new(Unary(Uni::Number(3)))),
+                    BinOpKind::Div,
+                    Box::new(Expr::new(Unary(Uni::Number(5)))),
+                )))
+            )),
+        );
+
+        assert_eq!(
+            expr().easy_parse(State::new(r#"1 + 2 * 3 - 5"#)).unwrap().0,
+            Expr::new(Binary(
+                Box::new(Expr::new(Unary(Uni::Number(1)))),
+                BinOpKind::Add,
+                Box::new(Expr::new(Binary(
+                    Box::new(Expr::new(Binary(
+                        Box::new(Expr::new(Unary(Uni::Number(2)))),
+                        BinOpKind::Mul,
+                        Box::new(Expr::new(Unary(Uni::Number(3)))),
+                    ))),
+                    BinOpKind::Sub,
+                    Box::new(Expr::new(Unary(Uni::Number(5)))),
+                )),)
+            )),
+        );
+    }
+
+    #[test]
+    fn paren() {
+        assert_eq!(
+            expr().easy_parse(State::new(r#"1 + 2 * 3"#)).unwrap().0,
+            Expr::new(Binary(
+                Box::new(Expr::new(Unary(Uni::Number(1)))),
+                BinOpKind::Add,
+                Box::new(Expr::new(Binary(
+                    Box::new(Expr::new(Unary(Uni::Number(2)))),
+                    BinOpKind::Mul,
+                    Box::new(Expr::new(Unary(Uni::Number(3)))),
+                ))),
+            )),
+        );
+
+        assert_eq!(
+            expr().easy_parse(State::new(r#"1 + (2 * 3)"#)).unwrap().0,
+            Expr::new(Binary(
+                Box::new(Expr::new(Unary(Uni::Number(1)))),
+                BinOpKind::Add,
+                Box::new(Expr::new(Binary(
+                    Box::new(Expr::new(Unary(Uni::Number(2)))),
+                    BinOpKind::Mul,
+                    Box::new(Expr::new(Unary(Uni::Number(3)))),
+                )))
+            )),
+        );
+
+        assert_eq!(
+            expr().easy_parse(State::new(r#"(1 + 2) * 3"#)).unwrap().0,
+            Expr::new(Binary(
+                Box::new(Expr::new(Binary(
+                    Box::new(Expr::new(Unary(Uni::Number(1)))),
+                    BinOpKind::Add,
+                    Box::new(Expr::new(Unary(Uni::Number(2)))),
+                ))),
+                BinOpKind::Mul,
+                Box::new(Expr::new(Unary(Uni::Number(3)))),
+            )),
+        );
+
+        assert_eq!(
+            expr()
+                .easy_parse(State::new(r#"(1 + 2) * (3 * 4)"#))
+                .unwrap()
+                .0,
+            Expr::new(Binary(
+                Box::new(Expr::new(Binary(
+                    Box::new(Expr::new(Unary(Uni::Number(1)))),
+                    BinOpKind::Add,
+                    Box::new(Expr::new(Unary(Uni::Number(2)))),
+                ))),
+                BinOpKind::Mul,
+                Box::new(Expr::new(Binary(
+                    Box::new(Expr::new(Unary(Uni::Number(3)))),
+                    BinOpKind::Mul,
+                    Box::new(Expr::new(Unary(Uni::Number(4)))),
+                ))),
+            )),
+        );
+    }
+
+    // #[test]
+    // fn fn_test() {
+    //     let input = State::new(
+    //         r#"fn() {
+    //       let abc = "aaa" in
+    //     }"#,
+    //     );
+    //     assert_eq!(
+    //         expr().easy_parse(input),
+    //         Ok((
+    //             Expr::new(Fn(Function(
+    //                 vec![],
+    //                 vec![Box::new(Statement::Let(
+    //                     vec![Assign(
+    //                         Id(String::from("abc")),
+    //                         Expr::new(Unary(Uni::String(String::from("aaa")))),
+    //                     )],
+    //                     vec![],
+    //                 ))]
+    //             ))),
+    //             State::new("")
+    //         ))
+    //     );
+
+    //     let input = State::new(
+    //         r#"fn ( a ) {
+    //       let abc = "aaa" in
+    //     }"#,
+    //     );
+    //     assert_eq!(
+    //         expr().easy_parse(input),
+    //         Ok((
+    //             Expr::new(Fn(Function(
+    //                 vec![Id(String::from("a"))],
+    //                 vec![Box::new(Statement::Let(
+    //                     vec![Assign(
+    //                         Id(String::from("abc")),
+    //                         Expr::new(Unary(Uni::String(String::from("aaa")))),
+    //                     )],
+    //                     vec![],
+    //                 ))]
+    //             ))),
+    //             State::new("")
+    //         ))
+    //     );
+
+    //     let input = State::new(
+    //         r#"fn ( a, b ) {
+    //       let abc = "aaa" in
+    //     }"#,
+    //     );
+    //     assert_eq!(
+    //         expr().easy_parse(input),
+    //         Ok((
+    //             Expr::new(Fn(Function(
+    //                 vec![Id(String::from("a")), Id(String::from("b")),],
+    //                 vec![Box::new(Statement::Let(
+    //                     vec![Assign(
+    //                         Id(String::from("abc")),
+    //                         Expr::new(Unary(Uni::String(String::from("aaa")))),
+    //                     )],
+    //                     vec![],
+    //                 ))]
+    //             ))),
+    //             State::new("")
+    //         ))
+    //     );
+    // }
 }
