@@ -1,4 +1,3 @@
-use combine::char::spaces;
 use combine::stream::state::{DefaultPositioned, SourcePosition, State};
 use combine::{attempt, choice, easy, many, parser, position};
 
@@ -15,33 +14,6 @@ parser! {
         .map(|(name, pos): (Uni, SourcePosition)|{
             name
         })
-    }
-}
-
-parser! {
-   pub fn statement_pos['a]()(MyStream<'a>) -> Statement
-    {
-        choice(
-            (
-                attempt(return_()),
-                attempt(if_()),
-                attempt(let_()),
-                attempt(assign()),
-                attempt(expr_statement())
-            )
-        )
-        .and(position())
-        .map(|(name, pos): (Statement, SourcePosition)|{
-            name
-        })
-    }
-}
-
-parser! {
-   pub fn ast['a]()(MyStream<'a>) -> Vec<Statement>
-    {
-        spaces().with(many(statement()))
-        .map(|statements| statements)
     }
 }
 

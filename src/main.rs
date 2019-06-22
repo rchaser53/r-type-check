@@ -11,6 +11,7 @@ pub mod error;
 pub mod expr;
 pub mod infer;
 pub mod new_expr;
+pub mod new_statement;
 pub mod pos;
 pub mod scope;
 pub mod statement;
