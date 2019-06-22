@@ -1,12 +1,16 @@
 use combine::stream::state::SourcePosition;
 use combine::{attempt, between, many, parser, position, sep_by};
 
-use crate::expr::bin_op::{bin_op as bin_op_, BinOpKind};
-use crate::expr::uni::{field, word, Field, Id, Uni};
-use crate::pos::{uni as create_uni, MyStream};
-use crate::scope::*;
+use crate::new_scope::*;
 use crate::new_statement::*;
-use crate::utils::*;
+use crate::new_utils::*;
+use crate::pos::MyStream;
+
+pub mod bin_op;
+use bin_op::{bin_op as bin_op_, BinOpKind};
+
+pub mod uni;
+use uni::{field, uni as create_uni, word, Field, Id, Uni};
 
 #[derive(Clone, Debug)]
 pub struct Expr {
@@ -17,7 +21,7 @@ pub struct Expr {
 impl Expr {
     pub fn new(node: Node) -> Expr {
         Expr {
-            id: ID_POOL.next_id(),
+            id: ID_POOL_NEW.next_id(),
             node,
         }
     }
@@ -230,11 +234,10 @@ mod test {
     use combine::stream::state::State;
     use combine::Parser;
 
-    use crate::expr::bin_op::*;
-    use crate::expr::uni::*;
-    use crate::expr::Node::*;
-    use crate::expr::*;
-    use crate::scope::*;
+    use crate::new_expr::bin_op::*;
+    use crate::new_expr::uni::*;
+    use crate::new_expr::Node::*;
+    use crate::new_expr::*;
 
     #[test]
     fn unary_test() {
@@ -502,72 +505,63 @@ mod test {
         );
     }
 
-    // #[test]
-    // fn fn_test() {
-    //     let input = State::new(
-    //         r#"fn() {
-    //       let abc = "aaa" in
-    //     }"#,
-    //     );
-    //     assert_eq!(
-    //         expr().easy_parse(input),
-    //         Ok((
-    //             Expr::new(Fn(Function(
-    //                 vec![],
-    //                 vec![Box::new(Statement::Let(
-    //                     vec![Assign(
-    //                         Id(String::from("abc")),
-    //                         Expr::new(Unary(Uni::String(String::from("aaa")))),
-    //                     )],
-    //                     vec![],
-    //                 ))]
-    //             ))),
-    //             State::new("")
-    //         ))
-    //     );
+    #[test]
+    fn fn_test() {
+        let input = State::new(
+            r#"fn() {
+          let abc = "aaa" in
+        }"#,
+        );
+        assert_eq!(
+            expr().easy_parse(input).unwrap().0,
+            Expr::new(Fn(Function(
+                vec![],
+                vec![Box::new(Statement::Let(
+                    vec![Assign(
+                        Id(String::from("abc")),
+                        Expr::new(Unary(Uni::String(String::from("aaa")))),
+                    )],
+                    vec![],
+                ))]
+            ))),
+        );
 
-    //     let input = State::new(
-    //         r#"fn ( a ) {
-    //       let abc = "aaa" in
-    //     }"#,
-    //     );
-    //     assert_eq!(
-    //         expr().easy_parse(input),
-    //         Ok((
-    //             Expr::new(Fn(Function(
-    //                 vec![Id(String::from("a"))],
-    //                 vec![Box::new(Statement::Let(
-    //                     vec![Assign(
-    //                         Id(String::from("abc")),
-    //                         Expr::new(Unary(Uni::String(String::from("aaa")))),
-    //                     )],
-    //                     vec![],
-    //                 ))]
-    //             ))),
-    //             State::new("")
-    //         ))
-    //     );
+        let input = State::new(
+            r#"fn ( a ) {
+          let abc = "aaa" in
+        }"#,
+        );
+        assert_eq!(
+            expr().easy_parse(input).unwrap().0,
+            Expr::new(Fn(Function(
+                vec![Id(String::from("a"))],
+                vec![Box::new(Statement::Let(
+                    vec![Assign(
+                        Id(String::from("abc")),
+                        Expr::new(Unary(Uni::String(String::from("aaa")))),
+                    )],
+                    vec![],
+                ))]
+            ))),
+        );
 
-    //     let input = State::new(
-    //         r#"fn ( a, b ) {
-    //       let abc = "aaa" in
-    //     }"#,
-    //     );
-    //     assert_eq!(
-    //         expr().easy_parse(input),
-    //         Ok((
-    //             Expr::new(Fn(Function(
-    //                 vec![Id(String::from("a")), Id(String::from("b")),],
-    //                 vec![Box::new(Statement::Let(
-    //                     vec![Assign(
-    //                         Id(String::from("abc")),
-    //                         Expr::new(Unary(Uni::String(String::from("aaa")))),
-    //                     )],
-    //                     vec![],
-    //                 ))]
-    //             ))),
-    //             State::new("")
-    //         ))
-    //     );
-    // }
+        let input = State::new(
+            r#"fn ( a, b ) {
+          let abc = "aaa" in
+        }"#,
+        );
+        assert_eq!(
+            expr().easy_parse(input).unwrap().0,
+            Expr::new(Fn(Function(
+                vec![Id(String::from("a")), Id(String::from("b")),],
+                vec![Box::new(Statement::Let(
+                    vec![Assign(
+                        Id(String::from("abc")),
+                        Expr::new(Unary(Uni::String(String::from("aaa")))),
+                    )],
+                    vec![],
+                ))]
+            ))),
+        );
+    }
 }
