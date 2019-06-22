@@ -521,13 +521,13 @@ mod test {
             expr().easy_parse(input).unwrap().0,
             Expr::new(Fn(Function(
                 vec![],
-                vec![Box::new(Statement::Let(
+                vec![Box::new(Statement::new(StmtKind::Let(
                     vec![Assign(
                         Id(String::from("abc")),
                         Expr::new(Unary(Uni::String(String::from("aaa")))),
                     )],
                     vec![],
-                ))]
+                )))]
             ))),
         );
 
@@ -540,13 +540,13 @@ mod test {
             expr().easy_parse(input).unwrap().0,
             Expr::new(Fn(Function(
                 vec![Id(String::from("a"))],
-                vec![Box::new(Statement::Let(
+                vec![Box::new(Statement::new(StmtKind::Let(
                     vec![Assign(
                         Id(String::from("abc")),
                         Expr::new(Unary(Uni::String(String::from("aaa")))),
                     )],
                     vec![],
-                ))]
+                )))]
             ))),
         );
 
@@ -559,13 +559,13 @@ mod test {
             expr().easy_parse(input).unwrap().0,
             Expr::new(Fn(Function(
                 vec![Id(String::from("a")), Id(String::from("b")),],
-                vec![Box::new(Statement::Let(
+                vec![Box::new(Statement::new(StmtKind::Let(
                     vec![Assign(
                         Id(String::from("abc")),
                         Expr::new(Unary(Uni::String(String::from("aaa")))),
                     )],
                     vec![],
-                ))]
+                )))]
             ))),
         );
     }

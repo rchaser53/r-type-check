@@ -32,14 +32,14 @@ def = 456;"#,
         assert_eq!(
             ast().easy_parse(input).unwrap().0,
             vec![
-                Statement::Assign(Assign(
+                Statement::new(StmtKind::Assign(Assign(
                     Id(String::from("abc")),
                     Expr::new(Unary(Uni::Number(123)))
-                )),
-                Statement::Assign(Assign(
+                ))),
+                Statement::new(StmtKind::Assign(Assign(
                     Id(String::from("def")),
                     Expr::new(Unary(Uni::Number(456)))
-                )),
+                ))),
             ],
         );
     }
@@ -53,16 +53,16 @@ def = 456;"#,
         );
         assert_eq!(
             ast().easy_parse(input).unwrap().0,
-            vec![Statement::Let(
+            vec![Statement::new(StmtKind::Let(
                 vec![Assign(
                     Id(String::from("abc")),
                     Expr::new(Unary(Uni::Number(123))),
                 )],
-                vec![Box::new(Statement::Assign(Assign(
+                vec![Box::new(Statement::new(StmtKind::Assign(Assign(
                     Id(String::from("def")),
                     Expr::new(Unary(Uni::Number(456)))
-                )))]
-            ),],
+                ))))]
+            )),],
         );
     }
 }

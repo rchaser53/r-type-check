@@ -32,8 +32,8 @@ pub fn resolve_statement(
 ) -> Result<TypeResult, String> {
     let mut return_type_results = vec![];
     for statement in statements {
-        match statement {
-            Statement::Let(lets, body) => {
+        match statement.node {
+            StmtKind::Let(lets, body) => {
                 for Assign(id, exp) in lets {
                     context.current_left_id.replace(Some(id.clone()));
                     let right_type_result = resolve_expr(exp.clone(), &context)?;
@@ -59,19 +59,19 @@ pub fn resolve_statement(
                 let unboxed_body = body.into_iter().map(|statement| *statement).collect();
                 resolve_statement(unboxed_body, context)?;
             }
-            Statement::Expr(expr) => {
+            StmtKind::Expr(expr) => {
                 resolve_expr(expr, context)?;
             }
-            Statement::Assign(Assign(id, expr)) => {
+            StmtKind::Assign(Assign(id, expr)) => {
                 context.current_left_id.replace(Some(id.clone()));
                 resolve_assign(id, expr, context)?;
                 context.current_left_id.replace(None);
             }
-            Statement::Return(expr) => {
+            StmtKind::Return(expr) => {
                 let type_result = resolve_expr(expr, context)?;
                 return_type_results.push(type_result.clone());
             }
-            Statement::If(if_tuples) => {
+            StmtKind::If(if_tuples) => {
                 for (if_condition, boxed_body) in if_tuples {
                     let if_condition_type_result = resolve_expr(if_condition, context)?;
                     match if_condition_type_result {
@@ -597,7 +597,7 @@ pub fn resolve_hash(
     let hash_scope_id = if let Some(left_id) = context.current_left_id.borrow_mut().clone() {
         ObjectId(left_id.clone())
     } else {
-        // this is a case Statement::Expr(Expr::Unary(Uni::Hash))
+        // this is a case StmtKind::Expr(Expr::Unary(Uni::Hash))
         // so it's not used. like below
         // { abc: 123 };
         return Ok(TypeResult::Unknown);
