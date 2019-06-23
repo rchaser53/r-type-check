@@ -5,7 +5,7 @@ use crate::expr::uni::*;
 use crate::scope::*;
 use crate::types::*;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TypeError {
     message: String,
     pos: SourcePosition
