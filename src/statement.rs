@@ -127,7 +127,7 @@ parser! {
             .or(many(statement())),
         )
         .map(|(lets, statements): (Vec<Assign>, Vec<Statement>)| {
-            Statement::new(StmtKind::Let(lets, statements.into_iter().map(|s| Box::new(s)).collect()))
+            Statement::new(StmtKind::Let(lets, statements.into_iter().map(Box::new).collect()))
         })
     }
 }
@@ -166,7 +166,7 @@ parser! {
                     many(statement()),
                 ))
                 .map(|(cond, stetements_): (Expr, Vec<Statement>)| {
-                    (cond, stetements_.into_iter().map(|s| Box::new(s)).collect())
+                    (cond, stetements_.into_iter().map(Box::new).collect())
                 })
         };
 
@@ -186,7 +186,7 @@ parser! {
                 if let Some(else_statement) = else_statement {
                     else_ifs.push((
                         Expr::new(Unary(Uni::Boolean(Boolean::True))),
-                        else_statement.into_iter().map(|s| Box::new(s)).collect(),
+                        else_statement.into_iter().map(Box::new).collect(),
                     ));
                 }
                 else_ifs

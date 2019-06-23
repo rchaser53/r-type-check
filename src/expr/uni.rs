@@ -28,11 +28,8 @@ pub enum Uni {
 
 impl Uni {
     pub fn renew_parent_id(&mut self, id: Id) {
-        match self {
-            Uni::Field(field) => {
-                field.parent_id = Some(ObjectId(id));
-            }
-            _ => {}
+        if let Uni::Field(field) = self {
+            field.parent_id = Some(ObjectId(id));
         };
     }
 }
@@ -62,7 +59,7 @@ impl Uni {
         match self {
             Uni::Id(id) => id.0.to_string(),
             Uni::Array(array) => array
-                .into_iter()
+                .iter()
                 .map(|uni| uni.to_string())
                 .collect::<Vec<String>>()
                 .join(","),
@@ -164,11 +161,10 @@ parser! {
                 let ids: Vec<Id> = words
                     .into_iter()
                     .map(|word| {
-                        let result = match word {
+                        match word {
                             Uni::Id(id) => id,
                             _ => unreachable!(),
-                        };
-                        result
+                        }
                     })
                     .collect();
 
@@ -177,7 +173,7 @@ parser! {
                     let child =
                         left_words
                             .clone()
-                            .into_iter()
+                            .iter()
                             .fold(None, |previous: Option<Field>, id| {
                                 fn set_field_to_leaf(
                                     mut field: Field,

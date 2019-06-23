@@ -93,7 +93,7 @@ parser! {
             .map(|(args, stetements_): (Vec<Id>, Vec<Statement>)| {
                 Expr::new(Node::Fn(Function(
                     args,
-                    stetements_.into_iter().map(|s| Box::new(s)).collect(),
+                    stetements_.into_iter().map(Box::new).collect(),
                 )))
             })
     }
@@ -132,10 +132,10 @@ parser! {
 pub fn handle_op(inputs: (Expr, Vec<(BinOpKind, Expr)>)) -> Expr {
     let (left, mut right_pairs) = inputs;
     match right_pairs.len() {
-        0 => return left,
+        0 => left,
         1 => {
             let (bin_op, right) = right_pairs.remove(0);
-            return Expr::new(Node::Binary(Box::new(left), bin_op, Box::new(right)));
+            Expr::new(Node::Binary(Box::new(left), bin_op, Box::new(right)))
         }
         _ => {
             let mut exp = left;
@@ -211,7 +211,7 @@ parser! {
                 token_skip_spaces('('),
                 token_skip_spaces(')'),
                 skip_spaces(sep_by(skip_spaces(expr()), token_skip_spaces(',')))
-                    .map(|exps: Vec<Expr>| exps.into_iter().map(|exp| Box::new(exp)).collect()),
+                    .map(|exps: Vec<Expr>| exps.into_iter().map(Box::new).collect()),
             ))
             .map(|(fn_name, args)| match fn_name {
                 Uni::Id(id) => Expr::new(Node::Call(Field::new(None, id, None), args)),

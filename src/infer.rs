@@ -37,15 +37,12 @@ pub fn resolve_statement(statements: Vec<Statement>, context: &Context) -> Resul
                     context.current_left_id.replace(Some(id.clone()));
                     let right_type_result = resolve_expr(exp.clone(), &context)?;
 
-                    match exp.node {
-                        Node::Fn(function) => {
-                            context
-                                .scope
-                                .function_map
-                                .borrow_mut()
-                                .insert(id.clone(), function.clone());
-                        }
-                        _ => {}
+                    if let Node::Fn(function) = exp.node {
+                        context
+                            .scope
+                            .function_map
+                            .borrow_mut()
+                            .insert(id.clone(), function.clone());
                     };
 
                     context
@@ -116,7 +113,7 @@ pub fn resolve_statement(statements: Vec<Statement>, context: &Context) -> Resul
                 return Err(err);
             }
         }
-        return Ok(first_type_result);
+        Ok(first_type_result)
     }
 }
 
@@ -124,14 +121,11 @@ pub fn resolve_assign(id: Id, exp: Expr, context: &Context) -> Result<TypeResult
     let position = exp.position.lo;
     let right_type_result = resolve_expr(exp.clone(), context)?;
     if let Some(left_type) = context.scope.type_map.borrow_mut().try_get(&id) {
-        match left_type {
-            TypeResult::Resolved(left_type) => {
-                if let Some(mut err) = validate_assign_type(left_type, &right_type_result) {
-                    err.set_pos(position);
-                    return Err(err);
-                }
+        if let TypeResult::Resolved(left_type) = left_type {
+            if let Some(mut err) = validate_assign_type(left_type, &right_type_result) {
+                err.set_pos(position);
+                return Err(err);
             }
-            _ => {}
         };
     } else {
         let mut err = create_not_initialized_err(&id);
@@ -233,8 +227,8 @@ pub fn resolve_call(field: Field, args: Vec<Box<Expr>>, context: &Context) -> Re
 
     let ret_result = match type_result {
         TypeResult::IdOnly(_) => {
-            for index in 0..arg_len {
-                arg_type_vec[index] = OpeaqueType::Unknown
+            for item in arg_type_vec.iter_mut().take(arg_len) {
+                *item = OpeaqueType::Unknown
             }
 
             let type_result = TypeResult::Resolved(TypeKind::Function(
@@ -251,7 +245,7 @@ pub fn resolve_call(field: Field, args: Vec<Box<Expr>>, context: &Context) -> Re
 
             type_result
         }
-        type_result @ _ => type_result.clone(),
+        type_result => type_result,
     };
 
     let fn_context = Context::new();
@@ -294,7 +288,7 @@ pub fn resolve_call(field: Field, args: Vec<Box<Expr>>, context: &Context) -> Re
                 OpeaqueType::IdOnly(_) | OpeaqueType::Unknown => Ok(TypeResult::Unknown),
             }
         }
-        TypeResult::Resolved(type_kind @ _) => Err(create_cannot_call_err(&id, &type_kind)),
+        TypeResult::Resolved(type_kind) => Err(create_cannot_call_err(&id, &type_kind)),
         TypeResult::IdOnly(_) | TypeResult::Unknown => Ok(TypeResult::Unknown),
         _ => unreachable!(),
     };
@@ -342,7 +336,7 @@ pub fn resolve_binary(
     right: Expr,
     context: &Context,
 ) -> Result<TypeResult> {
-    let result = match (left.node, right.node) {
+    match (left.node, right.node) {
         (Node::Binary(l_left, l_op, l_right), Node::Binary(r_left, r_op, r_right)) => {
             let l_resolved = resolve_binary(*l_left, l_op, *l_right, context)?;
             let r_resolved = resolve_binary(*r_left, r_op, *r_right, context)?;
@@ -389,8 +383,7 @@ pub fn resolve_binary(
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         _ => unreachable!(),
-    };
-    result
+    }
 }
 
 pub fn resolve_uni(uni: Uni, context: &Context) -> Result<TypeResult> {
@@ -444,7 +437,7 @@ pub fn resolve_field(
         }
 
         // TBD: need to implement multi nest
-        if field_object_ids.len() == 0 {
+        if field_object_ids.is_empty() {
             return Ok(TypeResult::Unknown);
         }
 
@@ -506,11 +499,11 @@ pub fn resolve_field_object(
             }
             IdType::Local(_) => unimplemented!(),
         },
-        TypeResult::Resolved(type_kind @ _) => {
+        TypeResult::Resolved(type_kind) => {
             // check property for primitive type
             resolve_unique_field(&current_id, &field.id.0, &type_kind)
         }
-        type_result @ _ => Ok(type_result),
+        type_result => Ok(type_result),
     }
 }
 
@@ -543,22 +536,22 @@ pub fn resolve_object(
 }
 
 pub fn resolve_unique_field(parent_id: &Id, id: &Id, type_kind: &TypeKind) -> Result<TypeResult> {
-    return match type_kind {
+    match type_kind {
         TypeKind::PrimitiveType(PrimitiveType::Int) => {
             if &Id(String::from("length")) == id {
-                return Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
                     PrimitiveType::Int,
-                )));
+                )))
             } else {
                 Err(create_undefined_field_err(parent_id, id))
             }
         }
-        result @ _ => Ok(TypeResult::Resolved(result.clone())),
-    };
+        result => Ok(TypeResult::Resolved(result.clone())),
+    }
 }
 
 pub fn resolve_array(mut unis: Vec<Uni>, context: &Context) -> Result<TypeResult> {
-    if unis.len() == 0 {
+    if unis.is_empty() {
         Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
             PrimitiveType::Array(ArrayType::Unknown),
         )))
@@ -632,7 +625,7 @@ pub fn resolve_hash(
                     }
                 }
             },
-            type_result @ _ => type_result,
+            type_result => type_result,
         };
 
         hash_scope
