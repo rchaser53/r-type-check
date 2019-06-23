@@ -49,8 +49,7 @@ impl Pool {
 
 lazy_static! {
     pub static ref ID_POOL: Pool = {
-        let mut pool = Pool::new();
-        pool
+        Pool::new()
     };
 }
 

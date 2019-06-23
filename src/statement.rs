@@ -216,6 +216,7 @@ parser! {
     }
 }
 
+#[cfg(test)]
 mod test {
     use combine::easy;
     use combine::stream::state::{SourcePosition, State};

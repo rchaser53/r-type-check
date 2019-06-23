@@ -1,8 +1,6 @@
 use combine::char::spaces;
 use combine::many;
 
-use crate::expr::uni::*;
-use crate::expr::Node::*;
 use crate::pos::MyStream;
 use crate::statement::*;
 
@@ -13,12 +11,15 @@ parser! {
     }
 }
 
+#[cfg(test)]
 mod test {
     use combine::stream::state::State;
     use combine::Parser;
 
     use crate::ast::*;
     use crate::expr::*;
+    use crate::expr::uni::*;
+    use crate::expr::Node::*;
     use crate::statement::Assign;
     use crate::statement::Statement;
 

@@ -300,7 +300,7 @@ pub fn resolve_call(field: Field, args: Vec<Box<Expr>>, context: &Context) -> Re
     };
 
     let mut fn_map = context.scope.function_map.borrow_mut();
-    let mut bodys = if let Some(Function(_, bodys)) = fn_map.get_mut(&id) {
+    let bodys = if let Some(Function(_, bodys)) = fn_map.get_mut(&id) {
         bodys
             .clone()
             .into_iter()
@@ -840,6 +840,7 @@ pub fn resolve_op_one_side(oneside: &TypeKind, op: BinOpKind, _context: &Context
     }
 }
 
+#[cfg(test)]
 mod test {
     use crate::ast::*;
     use crate::infer::*;

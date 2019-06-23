@@ -235,6 +235,7 @@ parser! {
     }
 }
 
+#[cfg(test)]
 mod test {
     use combine::stream::state::State;
     use combine::Parser;

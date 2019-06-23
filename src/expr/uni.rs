@@ -269,6 +269,7 @@ parser! {
     }
 }
 
+#[cfg(test)]
 mod test {
     use crate::expr::uni::*;
     use combine::stream::state::State;
