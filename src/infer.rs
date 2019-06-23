@@ -28,10 +28,7 @@ impl Context {
 type Result<T> = std::result::Result<T, TypeError>;
 
 /// return function return TypeResult
-pub fn resolve_statement(
-    statements: Vec<Statement>,
-    context: &Context,
-) -> Result<TypeResult> {
+pub fn resolve_statement(statements: Vec<Statement>, context: &Context) -> Result<TypeResult> {
     let mut return_type_results = vec![];
     for statement in statements {
         match statement.node {
@@ -70,16 +67,20 @@ pub fn resolve_statement(
                 context.current_left_id.replace(None);
             }
             StmtKind::Return(expr) => {
+                let position = expr.position.lo;
                 let type_result = resolve_expr(expr, context)?;
-                return_type_results.push(type_result.clone());
+                return_type_results.push((type_result.clone(), position));
             }
             StmtKind::If(if_tuples) => {
                 for (if_condition, boxed_body) in if_tuples {
+                    let position = if_condition.position.lo;
                     let if_condition_type_result = resolve_expr(if_condition, context)?;
                     match if_condition_type_result {
                         TypeResult::Resolved(type_kind) => {
                             if type_kind != TypeKind::PrimitiveType(PrimitiveType::Boolean) {
-                                return Err(create_if_condition_not_boolean_err(&type_kind));
+                                let mut err = create_if_condition_not_boolean_err(&type_kind);
+                                err.set_pos(position);
+                                return Err(err);
                             }
                         }
                         TypeResult::IdOnly(id) => {
@@ -93,10 +94,9 @@ pub fn resolve_statement(
                         _ => unreachable!(),
                     };
                     let unboxed_body = boxed_body.into_iter().map(|statement| *statement).collect();
-
                     // get return type in if statement
                     let if_return_type_result = resolve_statement(unboxed_body, context)?;
-                    return_type_results.push(if_return_type_result);
+                    return_type_results.push((if_return_type_result, position));
                 }
             }
         };
@@ -107,13 +107,13 @@ pub fn resolve_statement(
             PrimitiveType::Void,
         )))
     } else {
-        let first_type_result = return_type_results.pop().unwrap();
-        for return_type_result in return_type_results {
+        let (first_type_result, _) = return_type_results.pop().unwrap();
+        for (return_type_result, position) in return_type_results {
             if first_type_result != return_type_result {
-                return Err(create_conflict_type_return_err(
-                    &first_type_result,
-                    &return_type_result,
-                ));
+                let mut err =
+                    create_conflict_type_return_err(&first_type_result, &return_type_result);
+                err.set_pos(position);
+                return Err(err);
             }
         }
         return Ok(first_type_result);
@@ -121,18 +121,22 @@ pub fn resolve_statement(
 }
 
 pub fn resolve_assign(id: Id, exp: Expr, context: &Context) -> Result<TypeResult> {
+    let position = exp.position.lo;
     let right_type_result = resolve_expr(exp.clone(), context)?;
     if let Some(left_type) = context.scope.type_map.borrow_mut().try_get(&id) {
         match left_type {
             TypeResult::Resolved(left_type) => {
-                if let Some(err_str) = validate_assign_type(left_type, &right_type_result) {
-                    return Err(err_str);
+                if let Some(mut err) = validate_assign_type(left_type, &right_type_result) {
+                    err.set_pos(position);
+                    return Err(err);
                 }
             }
             _ => {}
         };
     } else {
-        return Err(create_not_initialized_err(&id));
+        let mut err = create_not_initialized_err(&id);
+        err.set_pos(position);
+        return Err(err);
     };
     context
         .scope
@@ -159,11 +163,20 @@ pub fn validate_assign_type(
 
 pub fn resolve_expr(exp: Expr, context: &Context) -> Result<TypeResult> {
     let exp_id = exp.id.clone();
-    match exp.node {
+    let position = exp.position.lo;
+    let result = match exp.node {
         Node::Unary(uni) => resolve_uni(uni, context),
         Node::Binary(left, op, right) => resolve_binary(*left, op, *right, context),
         Node::Fn(Function(args, body)) => resolve_fn(exp_id, args, body, context),
         Node::Call(field, boxed_args) => resolve_call(field, boxed_args, context),
+    };
+
+    match result {
+        Ok(result) => Ok(result),
+        Err(mut err) => {
+            err.set_pos(position);
+            Err(err)
+        }
     }
 }
 
@@ -181,41 +194,34 @@ pub fn resolve_fn(
             .borrow_mut()
             .insert(arg.clone(), TypeResult::IdOnly(arg));
     }
-    match resolve_statement(body.into_iter().map(|boxed| *boxed).collect(), &fn_context) {
-        Ok(result) => {
-            let fn_arg_types = args
-                .into_iter()
-                .map(|id| {
-                    if let Some(TypeResult::Resolved(type_kind)) =
-                        fn_context.scope.type_map.borrow_mut().try_get(&id)
-                    {
-                        OpeaqueType::Defined(Box::new(type_kind.clone()))
-                    } else {
-                        OpeaqueType::IdOnly(id)
-                    }
-                })
-                .collect();
-            let return_type = match result {
-                TypeResult::Resolved(return_type) => OpeaqueType::Defined(Box::new(return_type)),
-                TypeResult::IdOnly(id) => OpeaqueType::IdOnly(id),
-                _ => unreachable!(),
-            };
-            // TBD: need to think more
-            Ok(TypeResult::Resolved(TypeKind::Function(
-                id,
-                fn_arg_types,
-                return_type,
-            )))
-        }
-        Err(err_str) => Err(err_str),
-    }
+    let result = resolve_statement(body.into_iter().map(|boxed| *boxed).collect(), &fn_context)?;
+
+    let fn_arg_types = args
+        .into_iter()
+        .map(|id| {
+            if let Some(TypeResult::Resolved(type_kind)) =
+                fn_context.scope.type_map.borrow_mut().try_get(&id)
+            {
+                OpeaqueType::Defined(Box::new(type_kind.clone()))
+            } else {
+                OpeaqueType::IdOnly(id)
+            }
+        })
+        .collect();
+    let return_type = match result {
+        TypeResult::Resolved(return_type) => OpeaqueType::Defined(Box::new(return_type)),
+        TypeResult::IdOnly(id) => OpeaqueType::IdOnly(id),
+        _ => unreachable!(),
+    };
+    // TBD: need to think more
+    Ok(TypeResult::Resolved(TypeKind::Function(
+        id,
+        fn_arg_types,
+        return_type,
+    )))
 }
 
-pub fn resolve_call(
-    field: Field,
-    args: Vec<Box<Expr>>,
-    context: &Context,
-) -> Result<TypeResult> {
+pub fn resolve_call(field: Field, args: Vec<Box<Expr>>, context: &Context) -> Result<TypeResult> {
     // TBD: need to implement correctly
     // especially for field
     // ex. xx.yy();
@@ -407,7 +413,7 @@ pub fn resolve_uni(uni: Uni, context: &Context) -> Result<TypeResult> {
 /// xxx.yyy comes now. xxx is possibility for every type
 pub fn resolve_field(
     field: Field,
-    mut resolve_ids: Vec<ObjectId>,
+    mut field_object_ids: Vec<ObjectId>,
     context: &Context,
 ) -> Result<TypeResult> {
     DEBUG_INFO!("resolve_field", &context);
@@ -423,8 +429,8 @@ pub fn resolve_field(
             };
 
         let type_result = if type_result.is_none() {
-            resolve_ids.push(current_id.clone());
-            return resolve_field(*child, resolve_ids, context);
+            field_object_ids.push(current_id.clone());
+            return resolve_field(*child, field_object_ids, context);
         } else {
             type_result.unwrap()
         };
@@ -438,11 +444,11 @@ pub fn resolve_field(
         }
 
         // TBD: need to implement multi nest
-        if resolve_ids.len() == 0 {
+        if field_object_ids.len() == 0 {
             return Ok(TypeResult::Unknown);
         }
 
-        let (first_id, resolve_ids) = resolve_ids.split_first().unwrap();
+        let (first_id, field_object_ids) = field_object_ids.split_first().unwrap();
         let mut result_scope = if let Some(scope) = context
             .scope
             .scope_map
@@ -457,22 +463,27 @@ pub fn resolve_field(
             return Ok(TypeResult::Unknown);
         };
 
-        for resolve_id in resolve_ids {
-            let temp = if let Some(scope) = result_scope.scope_map.borrow_mut().get(resolve_id) {
-                scope.clone()
-            } else {
-                return Err(TypeError::new(String::from("temp_error")));
-            };
-            result_scope = *temp;
+        for resolve_id in field_object_ids {
+            let temp_scope =
+                if let Some(scope) = result_scope.scope_map.borrow_mut().get(resolve_id) {
+                    scope.clone()
+                } else {
+                    // scope doesn't find
+                    return Ok(TypeResult::Unknown);
+                };
+            result_scope = *temp_scope;
         }
 
-        result_scope
+        match result_scope
             .clone()
             .type_map
             .borrow_mut()
             .try_get(&current_id.0)
             .cloned()
-            .ok_or(TypeError::new(String::from("temp_error")))
+        {
+            Some(result) => Ok(result),
+            _ => Ok(TypeResult::IdOnly(current_id.0)),
+        }
     }
 }
 
@@ -531,11 +542,7 @@ pub fn resolve_object(
     }
 }
 
-pub fn resolve_unique_field(
-    parent_id: &Id,
-    id: &Id,
-    type_kind: &TypeKind,
-) -> Result<TypeResult> {
+pub fn resolve_unique_field(parent_id: &Id, id: &Id, type_kind: &TypeKind) -> Result<TypeResult> {
     return match type_kind {
         TypeKind::PrimitiveType(PrimitiveType::Int) => {
             if &Id(String::from("length")) == id {
@@ -815,11 +822,7 @@ pub fn resolve_op(
     }
 }
 
-pub fn resolve_op_one_side(
-    oneside: &TypeKind,
-    op: BinOpKind,
-    _context: &Context,
-) -> Result<()> {
+pub fn resolve_op_one_side(oneside: &TypeKind, op: BinOpKind, _context: &Context) -> Result<()> {
     match oneside {
         TypeKind::PrimitiveType(PrimitiveType::Boolean) => match op {
             BinOpKind::Eq | BinOpKind::Ne => Ok(()),
@@ -848,9 +851,26 @@ mod test {
         ($input: expr, $expected: expr) => {
             let mut context = Context::new();
             if let Ok((statements, _)) = ast().easy_parse(State::new($input)) {
-                assert_eq!(resolve_statement(statements, &mut context), $expected);
+                match resolve_statement(statements, &mut context) {
+                    Ok(result) => assert_eq!(result, $expected),
+                    Err(_) => unreachable!(),
+                };
             } else {
-                panic!("should not come here");
+                unreachable!()
+            }
+        };
+    }
+
+    macro_rules! assert_infer_err {
+        ($input: expr, $expected: expr) => {
+            let mut context = Context::new();
+            if let Ok((statements, _)) = ast().easy_parse(State::new($input)) {
+                match resolve_statement(statements, &mut context) {
+                    Ok(_) => unreachable!(),
+                    Err(err) => assert_eq!(err.message, $expected.message),
+                };
+            } else {
+                unreachable!()
             }
         };
     }
@@ -860,25 +880,25 @@ mod test {
         let input = r#"let abc = 123 + "abc" in (
         )"#;
         // TODO: need to improve error message
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_type_mismatch_err(
+            create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
                 &TypeKind::PrimitiveType(PrimitiveType::String)
-            ))
+            )
         );
 
         let input = r#"let
         abc = 123
         abc = "abc" in ()"#;
         // TODO: need to improve error message
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_assign_conflict_type_err(
+            create_assign_conflict_type_err(
                 &Id(String::from("abc")),
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
                 &TypeKind::PrimitiveType(PrimitiveType::String)
-            ))
+            )
         );
     }
 
@@ -889,9 +909,7 @@ mod test {
         )"#;
         assert_infer!(
             input,
-            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
-                PrimitiveType::Void
-            )))
+            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Void))
         );
 
         let input = r#"let abc = def in (
@@ -899,34 +917,34 @@ mod test {
           abc + "def";
         )"#;
         // TODO: need to improve error message
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_type_mismatch_err(
+            create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
                 &TypeKind::PrimitiveType(PrimitiveType::String)
-            ))
+            )
         );
 
         let input = r#"let abc = true in (
           abc = (123 > 456) + 44;
         )"#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_type_mismatch_err(
+            create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Boolean),
                 &TypeKind::PrimitiveType(PrimitiveType::Int)
-            ))
+            )
         );
 
         let input = r#"let abc = def in (
           (abc + 234) != (abc == false);
         )"#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_type_mismatch_err(
+            create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
                 &TypeKind::PrimitiveType(PrimitiveType::Boolean)
-            ))
+            )
         );
     }
 
@@ -935,10 +953,7 @@ mod test {
         let input = r#"let abc = 123 in (
           def = 456;
         )"#;
-        assert_infer!(
-            input,
-            Err(create_not_initialized_err(&Id(String::from("def"))))
-        );
+        assert_infer_err!(input, create_not_initialized_err(&Id(String::from("def"))));
     }
 
     #[test]
@@ -947,12 +962,12 @@ mod test {
           abc = 456;
           abc = "err";
         )"#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_type_mismatch_err(
+            create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
                 &TypeKind::PrimitiveType(PrimitiveType::String)
-            ))
+            )
         );
 
         let input = r#"let abc = 123
@@ -960,12 +975,12 @@ mod test {
         in (
           abc + def;
         )"#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_type_mismatch_err(
+            create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
                 &TypeKind::PrimitiveType(PrimitiveType::String)
-            ))
+            )
         );
     }
 
@@ -977,37 +992,37 @@ mod test {
               abc + def + "nya-n";
           )
         )"#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_type_mismatch_err(
+            create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
                 &TypeKind::PrimitiveType(PrimitiveType::String)
-            ))
+            )
         );
     }
 
     #[test]
     fn binary_type_mismatch() {
         let input = r#"123 + "abc""#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_type_mismatch_err(
+            create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
                 &TypeKind::PrimitiveType(PrimitiveType::String)
-            ))
+            )
         );
     }
 
     #[test]
     fn binary_op_mismatch() {
         let input = r#""def" - "abc""#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_cannot_use_op_err(
+            create_cannot_use_op_err(
                 &TypeKind::PrimitiveType(PrimitiveType::String),
                 BinOpKind::Sub,
                 &TypeKind::PrimitiveType(PrimitiveType::String)
-            ))
+            )
         );
     }
 
@@ -1023,9 +1038,7 @@ mod test {
         }"#;
         assert_infer!(
             input,
-            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
-                PrimitiveType::Void
-            )))
+            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Void))
         );
 
         let input = r#"fn (aaa, bbb) {
@@ -1033,12 +1046,12 @@ mod test {
             bbb + 456;
             aaa + bbb + "abc";
         }"#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_type_mismatch_err(
+            create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
                 &TypeKind::PrimitiveType(PrimitiveType::String)
-            ))
+            )
         );
     }
 
@@ -1048,12 +1061,12 @@ mod test {
             return 123;
             return "abc";
         "#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_conflict_type_return_err(
+            create_conflict_type_return_err(
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::String)),
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
-            ))
+            )
         );
 
         let input = r#"
@@ -1062,12 +1075,12 @@ mod test {
               return "abc";
             }
         "#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_conflict_type_return_err(
+            create_conflict_type_return_err(
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::String)),
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
-            ))
+            )
         );
 
         let input = r#"
@@ -1076,12 +1089,12 @@ mod test {
               return abc == true;
             }
         "#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_type_mismatch_err(
+            create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
                 &TypeKind::PrimitiveType(PrimitiveType::Boolean),
-            ))
+            )
         );
     }
 
@@ -1094,12 +1107,12 @@ mod test {
               test(false) * 2;
             );
         "#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_type_mismatch_err(
+            create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Boolean),
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
-            ))
+            )
         );
 
         let input = r#"
@@ -1109,12 +1122,12 @@ mod test {
               test(123);
             );
         "#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_param_and_arg_type_is_mismatch_err(
+            create_param_and_arg_type_is_mismatch_err(
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean)),
-            ))
+            )
         );
 
         let input = r#"
@@ -1123,12 +1136,12 @@ mod test {
               abc();
             }
         "#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_cannot_call_err(
+            create_cannot_call_err(
                 &Id(String::from("abc")),
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
-            ))
+            )
         );
 
         let input = r#"
@@ -1137,12 +1150,12 @@ mod test {
               abc = 12;
             }
         "#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_type_mismatch_err(
+            create_type_mismatch_err(
                 &TypeKind::Function(Id(String::from("whatever")), vec![], OpeaqueType::Unknown),
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
-            ))
+            )
         );
     }
 
@@ -1154,12 +1167,12 @@ mod test {
                 abc + "ghi"
             )
         "#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_type_mismatch_err(
+            create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
                 &TypeKind::PrimitiveType(PrimitiveType::String),
-            ))
+            )
         );
 
         let input = r#"
@@ -1169,12 +1182,12 @@ mod test {
               abc("str");
             )
         "#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_param_and_arg_type_is_mismatch_err(
+            create_param_and_arg_type_is_mismatch_err(
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::String)),
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
-            ))
+            )
         );
     }
 
@@ -1188,9 +1201,7 @@ mod test {
         "#;
         assert_infer!(
             input,
-            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
-                PrimitiveType::Void
-            )))
+            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Void))
         );
 
         let input = r#"
@@ -1200,12 +1211,12 @@ mod test {
                 abc("a", true);
             )
         "#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_type_mismatch_err(
+            create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::String),
                 &TypeKind::PrimitiveType(PrimitiveType::Boolean),
-            ))
+            )
         );
     }
 
@@ -1219,12 +1230,12 @@ mod test {
                 abc * 3;
             }
         "#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_type_mismatch_err(
+            create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Boolean),
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
-            ))
+            )
         );
 
         let input = r#"
@@ -1237,9 +1248,7 @@ mod test {
         "#;
         assert_infer!(
             input,
-            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
-                PrimitiveType::Void
-            )))
+            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Void))
         );
 
         let input = r#"
@@ -1250,12 +1259,12 @@ mod test {
                 return true;
             }
         "#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_conflict_type_return_err(
+            create_conflict_type_return_err(
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean)),
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
-            ))
+            )
         );
     }
 
@@ -1264,12 +1273,12 @@ mod test {
         let input = r#"
             [1, "abc"];
         "#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_conflict_array_elemenet_type_err(
+            create_conflict_array_elemenet_type_err(
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::String)),
-            ))
+            )
         );
 
         let input = r#"
@@ -1278,12 +1287,12 @@ mod test {
                 a + "abc";
             }
         "#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_type_mismatch_err(
+            create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
                 &TypeKind::PrimitiveType(PrimitiveType::String),
-            ))
+            )
         );
     }
 
@@ -1294,9 +1303,7 @@ mod test {
         "#;
         assert_infer!(
             input,
-            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
-                PrimitiveType::Void
-            )))
+            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Void))
         );
 
         let input = r#"
@@ -1309,9 +1316,7 @@ mod test {
         "#;
         assert_infer!(
             input,
-            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
-                PrimitiveType::Void
-            )))
+            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Void))
         );
     }
 
@@ -1329,9 +1334,7 @@ mod test {
         "#;
         assert_infer!(
             input,
-            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
-                PrimitiveType::Void
-            )))
+            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Void))
         );
 
         let input = r#"
@@ -1349,9 +1352,7 @@ mod test {
         "#;
         assert_infer!(
             input,
-            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
-                PrimitiveType::Void
-            )))
+            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Void))
         );
 
         let input = r#"
@@ -1367,12 +1368,12 @@ mod test {
                 return abc.def.ghi.jkl;
             )
         "#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_conflict_type_return_err(
+            create_conflict_type_return_err(
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::String)),
-            ))
+            )
         );
     }
 
@@ -1387,12 +1388,12 @@ mod test {
                 abc.def() + "abc";
             )
         "#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_type_mismatch_err(
+            create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
                 &TypeKind::PrimitiveType(PrimitiveType::String),
-            ))
+            )
         );
 
         let input = r#"
@@ -1411,12 +1412,12 @@ mod test {
                 abc.def.ghi() + abc.def.jkl.mno();
             )
         "#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_type_mismatch_err(
+            create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
                 &TypeKind::PrimitiveType(PrimitiveType::String),
-            ))
+            )
         );
     }
 
@@ -1429,9 +1430,7 @@ mod test {
         "#;
         assert_infer!(
             input,
-            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
-                PrimitiveType::Void
-            )))
+            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Void))
         );
 
         let input = r#"
@@ -1439,12 +1438,9 @@ mod test {
                 abc.nothing;
             )
         "#;
-        assert_infer!(
+        assert_infer_err!(
             input,
-            Err(create_undefined_field_err(
-                &Id(String::from("abc")),
-                &Id(String::from("nothing")),
-            ))
+            create_undefined_field_err(&Id(String::from("abc")), &Id(String::from("nothing")),)
         );
     }
 }

@@ -3,7 +3,7 @@ use combine::stream::state::{DefaultPositioned, SourcePosition, State};
 
 pub type MyStream<'a> = easy::Stream<State<&'a str, <&'a str as DefaultPositioned>::Positioner>>;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct Position {
     pub hi: SourcePosition,
     pub lo: SourcePosition,

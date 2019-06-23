@@ -1,5 +1,5 @@
-use combine::stream::state::SourcePosition;
 use combine::parser::choice::optional;
+use combine::stream::state::SourcePosition;
 use combine::{attempt, between, choice, many, parser, position};
 
 use crate::expr::uni::*;

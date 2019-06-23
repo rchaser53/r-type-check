@@ -7,15 +7,15 @@ use crate::types::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypeError {
-    message: String,
-    pos: SourcePosition
+    pub message: String,
+    pos: SourcePosition,
 }
 
 impl TypeError {
     pub fn new(message: String) -> TypeError {
         TypeError {
-          message,
-          pos: Default::default()
+            message,
+            pos: Default::default(),
         }
     }
 
@@ -29,7 +29,10 @@ impl TypeError {
 }
 
 pub fn create_type_mismatch_err(left: &TypeKind, right: &TypeKind) -> TypeError {
-    TypeError::new(format!("type is mismatch: left:{:?} right:{:?}", left, right))
+    TypeError::new(format!(
+        "type is mismatch: left:{:?} right:{:?}",
+        left, right
+    ))
 }
 
 pub fn create_cannot_use_op_err(left: &TypeKind, op: BinOpKind, right: &TypeKind) -> TypeError {
@@ -55,14 +58,20 @@ pub fn create_assign_conflict_type_err(id: &Id, defined: &TypeKind, new: &TypeKi
 }
 
 pub fn create_conflict_type_return_err(defined: &TypeResult, new: &TypeResult) -> TypeError {
-    TypeError::new(format!("return some types. defined:{:?} new:{:?}", defined, new))
+    TypeError::new(format!(
+        "return some types. defined:{:?} new:{:?}",
+        defined, new
+    ))
 }
 
 pub fn create_cannot_call_err(id: &Id, type_kind: &TypeKind) -> TypeError {
     TypeError::new(format!("cannot call {:?} type:{:?}", id, type_kind))
 }
 
-pub fn create_param_and_arg_type_is_mismatch_err(arg: &TypeResult, param: &TypeResult) -> TypeError {
+pub fn create_param_and_arg_type_is_mismatch_err(
+    arg: &TypeResult,
+    param: &TypeResult,
+) -> TypeError {
     TypeError::new(format!(
         "param and arg type is mismatch arg type:{:?} param type:{:?}",
         arg, param
