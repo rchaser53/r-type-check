@@ -17,9 +17,9 @@ mod test {
     use combine::Parser;
 
     use crate::ast::*;
-    use crate::expr::*;
     use crate::expr::uni::*;
     use crate::expr::Node::*;
+    use crate::expr::*;
     use crate::statement::Assign;
     use crate::statement::Statement;
 

@@ -48,9 +48,7 @@ impl Pool {
 }
 
 lazy_static! {
-    pub static ref ID_POOL: Pool = {
-        Pool::new()
-    };
+    pub static ref ID_POOL: Pool = { Pool::new() };
 }
 
 #[macro_export]
