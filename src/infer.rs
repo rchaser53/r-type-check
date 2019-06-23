@@ -25,11 +25,13 @@ impl Context {
     }
 }
 
+type Result<T> = std::result::Result<T, TypeError>;
+
 /// return function return TypeResult
 pub fn resolve_statement(
     statements: Vec<Statement>,
     context: &Context,
-) -> Result<TypeResult, String> {
+) -> Result<TypeResult> {
     let mut return_type_results = vec![];
     for statement in statements {
         match statement.node {
@@ -118,7 +120,7 @@ pub fn resolve_statement(
     }
 }
 
-pub fn resolve_assign(id: Id, exp: Expr, context: &Context) -> Result<TypeResult, String> {
+pub fn resolve_assign(id: Id, exp: Expr, context: &Context) -> Result<TypeResult> {
     let right_type_result = resolve_expr(exp.clone(), context)?;
     if let Some(left_type) = context.scope.type_map.borrow_mut().try_get(&id) {
         match left_type {
@@ -142,7 +144,7 @@ pub fn resolve_assign(id: Id, exp: Expr, context: &Context) -> Result<TypeResult
 pub fn validate_assign_type(
     left_type: &TypeKind,
     right_type_result: &TypeResult,
-) -> Option<String> {
+) -> Option<TypeError> {
     match right_type_result {
         TypeResult::Resolved(right_type) => {
             if *left_type != *right_type {
@@ -155,7 +157,7 @@ pub fn validate_assign_type(
     }
 }
 
-pub fn resolve_expr(exp: Expr, context: &Context) -> Result<TypeResult, String> {
+pub fn resolve_expr(exp: Expr, context: &Context) -> Result<TypeResult> {
     let exp_id = exp.id.clone();
     match exp.node {
         Node::Unary(uni) => resolve_uni(uni, context),
@@ -170,7 +172,7 @@ pub fn resolve_fn(
     args: Vec<Id>,
     body: Vec<Box<Statement>>,
     _context: &Context,
-) -> Result<TypeResult, String> {
+) -> Result<TypeResult> {
     let fn_context = Context::new();
     for arg in args.clone() {
         fn_context
@@ -213,7 +215,7 @@ pub fn resolve_call(
     field: Field,
     args: Vec<Box<Expr>>,
     context: &Context,
-) -> Result<TypeResult, String> {
+) -> Result<TypeResult> {
     // TBD: need to implement correctly
     // especially for field
     // ex. xx.yy();
@@ -333,7 +335,7 @@ pub fn resolve_binary(
     op: BinOpKind,
     right: Expr,
     context: &Context,
-) -> Result<TypeResult, String> {
+) -> Result<TypeResult> {
     let result = match (left.node, right.node) {
         (Node::Binary(l_left, l_op, l_right), Node::Binary(r_left, r_op, r_right)) => {
             let l_resolved = resolve_binary(*l_left, l_op, *l_right, context)?;
@@ -385,7 +387,7 @@ pub fn resolve_binary(
     result
 }
 
-pub fn resolve_uni(uni: Uni, context: &Context) -> Result<TypeResult, String> {
+pub fn resolve_uni(uni: Uni, context: &Context) -> Result<TypeResult> {
     let result = match uni {
         Uni::Id(id) => match context.scope.type_map.borrow_mut().try_get(&id) {
             Some(result @ TypeResult::Resolved(_)) => result.clone(),
@@ -407,7 +409,7 @@ pub fn resolve_field(
     field: Field,
     mut resolve_ids: Vec<ObjectId>,
     context: &Context,
-) -> Result<TypeResult, String> {
+) -> Result<TypeResult> {
     DEBUG_INFO!("resolve_field", &context);
 
     let current_id = field.id.clone();
@@ -459,7 +461,7 @@ pub fn resolve_field(
             let temp = if let Some(scope) = result_scope.scope_map.borrow_mut().get(resolve_id) {
                 scope.clone()
             } else {
-                return Err(String::from("temp_error"));
+                return Err(TypeError::new(String::from("temp_error")));
             };
             result_scope = *temp;
         }
@@ -470,7 +472,7 @@ pub fn resolve_field(
             .borrow_mut()
             .try_get(&current_id.0)
             .cloned()
-            .ok_or(String::from("temp_error"))
+            .ok_or(TypeError::new(String::from("temp_error")))
     }
 }
 
@@ -479,7 +481,7 @@ pub fn resolve_field_object(
     current_id: Id,
     type_result: TypeResult,
     context: &Context,
-) -> Result<TypeResult, String> {
+) -> Result<TypeResult> {
     match type_result {
         TypeResult::Resolved(TypeKind::Scope(id_type)) => match id_type {
             IdType::Object(object_id) => {
@@ -506,7 +508,7 @@ pub fn resolve_object(
     object_scope_id: &ObjectId,
     id: &Id,
     context: &Context,
-) -> Result<TypeResult, String> {
+) -> Result<TypeResult> {
     if let Some(boxed_scope) = context
         .scope
         .scope_map
@@ -533,7 +535,7 @@ pub fn resolve_unique_field(
     parent_id: &Id,
     id: &Id,
     type_kind: &TypeKind,
-) -> Result<TypeResult, String> {
+) -> Result<TypeResult> {
     return match type_kind {
         TypeKind::PrimitiveType(PrimitiveType::Int) => {
             if &Id(String::from("length")) == id {
@@ -548,7 +550,7 @@ pub fn resolve_unique_field(
     };
 }
 
-pub fn resolve_array(mut unis: Vec<Uni>, context: &Context) -> Result<TypeResult, String> {
+pub fn resolve_array(mut unis: Vec<Uni>, context: &Context) -> Result<TypeResult> {
     if unis.len() == 0 {
         Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
             PrimitiveType::Array(ArrayType::Unknown),
@@ -592,7 +594,7 @@ pub fn resolve_hash(
     hash: Hash,
     parent_id: Option<IdType>,
     context: &Context,
-) -> Result<TypeResult, String> {
+) -> Result<TypeResult> {
     let hash_scope = ObjectScope::new(parent_id, None);
     let hash_scope_id = if let Some(left_id) = context.current_left_id.borrow_mut().clone() {
         ObjectId(left_id.clone())
@@ -647,7 +649,7 @@ pub fn resolve_type_result_with_op(
     op: BinOpKind,
     right: TypeResult,
     context: &Context,
-) -> Result<TypeResult, String> {
+) -> Result<TypeResult> {
     match (&left, &right) {
         (TypeResult::Resolved(ref left), TypeResult::Resolved(ref right)) => {
             check_left_op_right(left, op, right, context)
@@ -728,7 +730,7 @@ pub fn try_insert_and_resolve_op(
     id: &Id,
     op: BinOpKind,
     context: &Context,
-) -> Result<TypeResult, String> {
+) -> Result<TypeResult> {
     context
         .scope
         .type_map
@@ -745,7 +747,7 @@ pub fn filter_type_result<'a>(
     original: &'a TypeResult,
     id: &Id,
     context: &Context,
-) -> Result<&'a TypeResult, String> {
+) -> Result<&'a TypeResult> {
     if let Some(result) = context.scope.type_map.borrow_mut().try_get(id) {
         return match result {
             TypeResult::Resolved(_) | TypeResult::IdOnly(_) => Ok(original),
@@ -766,7 +768,7 @@ pub fn check_left_op_right(
     op: BinOpKind,
     right: &TypeKind,
     context: &Context,
-) -> Result<TypeResult, String> {
+) -> Result<TypeResult> {
     if left == right {
         match resolve_op(&left, op, &right, context) {
             Ok(result) => Ok(result),
@@ -782,7 +784,7 @@ pub fn resolve_op(
     op: BinOpKind,
     right: &TypeKind,
     _context: &Context,
-) -> Result<TypeResult, String> {
+) -> Result<TypeResult> {
     match left {
         TypeKind::PrimitiveType(PrimitiveType::Boolean) => match op {
             BinOpKind::Eq | BinOpKind::Ne => Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
@@ -817,7 +819,7 @@ pub fn resolve_op_one_side(
     oneside: &TypeKind,
     op: BinOpKind,
     _context: &Context,
-) -> Result<(), String> {
+) -> Result<()> {
     match oneside {
         TypeKind::PrimitiveType(PrimitiveType::Boolean) => match op {
             BinOpKind::Eq | BinOpKind::Ne => Ok(()),

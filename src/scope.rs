@@ -89,7 +89,7 @@ impl TypeMap {
         self.0.insert(id, value)
     }
 
-    pub fn try_insert(&mut self, id: Id, new_type: TypeResult) -> Result<TypeResult, String> {
+    pub fn try_insert(&mut self, id: Id, new_type: TypeResult) -> Result<TypeResult, TypeError> {
         if let Some(defined_type) = self.try_get(&id) {
             match (defined_type, &new_type) {
                 (TypeResult::Resolved(ref defined), TypeResult::Resolved(ref new)) => {
