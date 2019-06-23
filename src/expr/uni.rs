@@ -346,8 +346,8 @@ mod test {
                     Id(String::from("abc")),
                     Box::new(Expr::new(Node::Fn(Function(
                         vec![],
-                        vec![Box::new(Statement::new(StmtKind::Return(Expr::new(
-                            Node::Unary(Uni::Number(3),)
+                        vec![Statement::new(StmtKind::Return(Expr::new(Node::Unary(
+                            Uni::Number(3),
                         ))))],
                     )))),
                 ),

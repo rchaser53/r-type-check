@@ -43,7 +43,7 @@ impl PartialEq for Expr {
 pub enum Node {
     Unary(Uni),
     Binary(Box<Expr>, BinOpKind, Box<Expr>),
-    Call(Field, Vec<Box<Expr>>),
+    Call(Field, Vec<Expr>),
     Fn(Function),
 }
 
@@ -66,7 +66,7 @@ impl Node {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Function(pub Vec<Id>, pub Vec<Box<Statement>>);
+pub struct Function(pub Vec<Id>, pub Vec<Statement>);
 
 parser! {
    pub fn fn_['a]()(MyStream<'a>) -> Expr
@@ -93,7 +93,7 @@ parser! {
             .map(|(args, stetements_): (Vec<Id>, Vec<Statement>)| {
                 Expr::new(Node::Fn(Function(
                     args,
-                    stetements_.into_iter().map(Box::new).collect(),
+                    stetements_,
                 )))
             })
     }
@@ -211,7 +211,7 @@ parser! {
                 token_skip_spaces('('),
                 token_skip_spaces(')'),
                 skip_spaces(sep_by(skip_spaces(expr()), token_skip_spaces(',')))
-                    .map(|exps: Vec<Expr>| exps.into_iter().map(Box::new).collect()),
+                    .map(|exps: Vec<Expr>| exps),
             ))
             .map(|(fn_name, args)| match fn_name {
                 Uni::Id(id) => Expr::new(Node::Call(Field::new(None, id, None), args)),
@@ -276,7 +276,7 @@ mod test {
             expr().easy_parse(State::new(r#"ab( cde )"#)).unwrap().0,
             Expr::new(Call(
                 Field::new(None, Id(String::from("ab")), None),
-                vec![Box::new(Expr::new(Unary(Uni::Id(Id(String::from("cde"))))))]
+                vec![Expr::new(Unary(Uni::Id(Id(String::from("cde")))))]
             ))
         );
 
@@ -288,8 +288,8 @@ mod test {
             Expr::new(Call(
                 Field::new(None, Id(String::from("ab")), None),
                 vec![
-                    Box::new(Expr::new(Unary(Uni::Id(Id(String::from("cde")))))),
-                    Box::new(Expr::new(Unary(Uni::Id(Id(String::from("fgh"))))))
+                    Expr::new(Unary(Uni::Id(Id(String::from("cde"))))),
+                    Expr::new(Unary(Uni::Id(Id(String::from("fgh")))))
                 ]
             )),
         );
@@ -310,8 +310,8 @@ mod test {
                     )))
                 ),
                 vec![
-                    Box::new(Expr::new(Unary(Uni::Id(Id(String::from("cde")))))),
-                    Box::new(Expr::new(Unary(Uni::Id(Id(String::from("fgh"))))))
+                    Expr::new(Unary(Uni::Id(Id(String::from("cde"))))),
+                    Expr::new(Unary(Uni::Id(Id(String::from("fgh")))))
                 ]
             )),
         );
@@ -339,7 +339,7 @@ mod test {
             Expr::new(Binary(
                 Box::new(Expr::new(Call(
                     Field::new(None, Id(String::from("abc")), None),
-                    vec![Box::new(Expr::new(Unary(Uni::Id(Id(String::from("def")))))),]
+                    vec![Expr::new(Unary(Uni::Id(Id(String::from("def"))))),]
                 ))),
                 BinOpKind::Mul,
                 Box::new(Expr::new(Unary(Uni::Number(3)))),
@@ -355,7 +355,7 @@ mod test {
                 Box::new(Expr::new(Binary(
                     Box::new(Expr::new(Call(
                         Field::new(None, Id(String::from("abc")), None),
-                        vec![Box::new(Expr::new(Unary(Uni::Id(Id(String::from("def")))))),]
+                        vec![Expr::new(Unary(Uni::Id(Id(String::from("def"))))),]
                     ))),
                     BinOpKind::Add,
                     Box::new(Expr::new(Unary(Uni::Number(1)))),
@@ -522,13 +522,13 @@ mod test {
             expr().easy_parse(input).unwrap().0,
             Expr::new(Fn(Function(
                 vec![],
-                vec![Box::new(Statement::new(StmtKind::Let(
+                vec![Statement::new(StmtKind::Let(
                     vec![Assign(
                         Id(String::from("abc")),
                         Expr::new(Unary(Uni::String(String::from("aaa")))),
                     )],
                     vec![],
-                )))]
+                ))]
             ))),
         );
 
@@ -541,13 +541,13 @@ mod test {
             expr().easy_parse(input).unwrap().0,
             Expr::new(Fn(Function(
                 vec![Id(String::from("a"))],
-                vec![Box::new(Statement::new(StmtKind::Let(
+                vec![Statement::new(StmtKind::Let(
                     vec![Assign(
                         Id(String::from("abc")),
                         Expr::new(Unary(Uni::String(String::from("aaa")))),
                     )],
                     vec![],
-                )))]
+                ))]
             ))),
         );
 
@@ -560,13 +560,13 @@ mod test {
             expr().easy_parse(input).unwrap().0,
             Expr::new(Fn(Function(
                 vec![Id(String::from("a")), Id(String::from("b")),],
-                vec![Box::new(Statement::new(StmtKind::Let(
+                vec![Statement::new(StmtKind::Let(
                     vec![Assign(
                         Id(String::from("abc")),
                         Expr::new(Unary(Uni::String(String::from("aaa")))),
                     )],
                     vec![],
-                )))]
+                ))]
             ))),
         );
     }

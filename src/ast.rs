@@ -59,10 +59,10 @@ def = 456;"#,
                     Id(String::from("abc")),
                     Expr::new(Unary(Uni::Number(123))),
                 )],
-                vec![Box::new(Statement::new(StmtKind::Assign(Assign(
+                vec![Statement::new(StmtKind::Assign(Assign(
                     Id(String::from("def")),
                     Expr::new(Unary(Uni::Number(456)))
-                ))))]
+                )))]
             )),],
         );
     }

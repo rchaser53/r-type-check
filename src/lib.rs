@@ -26,9 +26,8 @@ use crate::infer::*;
 use crate::scope::*;
 
 pub fn compile(input: &'static str) -> Result<TypeResult, TypeError> {
-    let mut context = Context::new();
     match ast().easy_parse(State::new(input)) {
-        Ok((statements, _)) => resolve_statement(statements, &mut context),
+        Ok((statements, _)) => resolve_statement(statements, &Context::new()),
         Err(err) => panic!(err),
     }
 }

@@ -52,8 +52,7 @@ pub fn resolve_statement(statements: Vec<Statement>, context: &Context) -> Resul
                         .try_insert(id.clone(), right_type_result)?;
                 }
                 context.current_left_id.replace(None);
-                let unboxed_body = body.into_iter().map(|statement| *statement).collect();
-                resolve_statement(unboxed_body, context)?;
+                resolve_statement(body, context)?;
             }
             StmtKind::Expr(expr) => {
                 resolve_expr(expr, context)?;
@@ -90,7 +89,7 @@ pub fn resolve_statement(statements: Vec<Statement>, context: &Context) -> Resul
                         }
                         _ => unreachable!(),
                     };
-                    let unboxed_body = boxed_body.into_iter().map(|statement| *statement).collect();
+                    let unboxed_body = boxed_body;
                     // get return type in if statement
                     let if_return_type_result = resolve_statement(unboxed_body, context)?;
                     return_type_results.push((if_return_type_result, position));
@@ -177,7 +176,7 @@ pub fn resolve_expr(exp: Expr, context: &Context) -> Result<TypeResult> {
 pub fn resolve_fn(
     id: Id,
     args: Vec<Id>,
-    body: Vec<Box<Statement>>,
+    body: Vec<Statement>,
     _context: &Context,
 ) -> Result<TypeResult> {
     let fn_context = Context::new();
@@ -188,7 +187,7 @@ pub fn resolve_fn(
             .borrow_mut()
             .insert(arg.clone(), TypeResult::IdOnly(arg));
     }
-    let result = resolve_statement(body.into_iter().map(|boxed| *boxed).collect(), &fn_context)?;
+    let result = resolve_statement(body, &fn_context)?;
 
     let fn_arg_types = args
         .into_iter()
@@ -215,7 +214,7 @@ pub fn resolve_fn(
     )))
 }
 
-pub fn resolve_call(field: Field, args: Vec<Box<Expr>>, context: &Context) -> Result<TypeResult> {
+pub fn resolve_call(field: Field, args: Vec<Expr>, context: &Context) -> Result<TypeResult> {
     // TBD: need to implement correctly
     // especially for field
     // ex. xx.yy();
@@ -255,7 +254,7 @@ pub fn resolve_call(field: Field, args: Vec<Box<Expr>>, context: &Context) -> Re
                 match param {
                     OpeaqueType::Defined(param_type_kind) => {
                         let arg_exp = args.get(index).unwrap();
-                        let arg_type_result = resolve_expr(*arg_exp.clone(), &fn_context)?;
+                        let arg_type_result = resolve_expr(arg_exp.clone(), &fn_context)?;
                         let param_type_result = TypeResult::Resolved(*param_type_kind.clone());
                         if arg_type_result != param_type_result {
                             return Err(create_param_and_arg_type_is_mismatch_err(
@@ -266,7 +265,7 @@ pub fn resolve_call(field: Field, args: Vec<Box<Expr>>, context: &Context) -> Re
                     }
                     OpeaqueType::IdOnly(arg_id) => {
                         let arg_exp = args.get(index).unwrap();
-                        let arg_type_result = resolve_expr(*arg_exp.clone(), &fn_context)?;
+                        let arg_type_result = resolve_expr(arg_exp.clone(), &fn_context)?;
                         // save type information for paramerter in function
                         // and retry type check somewhere
                         fn_context
@@ -295,11 +294,11 @@ pub fn resolve_call(field: Field, args: Vec<Box<Expr>>, context: &Context) -> Re
 
     let mut fn_map = context.scope.function_map.borrow_mut();
     let bodys = if let Some(Function(_, bodys)) = fn_map.get_mut(&id) {
-        bodys
-            .clone()
-            .into_iter()
-            .map(|boxed_statement| *boxed_statement)
-            .collect()
+        bodys.clone()
+    // .clone()
+    // .into_iter()
+    // .map(|boxed_statement| *boxed_statement)
+    // .collect()
     } else {
         return result;
     };
