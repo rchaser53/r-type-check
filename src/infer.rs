@@ -1449,5 +1449,24 @@ mod test {
                 &TypeKind::PrimitiveType(PrimitiveType::String),
             )
         );
+
+        let input = r#"
+            let abc = fn(a) {
+              return a;
+            } in (
+                let def = fn(b) {
+                  return b;
+                } in (
+                  abc(1) + def("2");
+                )
+            )
+        "#;
+        assert_infer_err!(
+            input,
+            create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+                &TypeKind::PrimitiveType(PrimitiveType::String),
+            )
+        );
     }
 }
