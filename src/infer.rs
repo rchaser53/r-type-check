@@ -290,35 +290,30 @@ pub fn resolve_call(field: Field, args: Vec<Expr>, context: &Context) -> Result<
         TypeResult::Resolved(type_kind) => Err(create_cannot_call_err(&id, &type_kind)),
         TypeResult::IdOnly(_) | TypeResult::Unknown => Ok(TypeResult::Unknown),
         _ => unreachable!(),
-    };
+    }?;
 
     let mut fn_map = context.scope.function_map.borrow_mut();
     let bodys = if let Some(Function(_, bodys)) = fn_map.get_mut(&id) {
-        bodys.clone()
-    // .clone()
-    // .into_iter()
-    // .map(|boxed_statement| *boxed_statement)
-    // .collect()
+        bodys.to_vec()
     } else {
-        return result;
+        return Ok(result);
     };
 
     DEBUG_INFO!("resolve_call", &fn_context);
     let fn_return_type_result = resolve_statement(bodys, &fn_context)?;
-    let result = result?;
 
-    match (fn_return_type_result, result.clone()) {
+    match (&fn_return_type_result, &result) {
         (TypeResult::Resolved(left_type_kind), TypeResult::Resolved(right_type_kind)) => {
             if left_type_kind != right_type_kind {
                 return Err(create_conflict_type_return_err(
-                    &TypeResult::Resolved(left_type_kind),
-                    &TypeResult::Resolved(right_type_kind),
+                    &TypeResult::Resolved(left_type_kind.clone()),
+                    &TypeResult::Resolved(right_type_kind.clone()),
                 ));
             }
+            Ok(fn_return_type_result)
         }
-        _ => { /* TBD: need implements correctly */ }
+        _ => Ok(fn_return_type_result),
     }
-    Ok(result)
 }
 
 pub fn get_id(id: ObjectId, field: Option<Box<Field>>) -> ObjectId {
@@ -1434,6 +1429,25 @@ mod test {
         assert_infer_err!(
             input,
             create_undefined_field_err(&Id(String::from("abc")), &Id(String::from("nothing")),)
+        );
+    }
+
+    #[test]
+    fn return_polymophism() {
+        let input = r#"
+            let abc = fn(a) {
+              return a;
+            } in (
+              "def" + abc("def");
+              abc(3) + "abc";
+            )
+        "#;
+        assert_infer_err!(
+            input,
+            create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+                &TypeKind::PrimitiveType(PrimitiveType::String),
+            )
         );
     }
 }
