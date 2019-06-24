@@ -416,14 +416,52 @@ mod test {
     }
 
     #[test]
-    fn expr_statement_test() {
+    fn nest_let_test() {
         assert_statement!(
-            State::new(r#"1 + 2;"#),
-            Statement::new(StmtKind::Expr(Expr::new(Binary(
-                Box::new(Expr::new(Unary(Uni::Number(1)))),
-                BinOpKind::Add,
-                Box::new(Expr::new(Unary(Uni::Number(2)))),
-            ))))
+            State::new(
+                r#"let abc = fn(aaa) {
+              return aaa;
+            } in (
+                let def = fn(bbb) {
+                  return bbb;
+                } in (
+                  abc(1) + def(2);
+                )
+            )"#
+            ),
+            Statement::new(StmtKind::Let(
+                vec![Assign(
+                    Id(String::from("abc")),
+                    Expr::new(Fn(Function(
+                        vec![Id(String::from("aaa"))],
+                        vec![Statement::new(StmtKind::Return(Expr::new(Unary(Uni::Id(
+                            Id(String::from("aaa"))
+                        )))))]
+                    ))),
+                )],
+                vec![Statement::new(StmtKind::Let(
+                    vec![Assign(
+                        Id(String::from("def")),
+                        Expr::new(Fn(Function(
+                            vec![Id(String::from("bbb"))],
+                            vec![Statement::new(StmtKind::Return(Expr::new(Unary(Uni::Id(
+                                Id(String::from("bbb"))
+                            )))))]
+                        ))),
+                    )],
+                    vec![Statement::new(StmtKind::Expr(Expr::new(Binary(
+                        Box::new(Expr::new(Call(
+                            Field::new(None, Id(String::from("abc")), None),
+                            vec![Expr::new(Unary(Uni::Number(1)))]
+                        ))),
+                        BinOpKind::Add,
+                        Box::new(Expr::new(Call(
+                            Field::new(None, Id(String::from("def")), None),
+                            vec![Expr::new(Unary(Uni::Number(2)))]
+                        ))),
+                    )))),]
+                ))]
+            ))
         );
     }
 
