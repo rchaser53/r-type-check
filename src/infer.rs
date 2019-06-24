@@ -580,7 +580,14 @@ pub fn resolve_array(mut unis: Vec<Uni>, context: &Context) -> Result<TypeResult
                 _ => unimplemented!(),
             }
         }
-        Ok(array_type_result)
+        match array_type_result {
+            TypeResult::Resolved(TypeKind::PrimitiveType(primitive_type)) => {
+                Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                    PrimitiveType::Array(ArrayType::Defined(Box::new(primitive_type))),
+                )))
+            }
+            _ => unimplemented!(),
+        }
     }
 }
 
@@ -669,45 +676,35 @@ pub fn resolve_type_result_with_op(
                 (TypeResult::IdOnly(left_id), TypeResult::Resolved(right_type)) => {
                     try_insert_and_resolve_op(&right_result, right_type, &left_id, op, context)
                 }
-                (TypeResult::IdOnly(left_id), TypeResult::IdOnly(right_id)) => {
-                    // TBD need to implemnt correctly
-                    // the below case is not covert
-                    /*
-                     *  fn(a, b) {
-                     *    // this case return type are Int, String, Boolean, ...
-                     *    return a + b;
-                     *  }
-                     */
-                    match op {
-                        BinOpKind::Sub | BinOpKind::Mul | BinOpKind::Div | BinOpKind::Shr => {
-                            context.scope.type_map.borrow_mut().insert(
-                                left_id.clone(),
-                                TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
-                            );
-                            context.scope.type_map.borrow_mut().insert(
-                                right_id.clone(),
-                                TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
-                            );
-                            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
-                                PrimitiveType::Int,
-                            )))
-                        }
-                        BinOpKind::Lt | BinOpKind::Le | BinOpKind::Ge | BinOpKind::Gt => {
-                            context.scope.type_map.borrow_mut().insert(
-                                left_id.clone(),
-                                TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
-                            );
-                            context.scope.type_map.borrow_mut().insert(
-                                right_id.clone(),
-                                TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
-                            );
-                            Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
-                                PrimitiveType::Boolean,
-                            )))
-                        }
-                        _ => Ok(TypeResult::IdOnly(left_id.clone())),
+                (TypeResult::IdOnly(left_id), TypeResult::IdOnly(right_id)) => match op {
+                    BinOpKind::Sub | BinOpKind::Mul | BinOpKind::Div | BinOpKind::Shr => {
+                        context.scope.type_map.borrow_mut().insert(
+                            left_id.clone(),
+                            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
+                        );
+                        context.scope.type_map.borrow_mut().insert(
+                            right_id.clone(),
+                            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
+                        );
+                        Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                            PrimitiveType::Int,
+                        )))
                     }
-                }
+                    BinOpKind::Lt | BinOpKind::Le | BinOpKind::Ge | BinOpKind::Gt => {
+                        context.scope.type_map.borrow_mut().insert(
+                            left_id.clone(),
+                            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
+                        );
+                        context.scope.type_map.borrow_mut().insert(
+                            right_id.clone(),
+                            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
+                        );
+                        Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                            PrimitiveType::Boolean,
+                        )))
+                    }
+                    _ => Ok(TypeResult::IdOnly(left_id.clone())),
+                },
                 _ => unreachable!(),
             }
         }
@@ -1429,6 +1426,24 @@ mod test {
         assert_infer_err!(
             input,
             create_undefined_field_err(&Id(String::from("abc")), &Id(String::from("nothing")),)
+        );
+    }
+
+    #[test]
+    fn maybe_failed() {
+        let input = r#"
+            let abc = [1, 2, 3] in (
+              abc + 234;
+            )
+        "#;
+        assert_infer_err!(
+            input,
+            create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Array(ArrayType::Defined(Box::new(
+                    PrimitiveType::Int
+                ))),),
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+            )
         );
     }
 
