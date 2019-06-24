@@ -854,7 +854,7 @@ mod test {
             let mut context = Context::new();
             if let Ok((statements, _)) = ast().easy_parse(State::new($input)) {
                 match resolve_statement(statements, &mut context) {
-                    Ok(_) => unreachable!(),
+                    Ok(_) => unreachable!("should not be ok"),
                     Err(err) => assert_eq!(err.message, $expected.message),
                 };
             } else {
