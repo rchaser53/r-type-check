@@ -11,8 +11,14 @@ use crate::types::*;
 
 use crate::DEBUG_INFO;
 
+pub mod array;
+pub mod boolean;
 pub mod int;
+pub mod string;
+use array::*;
+use boolean::*;
 use int::*;
+use string::*;
 
 #[derive(Clone, Debug)]
 pub struct Context {
@@ -540,14 +546,14 @@ pub fn resolve_unique_field(
 ) -> Result<TypeResult> {
     match type_kind {
         TypeKind::PrimitiveType(PrimitiveType::Int) => resolve_int_method(parent_id, id, context),
+        TypeKind::PrimitiveType(PrimitiveType::String) => {
+            resolve_string_method(parent_id, id, context)
+        }
+        TypeKind::PrimitiveType(PrimitiveType::Boolean) => {
+            resolve_boolean_method(parent_id, id, context)
+        }
         TypeKind::PrimitiveType(PrimitiveType::Array(_)) => {
-            if &Id(String::from("length")) == id {
-                Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
-                    PrimitiveType::Int,
-                )))
-            } else {
-                Err(create_undefined_field_err(parent_id, id))
-            }
+            resolve_array_method(parent_id, id, context)
         }
         result => Ok(TypeResult::Resolved(result.clone())),
     }
