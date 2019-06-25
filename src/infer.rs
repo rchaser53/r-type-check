@@ -11,6 +11,9 @@ use crate::types::*;
 
 use crate::DEBUG_INFO;
 
+pub mod int;
+use int::*;
+
 #[derive(Clone, Debug)]
 pub struct Context {
     pub scope: LocalScope,
@@ -495,7 +498,7 @@ pub fn resolve_field_object(
         },
         TypeResult::Resolved(type_kind) => {
             // check property for primitive type
-            resolve_unique_field(&current_id, &field.id.0, &type_kind)
+            resolve_unique_field(&current_id, &field.id.0, &type_kind, context)
         }
         type_result => Ok(type_result),
     }
@@ -529,9 +532,15 @@ pub fn resolve_object(
     }
 }
 
-pub fn resolve_unique_field(parent_id: &Id, id: &Id, type_kind: &TypeKind) -> Result<TypeResult> {
+pub fn resolve_unique_field(
+    parent_id: &Id,
+    id: &Id,
+    type_kind: &TypeKind,
+    context: &Context,
+) -> Result<TypeResult> {
     match type_kind {
-        TypeKind::PrimitiveType(PrimitiveType::Int) => {
+        TypeKind::PrimitiveType(PrimitiveType::Int) => resolve_int_method(parent_id, id, context),
+        TypeKind::PrimitiveType(PrimitiveType::Array(_)) => {
             if &Id(String::from("length")) == id {
                 Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
                     PrimitiveType::Int,
