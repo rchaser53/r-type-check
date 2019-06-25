@@ -431,9 +431,7 @@ pub fn resolve_field(
             type_result.unwrap()
         };
 
-        let type_result = resolve_field_object(*child, current_id.0, type_result, context)?;
-
-        Ok(type_result.clone())
+        resolve_field_object(*child, current_id.0, type_result, context)
     } else {
         if let Some(type_result) = context.scope.type_map.borrow_mut().try_get(&current_id.0) {
             return Ok(type_result.clone());
@@ -1286,6 +1284,19 @@ mod test {
                 [a, 12];
                 a + "abc";
             }
+        "#;
+        assert_infer_err!(
+            input,
+            create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+                &TypeKind::PrimitiveType(PrimitiveType::String),
+            )
+        );
+
+        let input = r#"
+            let abc = [1,2,3] in (
+                abc.pop() + "abc";
+            )
         "#;
         assert_infer_err!(
             input,
