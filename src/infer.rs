@@ -848,13 +848,12 @@ mod test {
     macro_rules! assert_infer {
         ($input: expr, $expected: expr) => {
             let mut context = Context::new();
-            if let Ok((statements, _)) = ast().easy_parse(State::new($input)) {
-                match resolve_statement(statements, &mut context) {
+            match ast().easy_parse(State::new($input)) {
+                Ok((statements, _)) => match resolve_statement(statements, &mut context) {
                     Ok(result) => assert_eq!(result, $expected),
                     Err(_) => unreachable!(),
-                };
-            } else {
-                unreachable!()
+                },
+                Err(err) => panic!("{:?}", err),
             }
         };
     }
@@ -862,13 +861,12 @@ mod test {
     macro_rules! assert_infer_err {
         ($input: expr, $expected: expr) => {
             let mut context = Context::new();
-            if let Ok((statements, _)) = ast().easy_parse(State::new($input)) {
-                match resolve_statement(statements, &mut context) {
+            match ast().easy_parse(State::new($input)) {
+                Ok((statements, _)) => match resolve_statement(statements, &mut context) {
                     Ok(_) => unreachable!("should not be ok"),
                     Err(err) => assert_eq!(err.message, $expected.message),
-                };
-            } else {
-                unreachable!()
+                },
+                Err(err) => panic!("{:?}", err),
             }
         };
     }
