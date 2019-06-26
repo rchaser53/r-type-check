@@ -224,11 +224,16 @@ pub fn resolve_fn(
 }
 
 pub fn resolve_call(field: Field, args: Vec<Expr>, context: &Context) -> Result<TypeResult> {
-    // TBD: need to implement correctly
-    // especially for field
-    // ex. xx.yy();
+    let first_type = if let Some(exp) = args.first() {
+        match resolve_expr(exp.clone(), context)? {
+            TypeResult::Resolved(type_kind) => Some(type_kind),
+            _ => None,
+        }
+    } else {
+        None
+    };
     let id = get_id(field.id.clone(), field.child.clone()).0;
-    let type_result = resolve_field(field, vec![], context)?;
+    let type_result = resolve_field(field, vec![], first_type, context)?;
 
     let arg_len = args.len();
     let mut arg_type_vec = Vec::with_capacity(arg_len);
@@ -400,7 +405,7 @@ pub fn resolve_uni(uni: Uni, context: &Context) -> Result<TypeResult> {
         Uni::Boolean(_) => TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean)),
         Uni::Array(unis) => resolve_array(unis, context)?,
         Uni::HashMap(hash) => resolve_hash(hash, None, context)?,
-        Uni::Field(field) => resolve_field(field, vec![], context)?,
+        Uni::Field(field) => resolve_field(field, vec![], None, context)?,
         Uni::Null => unimplemented!(),
     };
     Ok(result)
@@ -410,6 +415,7 @@ pub fn resolve_uni(uni: Uni, context: &Context) -> Result<TypeResult> {
 pub fn resolve_field(
     field: Field,
     mut field_object_ids: Vec<ObjectId>,
+    first_call_arg: Option<TypeKind>,
     context: &Context,
 ) -> Result<TypeResult> {
     DEBUG_INFO!("resolve_field", &context);
@@ -426,12 +432,12 @@ pub fn resolve_field(
 
         let type_result = if type_result.is_none() {
             field_object_ids.push(current_id.clone());
-            return resolve_field(*child, field_object_ids, context);
+            return resolve_field(*child, field_object_ids, first_call_arg, context);
         } else {
             type_result.unwrap()
         };
 
-        resolve_field_object(*child, current_id.0, type_result, context)
+        resolve_field_object(*child, current_id.0, type_result, first_call_arg, context)
     } else {
         if let Some(type_result) = context.scope.type_map.borrow_mut().try_get(&current_id.0) {
             return Ok(type_result.clone());
@@ -485,6 +491,7 @@ pub fn resolve_field_object(
     field: Field,
     current_id: Id,
     type_result: TypeResult,
+    first_call_arg: Option<TypeKind>,
     context: &Context,
 ) -> Result<TypeResult> {
     match type_result {
@@ -493,7 +500,7 @@ pub fn resolve_field_object(
                 let type_result = resolve_object(&object_id, &field.id.0, context);
                 let current_id = field.id.0.clone();
                 if let Some(child) = field.child {
-                    resolve_field_object(*child, current_id, type_result?, context)
+                    resolve_field_object(*child, current_id, type_result?, first_call_arg, context)
                 } else {
                     type_result
                 }
@@ -502,7 +509,13 @@ pub fn resolve_field_object(
         },
         TypeResult::Resolved(type_kind) => {
             // check property for primitive type
-            resolve_unique_field(&current_id, &field.id.0, &type_kind, context)
+            resolve_unique_field(
+                &current_id,
+                &field.id.0,
+                &type_kind,
+                first_call_arg,
+                context,
+            )
         }
         type_result => Ok(type_result),
     }
@@ -540,6 +553,7 @@ pub fn resolve_unique_field(
     parent_id: &Id,
     id: &Id,
     type_kind: &TypeKind,
+    first_call_arg: Option<TypeKind>,
     context: &Context,
 ) -> Result<TypeResult> {
     match type_kind {
@@ -551,7 +565,7 @@ pub fn resolve_unique_field(
             resolve_boolean_method(parent_id, id, context)
         }
         TypeKind::PrimitiveType(PrimitiveType::Array(_)) => {
-            resolve_array_method(parent_id, id, context)
+            resolve_array_method(parent_id, id, first_call_arg, context)
         }
         result => Ok(TypeResult::Resolved(result.clone())),
     }
@@ -1519,6 +1533,19 @@ mod test {
         assert_infer_err!(
             input,
             create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+                &TypeKind::PrimitiveType(PrimitiveType::String),
+            )
+        );
+
+        let input = r#"
+            let abc = [123, 456] in (
+                abc.push("def");
+            )
+        "#;
+        assert_infer_err!(
+            input,
+            create_mismatch_element_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
                 &TypeKind::PrimitiveType(PrimitiveType::String),
             )

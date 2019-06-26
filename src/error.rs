@@ -98,3 +98,13 @@ pub fn create_conflict_array_elemenet_type_err(
 pub fn create_undefined_field_err(parent_id: &Id, current_id: &Id) -> TypeError {
     TypeError::new(format!("{:?} is undefined in ${:?}", current_id, parent_id))
 }
+
+pub fn create_mismatch_element_err(
+    base_type_kind: &TypeKind,
+    pushed_type_kind: &TypeKind,
+) -> TypeError {
+    TypeError::new(format!(
+        "array type is {:?}. but the type tryed to set is ${:?}",
+        base_type_kind, pushed_type_kind
+    ))
+}
