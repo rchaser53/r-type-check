@@ -1508,4 +1508,20 @@ mod test {
             )
         );
     }
+
+    #[test]
+    fn infer_primitive_method() {
+        let input = r#"
+            let abc = 123 in (
+                abc + abc.to_string();
+            )
+        "#;
+        assert_infer_err!(
+            input,
+            create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+                &TypeKind::PrimitiveType(PrimitiveType::String),
+            )
+        );
+    }
 }
