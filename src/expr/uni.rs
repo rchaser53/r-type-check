@@ -23,7 +23,7 @@ pub enum Uni {
     Number(i32),
     Boolean(Boolean),
     Field(Field),
-    Index(Id, Vec<usize>),
+    Index(Field, Vec<usize>),
     HashMap(Hash),
     Null,
 }
@@ -79,9 +79,9 @@ impl Uni {
             Uni::String(string_) => string_.clone(),
             Uni::Number(num) => num.to_string(),
             Uni::Boolean(boolean) => boolean.to_string(),
-            Uni::Index(id, indexes) => format!(
-                "{}{}",
-                id.0.to_string(),
+            Uni::Index(field, indexes) => format!(
+                "{:?}{}",
+                field,
                 indexes
                     .into_iter()
                     .map(|index| format!("[{}]", index))
@@ -131,6 +131,7 @@ parser! {
    pub fn uni['a]()(MyStream<'a>) -> Uni
     {
         skip_spaces(choice((
+            attempt(index()),
             attempt(field()),
             attempt(hash_map()),
             attempt(array()),
@@ -236,6 +237,31 @@ parser! {
                 }
             }
         })
+    }
+}
+
+parser! {
+   pub fn index['a]()(MyStream<'a>) -> Uni
+    {
+        skip_spaces(
+          field()
+            .and(
+              many1(
+                token('[')
+                    .with(
+                        many1(digit())
+                          .map(|string: String| string.parse::<usize>().unwrap())
+                    )
+                    .skip(token(']'))
+            ))
+            .map(|(field, indexes): (Uni, Vec<usize>)| {
+                if let Uni::Field(field) = field {
+                    Uni::Index(field, indexes.into_iter().map(|num| num as usize).collect())
+                } else {
+                    unreachable!()
+                }
+            })
+        )
     }
 }
 
