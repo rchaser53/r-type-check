@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 
 use combine::parser::char::{digit, letter};
 use combine::{attempt, between, choice, many, many1, none_of, parser, sep_by, sep_by1, token};
@@ -35,7 +36,7 @@ impl Uni {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Field {
     pub parent_id: Option<ObjectId>,
     pub id: ObjectId,
@@ -54,6 +55,17 @@ impl Field {
         self.child = Some(Box::new(child));
     }
 }
+impl fmt::Debug for Field {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let child_str = if let Some(child) = &self.child {
+            format!("{:?}", *child)
+        } else {
+            String::from("")
+        };
+
+        write!(f, "{}{}", (self.id.0).0, child_str)
+    }
+}
 
 impl Uni {
     pub fn to_string(&self) -> String {
@@ -67,8 +79,6 @@ impl Uni {
             Uni::String(string_) => string_.clone(),
             Uni::Number(num) => num.to_string(),
             Uni::Boolean(boolean) => boolean.to_string(),
-            Uni::Field(_) => "field".to_string(),
-            Uni::HashMap(_) => "hash_map".to_string(),
             Uni::Index(id, indexes) => format!(
                 "{}{}",
                 id.0.to_string(),
@@ -78,6 +88,8 @@ impl Uni {
                     .collect::<Vec<String>>()
                     .join("")
             ),
+            Uni::Field(field) => format!("{:?}", field),
+            Uni::HashMap(hash) => format!("{:?}", hash),
             Uni::Null => "null".to_string(),
         }
     }
