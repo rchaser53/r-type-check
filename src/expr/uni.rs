@@ -22,6 +22,7 @@ pub enum Uni {
     Number(i32),
     Boolean(Boolean),
     Field(Field),
+    Index(Id, Vec<usize>),
     HashMap(Hash),
     Null,
 }
@@ -68,6 +69,15 @@ impl Uni {
             Uni::Boolean(boolean) => boolean.to_string(),
             Uni::Field(_) => "field".to_string(),
             Uni::HashMap(_) => "hash_map".to_string(),
+            Uni::Index(id, indexes) => format!(
+                "{}{}",
+                id.0.to_string(),
+                indexes
+                    .into_iter()
+                    .map(|index| format!("[{}]", index))
+                    .collect::<Vec<String>>()
+                    .join("")
+            ),
             Uni::Null => "null".to_string(),
         }
     }

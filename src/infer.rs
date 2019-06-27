@@ -406,6 +406,7 @@ pub fn resolve_uni(uni: Uni, context: &Context) -> Result<TypeResult> {
         Uni::Array(unis) => resolve_array(unis, context)?,
         Uni::HashMap(hash) => resolve_hash(hash, None, context)?,
         Uni::Field(field) => resolve_field(field, vec![], None, context)?,
+        Uni::Index(_, _) => unimplemented!(),
         Uni::Null => unimplemented!(),
     };
     Ok(result)
@@ -1550,10 +1551,7 @@ mod test {
                 &TypeKind::PrimitiveType(PrimitiveType::String),
             )
         );
-    }
 
-    #[test]
-    fn failed() {
         let input = r#"
             let abc = [] in (
                 abc.push("def");
