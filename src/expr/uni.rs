@@ -255,10 +255,10 @@ parser! {
                     .skip(token(']'))
             ))
             .map(|(field, indexes): (Uni, Vec<usize>)| {
-                if let Uni::Field(field) = field {
-                    Uni::Index(field, indexes.into_iter().map(|num| num as usize).collect())
-                } else {
-                    unreachable!()
+                match field {
+                    Uni::Field(field) => Uni::Index(field, indexes),
+                    Uni::Id(id) => Uni::Index(Field::new(None, id, None), indexes),
+                    _ => unreachable!()
                 }
             })
         )
@@ -497,6 +497,35 @@ mod test {
                     )))
                 )))
             )),
+        );
+    }
+
+    #[test]
+    fn index_test() {
+        assert_eq!(
+            uni().easy_parse(State::new(r#"abc[0]"#)).unwrap().0,
+            Uni::Index(Field::new(None, Id(String::from("abc")), None,), vec![0])
+        );
+
+        assert_eq!(
+            uni().easy_parse(State::new(r#"abc[0][1]"#)).unwrap().0,
+            Uni::Index(Field::new(None, Id(String::from("abc")), None,), vec![0, 1])
+        );
+
+        assert_eq!(
+            uni().easy_parse(State::new(r#"abc.def[0][1]"#)).unwrap().0,
+            Uni::Index(
+                Field::new(
+                    None,
+                    Id(String::from("abc")),
+                    Some(Box::new(Field::new(
+                        Some(ObjectId(Id(String::from("abc")))),
+                        Id(String::from("def")),
+                        None
+                    )))
+                ),
+                vec![0, 1]
+            )
         );
     }
 }
