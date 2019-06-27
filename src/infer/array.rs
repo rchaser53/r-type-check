@@ -12,16 +12,31 @@ pub fn resolve_array_method(
             PrimitiveType::Int,
         ))),
         "push" => {
-            match get_array_type(parent_id, context) {
+            match get_array_method_type(parent_id, context) {
                 TypeResult::Resolved(TypeKind::Function(_, _, return_type)) => {
                     if let Some(first_arg_type_kind) = first_call_arg_type {
-                        if let OpeaqueType::Defined(type_kind) = return_type {
-                            if first_arg_type_kind != *type_kind {
-                                return Err(create_mismatch_element_err(
-                                    &type_kind,
-                                    &first_arg_type_kind,
-                                ));
+                        match return_type {
+                            OpeaqueType::Defined(type_kind) => {
+                                if first_arg_type_kind != *type_kind {
+                                    return Err(create_mismatch_element_err(
+                                        &type_kind,
+                                        &first_arg_type_kind,
+                                    ));
+                                }
                             }
+                            OpeaqueType::Unknown => {
+                                if let TypeKind::PrimitiveType(primitive) = first_arg_type_kind {
+                                    let _ = context.scope.type_map.borrow_mut().try_insert(
+                                        parent_id.clone(),
+                                        TypeResult::Resolved(TypeKind::PrimitiveType(
+                                            PrimitiveType::Array(ArrayType::Defined(Box::new(
+                                                primitive,
+                                            ))),
+                                        )),
+                                    )?;
+                                }
+                            }
+                            _ => {}
                         }
                     }
                 }
@@ -34,12 +49,12 @@ pub fn resolve_array_method(
                 OpeaqueType::Defined(Box::new(TypeKind::PrimitiveType(PrimitiveType::Void))),
             )))
         }
-        "pop" => Ok(get_array_type(parent_id, context)),
+        "pop" => Ok(get_array_method_type(parent_id, context)),
         _ => Err(create_undefined_field_err(parent_id, id)),
     }
 }
 
-fn get_array_type(parent_id: &Id, context: &Context) -> TypeResult {
+fn get_array_method_type(parent_id: &Id, context: &Context) -> TypeResult {
     let result = context
         .scope
         .type_map
@@ -58,7 +73,11 @@ fn get_array_type(parent_id: &Id, context: &Context) -> TypeResult {
                 vec![],
                 OpeaqueType::Defined(Box::new(TypeKind::PrimitiveType(*type_kind))),
             )),
-            _ => unimplemented!(),
+            ArrayType::Unknown => TypeResult::Resolved(TypeKind::Function(
+                parent_id.clone(),
+                vec![],
+                OpeaqueType::Unknown,
+            )),
         }
     } else {
         TypeResult::Unknown

@@ -54,6 +54,17 @@ impl PartialEq for TypeKind {
 }
 impl Eq for TypeKind {}
 
+impl TypeKind {
+    pub fn convert_opeaque(self) -> OpeaqueType {
+        match &self {
+            TypeKind::PrimitiveType(_) | TypeKind::Function(_, _, _) => {
+                OpeaqueType::Defined(Box::new(self))
+            }
+            _ => panic!("failed to convert TypeKind::Scope {:?}", self),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum OpeaqueType {
     Unknown,

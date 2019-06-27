@@ -1551,4 +1551,21 @@ mod test {
             )
         );
     }
+
+    #[test]
+    fn failed() {
+        let input = r#"
+            let abc = [] in (
+                abc.push("def");
+                abc.push(123);
+            )
+        "#;
+        assert_infer_err!(
+            input,
+            create_mismatch_element_err(
+                &TypeKind::PrimitiveType(PrimitiveType::String),
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+            )
+        );
+    }
 }

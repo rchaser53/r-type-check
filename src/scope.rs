@@ -94,7 +94,7 @@ impl TypeMap {
             match (defined_type, &new_type) {
                 (TypeResult::Resolved(ref defined), TypeResult::Resolved(ref new)) => {
                     if defined == new {
-                        Ok(new_type)
+                        Ok(self.0.insert(id, new_type.clone()).unwrap())
                     } else {
                         Err(create_assign_conflict_type_err(&id, defined, &new))
                     }
