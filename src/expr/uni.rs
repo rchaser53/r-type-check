@@ -23,7 +23,7 @@ pub enum Uni {
     Number(i32),
     Boolean(Boolean),
     Field(Field),
-    Index(Field, Vec<usize>),
+    Index(Index),
     HashMap(Hash),
     Null,
 }
@@ -35,6 +35,9 @@ impl Uni {
         };
     }
 }
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Index(pub Field, pub Vec<usize>);
 
 #[derive(Clone, PartialEq)]
 pub struct Field {
@@ -79,7 +82,7 @@ impl Uni {
             Uni::String(string_) => string_.clone(),
             Uni::Number(num) => num.to_string(),
             Uni::Boolean(boolean) => boolean.to_string(),
-            Uni::Index(field, indexes) => format!(
+            Uni::Index(Index(field, indexes)) => format!(
                 "{:?}{}",
                 field,
                 indexes
@@ -256,8 +259,8 @@ parser! {
             ))
             .map(|(field, indexes): (Uni, Vec<usize>)| {
                 match field {
-                    Uni::Field(field) => Uni::Index(field, indexes),
-                    Uni::Id(id) => Uni::Index(Field::new(None, id, None), indexes),
+                    Uni::Field(field) => Uni::Index(Index(field, indexes)),
+                    Uni::Id(id) => Uni::Index(Index(Field::new(None, id, None), indexes)),
                     _ => unreachable!()
                 }
             })
@@ -504,17 +507,23 @@ mod test {
     fn index_test() {
         assert_eq!(
             uni().easy_parse(State::new(r#"abc[0]"#)).unwrap().0,
-            Uni::Index(Field::new(None, Id(String::from("abc")), None,), vec![0])
+            Uni::Index(Index(
+                Field::new(None, Id(String::from("abc")), None,),
+                vec![0]
+            ))
         );
 
         assert_eq!(
             uni().easy_parse(State::new(r#"abc[0][1]"#)).unwrap().0,
-            Uni::Index(Field::new(None, Id(String::from("abc")), None,), vec![0, 1])
+            Uni::Index(Index(
+                Field::new(None, Id(String::from("abc")), None,),
+                vec![0, 1]
+            ))
         );
 
         assert_eq!(
             uni().easy_parse(State::new(r#"abc.def[0][1]"#)).unwrap().0,
-            Uni::Index(
+            Uni::Index(Index(
                 Field::new(
                     None,
                     Id(String::from("abc")),
@@ -525,7 +534,7 @@ mod test {
                     )))
                 ),
                 vec![0, 1]
-            )
+            ))
         );
     }
 }

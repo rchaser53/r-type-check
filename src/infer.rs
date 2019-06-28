@@ -408,7 +408,7 @@ pub fn resolve_uni(uni: Uni, context: &Context) -> Result<TypeResult> {
         Uni::Array(unis) => resolve_array(unis, context)?,
         Uni::HashMap(hash) => resolve_hash(hash, None, context)?,
         Uni::Field(field) => resolve_field(field, vec![], None, context)?,
-        Uni::Index(field, indexes) => resolve_index(field, indexes, context)?,
+        Uni::Index(Index(field, indexes)) => resolve_index(field, indexes, context)?,
         Uni::Null => unimplemented!(),
     };
     Ok(result)
