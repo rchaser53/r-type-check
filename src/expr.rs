@@ -525,7 +525,7 @@ mod test {
                 vec![],
                 vec![Statement::new(StmtKind::Let(
                     vec![Assign(
-                        Field::new(None, Id(String::from("abc")), None),
+                        Assignable::Field(Field::new(None, Id(String::from("abc")), None)),
                         Expr::new(Unary(Uni::String(String::from("aaa")))),
                     )],
                     vec![],
@@ -544,7 +544,7 @@ mod test {
                 vec![Id(String::from("a"))],
                 vec![Statement::new(StmtKind::Let(
                     vec![Assign(
-                        Field::new(None, Id(String::from("abc")), None),
+                        Assignable::Field(Field::new(None, Id(String::from("abc")), None)),
                         Expr::new(Unary(Uni::String(String::from("aaa")))),
                     )],
                     vec![],
@@ -563,7 +563,7 @@ mod test {
                 vec![Id(String::from("a")), Id(String::from("b")),],
                 vec![Statement::new(StmtKind::Let(
                     vec![Assign(
-                        Field::new(None, Id(String::from("abc")), None),
+                        Assignable::Field(Field::new(None, Id(String::from("abc")), None)),
                         Expr::new(Unary(Uni::String(String::from("aaa")))),
                     )],
                     vec![],

@@ -42,24 +42,29 @@ pub fn resolve_statement(statements: Vec<Statement>, context: &Context) -> Resul
     for statement in statements {
         match statement.node {
             StmtKind::Let(lets, body) => {
-                for Assign(field, exp) in lets {
+                for Assign(assignable, exp) in lets {
                     // TBD need to think more
-                    context.current_left_id.replace(Some(field.id.0.clone()));
-                    let right_type_result = resolve_expr(exp.clone(), &context)?;
+                    match assignable {
+                        Assignable::Field(field) => {
+                            context.current_left_id.replace(Some(field.id.0.clone()));
+                            let right_type_result = resolve_expr(exp.clone(), &context)?;
 
-                    if let Node::Fn(function) = exp.node {
-                        context
-                            .scope
-                            .function_map
-                            .borrow_mut()
-                            .insert(field.id.0.clone(), function.clone());
-                    };
+                            if let Node::Fn(function) = exp.node {
+                                context
+                                    .scope
+                                    .function_map
+                                    .borrow_mut()
+                                    .insert(field.id.0.clone(), function.clone());
+                            };
 
-                    context
-                        .scope
-                        .type_map
-                        .borrow_mut()
-                        .try_insert(field.id.0, right_type_result)?;
+                            context
+                                .scope
+                                .type_map
+                                .borrow_mut()
+                                .try_insert(field.id.0, right_type_result)?;
+                        }
+                        Assignable::Index(_) => unimplemented!(),
+                    }
                 }
                 context.current_left_id.replace(None);
                 resolve_statement(body, context)?;
@@ -67,11 +72,14 @@ pub fn resolve_statement(statements: Vec<Statement>, context: &Context) -> Resul
             StmtKind::Expr(expr) => {
                 resolve_expr(expr, context)?;
             }
-            StmtKind::Assign(Assign(field, expr)) => {
-                context.current_left_id.replace(Some(field.id.0.clone()));
-                resolve_assign(field, expr, context)?;
-                context.current_left_id.replace(None);
-            }
+            StmtKind::Assign(Assign(assignable, expr)) => match assignable {
+                Assignable::Field(field) => {
+                    context.current_left_id.replace(Some(field.id.0.clone()));
+                    resolve_assign(field, expr, context)?;
+                    context.current_left_id.replace(None);
+                }
+                Assignable::Index(_) => unimplemented!(),
+            },
             StmtKind::Return(expr) => {
                 let position = expr.position.lo;
                 let type_result = resolve_expr(expr, context)?;

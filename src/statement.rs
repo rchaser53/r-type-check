@@ -41,7 +41,13 @@ impl Statement {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Assign(pub Field, pub Expr);
+pub enum Assignable {
+    Field(Field),
+    Index(Index),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Assign(pub Assignable, pub Expr);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ForCondition(Box<Statement>, Box<Statement>, Box<Statement>);
@@ -86,12 +92,12 @@ parser! {
                 match unary_ {
                     Uni::Field(field) => {
                         value.renew_parent_id(field.clone());
-                        return Assign(field, value);
+                        return Assign(Assignable::Field(field), value);
                     },
                     Uni::Id(id) => {
                         let field = Field::new(None, id, None);
                         value.renew_parent_id(field.clone());
-                        return Assign(field, value);
+                        return Assign(Assignable::Field(field), value);
                     },
                     _ => unreachable!()
                 }
@@ -122,7 +128,7 @@ parser! {
             string_skip_spaces("in"),
             many(attempt(
                 skip_spaces(skip_spaces(word()).and(token_skip_spaces('=').with(skip_spaces(expr_()))))
-                    .map(|(uni, exp)| Assign(Field::new(None, uni.id(), None), exp)),
+                    .map(|(uni, exp)| Assign(Assignable::Field(Field::new(None, uni.id(), None)), exp)),
             )),
         )
         .and(
@@ -253,7 +259,7 @@ mod test {
         assert_statement!(
             State::new(r#"abc = "aaa";"#),
             Statement::new(StmtKind::Assign(Assign(
-                Field::new(None, Id(String::from("abc")), None),
+                Assignable::Field(Field::new(None, Id(String::from("abc")), None)),
                 Expr::new(Unary(Uni::String(String::from("aaa"))))
             )))
         );
@@ -285,8 +291,8 @@ mod test {
                 )),
                 vec![Statement::new(StmtKind::Let(
                     vec![Assign(
-                        Field::new(None, Id(String::from("abc")), None),
-                        Expr::new(Unary(Uni::String(String::from("aaa")))),
+                        Assignable::Field(Field::new(None, Id(String::from("abc")), None)),
+                        Expr::new(Unary(Uni::String(String::from("aaa"))))
                     )],
                     vec![],
                 ))]
@@ -310,7 +316,7 @@ mod test {
                     )),
                     vec![Statement::new(StmtKind::Let(
                         vec![Assign(
-                            Field::new(None, Id(String::from("abc")), None),
+                            Assignable::Field(Field::new(None, Id(String::from("abc")), None)),
                             Expr::new(Unary(Uni::String(String::from("aaa")))),
                         )],
                         vec![],
@@ -320,7 +326,7 @@ mod test {
                     Expr::new(Unary(Uni::Boolean(Boolean::True))),
                     vec![Statement::new(StmtKind::Let(
                         vec![Assign(
-                            Field::new(None, Id(String::from("def")), None),
+                            Assignable::Field(Field::new(None, Id(String::from("def")), None)),
                             Expr::new(Unary(Uni::String(String::from("bbb")))),
                         )],
                         vec![],
@@ -346,7 +352,7 @@ mod test {
                     )),
                     vec![Statement::new(StmtKind::Let(
                         vec![Assign(
-                            Field::new(None, Id(String::from("abc")), None),
+                            Assignable::Field(Field::new(None, Id(String::from("abc")), None)),
                             Expr::new(Unary(Uni::String(String::from("aaa")))),
                         )],
                         vec![],
@@ -360,7 +366,7 @@ mod test {
                     )),
                     vec![Statement::new(StmtKind::Let(
                         vec![Assign(
-                            Field::new(None, Id(String::from("def")), None),
+                            Assignable::Field(Field::new(None, Id(String::from("def")), None)),
                             Expr::new(Unary(Uni::String(String::from("bbb")))),
                         )],
                         vec![],
@@ -388,7 +394,7 @@ mod test {
                     )),
                     vec![Statement::new(StmtKind::Let(
                         vec![Assign(
-                            Field::new(None, Id(String::from("abc")), None),
+                            Assignable::Field(Field::new(None, Id(String::from("abc")), None)),
                             Expr::new(Unary(Uni::String(String::from("aaa")))),
                         )],
                         vec![],
@@ -402,7 +408,7 @@ mod test {
                     )),
                     vec![Statement::new(StmtKind::Let(
                         vec![Assign(
-                            Field::new(None, Id(String::from("def")), None),
+                            Assignable::Field(Field::new(None, Id(String::from("def")), None)),
                             Expr::new(Unary(Uni::String(String::from("bbb")))),
                         )],
                         vec![],
@@ -412,7 +418,7 @@ mod test {
                     Expr::new(Unary(Uni::Boolean(Boolean::True))),
                     vec![Statement::new(StmtKind::Let(
                         vec![Assign(
-                            Field::new(None, Id(String::from("ghi")), None),
+                            Assignable::Field(Field::new(None, Id(String::from("ghi")), None)),
                             Expr::new(Unary(Uni::String(String::from("ccc")))),
                         )],
                         vec![],
@@ -438,7 +444,7 @@ mod test {
             ),
             Statement::new(StmtKind::Let(
                 vec![Assign(
-                    Field::new(None, Id(String::from("abc")), None),
+                    Assignable::Field(Field::new(None, Id(String::from("abc")), None)),
                     Expr::new(Fn(Function(
                         vec![Id(String::from("aaa"))],
                         vec![Statement::new(StmtKind::Return(Expr::new(Unary(Uni::Id(
@@ -448,7 +454,7 @@ mod test {
                 )],
                 vec![Statement::new(StmtKind::Let(
                     vec![Assign(
-                        Field::new(None, Id(String::from("def")), None),
+                        Assignable::Field(Field::new(None, Id(String::from("def")), None)),
                         Expr::new(Fn(Function(
                             vec![Id(String::from("bbb"))],
                             vec![Statement::new(StmtKind::Return(Expr::new(Unary(Uni::Id(
@@ -482,7 +488,7 @@ mod test {
             ),
             Statement::new(StmtKind::Let(
                 vec![Assign(
-                    Field::new(None, Id(String::from("abc")), None),
+                    Assignable::Field(Field::new(None, Id(String::from("abc")), None)),
                     Expr::new(Unary(Uni::String(String::from("aaa")))),
                 )],
                 vec![Statement::new(StmtKind::Expr(Expr::new(Binary(
@@ -503,7 +509,7 @@ mod test {
             ),
             Statement::new(StmtKind::Let(
                 vec![Assign(
-                    Field::new(None, Id(String::from("abc")), None),
+                    Assignable::Field(Field::new(None, Id(String::from("abc")), None)),
                     Expr::new(Fn(Function(
                         vec![Id(String::from("aaa"))],
                         vec![Statement::new(StmtKind::Return(Expr::new(Binary(
@@ -533,7 +539,7 @@ mod test {
             ),
             Statement::new(StmtKind::Let(
                 vec![Assign(
-                    Field::new(None, Id(String::from("abc")), None),
+                    Assignable::Field(Field::new(None, Id(String::from("abc")), None)),
                     Expr::new(Binary(
                         Box::new(Expr::new(Binary(
                             Box::new(Expr::new(Unary(Uni::Number(1)))),
@@ -546,7 +552,7 @@ mod test {
                 )],
                 vec![
                     Statement::new(StmtKind::Assign(Assign(
-                        Field::new(None, Id(String::from("abc")), None),
+                        Assignable::Field(Field::new(None, Id(String::from("abc")), None)),
                         Expr::new(Binary(
                             Box::new(Expr::new(Unary(Uni::Id(Id(String::from("abc")))))),
                             BinOpKind::Add,
