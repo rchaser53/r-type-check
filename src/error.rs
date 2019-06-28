@@ -108,3 +108,10 @@ pub fn create_mismatch_element_err(
         base_type_kind, pushed_type_kind
     ))
 }
+
+pub fn create_cannnot_assign(id: &Id, wrong_type: &TypeResult) -> TypeError {
+    TypeError::new(format!(
+        "{:?} is cannot be indexed. type: {:?}",
+        id, wrong_type
+    ))
+}

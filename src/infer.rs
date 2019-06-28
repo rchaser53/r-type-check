@@ -406,10 +406,32 @@ pub fn resolve_uni(uni: Uni, context: &Context) -> Result<TypeResult> {
         Uni::Array(unis) => resolve_array(unis, context)?,
         Uni::HashMap(hash) => resolve_hash(hash, None, context)?,
         Uni::Field(field) => resolve_field(field, vec![], None, context)?,
-        Uni::Index(_, _) => unimplemented!(),
+        Uni::Index(field, indexes) => resolve_index(field, indexes, context)?,
         Uni::Null => unimplemented!(),
     };
     Ok(result)
+}
+
+pub fn resolve_index(field: Field, _indexes: Vec<usize>, context: &Context) -> Result<TypeResult> {
+    DEBUG_INFO!("resolve_index", &context);
+    let id = get_id(field.id.clone(), field.child.clone()).0;
+    let type_result = resolve_field(field, vec![], None, context)?;
+
+    match &type_result {
+        TypeResult::Resolved(TypeKind::PrimitiveType(primitive_type)) => {
+            if let PrimitiveType::Array(array_type) = primitive_type {
+                match array_type {
+                    ArrayType::Defined(primitive_type) => Ok(TypeResult::Resolved(
+                        TypeKind::PrimitiveType(*primitive_type.clone()),
+                    )),
+                    _ => Ok(TypeResult::IdOnly(id)),
+                }
+            } else {
+                Err(create_cannnot_assign(&id, &type_result))
+            }
+        }
+        _ => Err(create_cannnot_assign(&id, &type_result)),
+    }
 }
 
 /// xxx.yyy comes now. xxx is possibility for every type
@@ -1563,6 +1585,22 @@ mod test {
             create_mismatch_element_err(
                 &TypeKind::PrimitiveType(PrimitiveType::String),
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
+            )
+        );
+    }
+
+    #[test]
+    fn infer_resolve_index() {
+        let input = r#"
+            let abc = [123, 456] in (
+                abc[0] + "aaa";
+            )
+        "#;
+        assert_infer_err!(
+            input,
+            create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+                &TypeKind::PrimitiveType(PrimitiveType::String),
             )
         );
     }
