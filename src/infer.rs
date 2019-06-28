@@ -42,8 +42,9 @@ pub fn resolve_statement(statements: Vec<Statement>, context: &Context) -> Resul
     for statement in statements {
         match statement.node {
             StmtKind::Let(lets, body) => {
-                for Assign(id, exp) in lets {
-                    context.current_left_id.replace(Some(id.clone()));
+                for Assign(field, exp) in lets {
+                    // TBD need to think more
+                    context.current_left_id.replace(Some(field.id.0.clone()));
                     let right_type_result = resolve_expr(exp.clone(), &context)?;
 
                     if let Node::Fn(function) = exp.node {
@@ -51,14 +52,14 @@ pub fn resolve_statement(statements: Vec<Statement>, context: &Context) -> Resul
                             .scope
                             .function_map
                             .borrow_mut()
-                            .insert(id.clone(), function.clone());
+                            .insert(field.id.0.clone(), function.clone());
                     };
 
                     context
                         .scope
                         .type_map
                         .borrow_mut()
-                        .try_insert(id.clone(), right_type_result)?;
+                        .try_insert(field.id.0, right_type_result)?;
                 }
                 context.current_left_id.replace(None);
                 resolve_statement(body, context)?;
@@ -66,9 +67,9 @@ pub fn resolve_statement(statements: Vec<Statement>, context: &Context) -> Resul
             StmtKind::Expr(expr) => {
                 resolve_expr(expr, context)?;
             }
-            StmtKind::Assign(Assign(id, expr)) => {
-                context.current_left_id.replace(Some(id.clone()));
-                resolve_assign(id, expr, context)?;
+            StmtKind::Assign(Assign(field, expr)) => {
+                context.current_left_id.replace(Some(field.id.0.clone()));
+                resolve_assign(field, expr, context)?;
                 context.current_left_id.replace(None);
             }
             StmtKind::Return(expr) => {
@@ -125,10 +126,11 @@ pub fn resolve_statement(statements: Vec<Statement>, context: &Context) -> Resul
     }
 }
 
-pub fn resolve_assign(id: Id, exp: Expr, context: &Context) -> Result<TypeResult> {
+// TBD need to think more
+pub fn resolve_assign(field: Field, exp: Expr, context: &Context) -> Result<TypeResult> {
     let position = exp.position.lo;
     let right_type_result = resolve_expr(exp.clone(), context)?;
-    if let Some(left_type) = context.scope.type_map.borrow_mut().try_get(&id) {
+    if let Some(left_type) = context.scope.type_map.borrow_mut().try_get(&field.id.0) {
         if let TypeResult::Resolved(left_type) = left_type {
             if let Some(mut err) = validate_assign_type(left_type, &right_type_result) {
                 err.set_pos(position);
@@ -136,7 +138,7 @@ pub fn resolve_assign(id: Id, exp: Expr, context: &Context) -> Result<TypeResult
             }
         };
     } else {
-        let mut err = create_not_initialized_err(&id);
+        let mut err = create_not_initialized_err(&field.id.0);
         err.set_pos(position);
         return Err(err);
     };
@@ -144,7 +146,7 @@ pub fn resolve_assign(id: Id, exp: Expr, context: &Context) -> Result<TypeResult
         .scope
         .type_map
         .borrow_mut()
-        .try_insert(id, right_type_result)
+        .try_insert(field.id.0, right_type_result)
 }
 
 pub fn validate_assign_type(

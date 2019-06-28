@@ -34,11 +34,11 @@ def = 456;"#,
             ast().easy_parse(input).unwrap().0,
             vec![
                 Statement::new(StmtKind::Assign(Assign(
-                    Id(String::from("abc")),
+                    Field::new(None, Id(String::from("abc")), None),
                     Expr::new(Unary(Uni::Number(123)))
                 ))),
                 Statement::new(StmtKind::Assign(Assign(
-                    Id(String::from("def")),
+                    Field::new(None, Id(String::from("def")), None),
                     Expr::new(Unary(Uni::Number(456)))
                 ))),
             ],
@@ -56,11 +56,11 @@ def = 456;"#,
             ast().easy_parse(input).unwrap().0,
             vec![Statement::new(StmtKind::Let(
                 vec![Assign(
-                    Id(String::from("abc")),
+                    Field::new(None, Id(String::from("abc")), None),
                     Expr::new(Unary(Uni::Number(123))),
                 )],
                 vec![Statement::new(StmtKind::Assign(Assign(
-                    Id(String::from("def")),
+                    Field::new(None, Id(String::from("def")), None),
                     Expr::new(Unary(Uni::Number(456)))
                 )))]
             )),],

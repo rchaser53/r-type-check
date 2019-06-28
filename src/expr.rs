@@ -28,8 +28,8 @@ impl Expr {
         }
     }
 
-    pub fn renew_parent_id(&mut self, id: Id) {
-        self.node.renew_parent_id(id);
+    pub fn renew_parent_id(&mut self, field: Field) {
+        self.node.renew_parent_id(field);
     }
 }
 
@@ -48,17 +48,18 @@ pub enum Node {
 }
 
 impl Node {
-    pub fn renew_parent_id(&mut self, id: Id) {
+    pub fn renew_parent_id(&mut self, field: Field) {
+        // TBD need to think more
         match self {
             Node::Binary(left, _, right) => {
-                left.renew_parent_id(id.clone());
-                right.renew_parent_id(id.clone());
+                left.renew_parent_id(field.clone());
+                right.renew_parent_id(field);
             }
             Node::Unary(unary) => {
-                unary.renew_parent_id(id);
+                unary.renew_parent_id(field.id.0);
             }
-            Node::Call(field, _) => {
-                field.parent_id = Some(ObjectId(id));
+            Node::Call(left_field, _) => {
+                left_field.parent_id = Some(field.id);
             }
             _ => {}
         };
@@ -524,7 +525,7 @@ mod test {
                 vec![],
                 vec![Statement::new(StmtKind::Let(
                     vec![Assign(
-                        Id(String::from("abc")),
+                        Field::new(None, Id(String::from("abc")), None),
                         Expr::new(Unary(Uni::String(String::from("aaa")))),
                     )],
                     vec![],
@@ -543,7 +544,7 @@ mod test {
                 vec![Id(String::from("a"))],
                 vec![Statement::new(StmtKind::Let(
                     vec![Assign(
-                        Id(String::from("abc")),
+                        Field::new(None, Id(String::from("abc")), None),
                         Expr::new(Unary(Uni::String(String::from("aaa")))),
                     )],
                     vec![],
@@ -562,7 +563,7 @@ mod test {
                 vec![Id(String::from("a")), Id(String::from("b")),],
                 vec![Statement::new(StmtKind::Let(
                     vec![Assign(
-                        Id(String::from("abc")),
+                        Field::new(None, Id(String::from("abc")), None),
                         Expr::new(Unary(Uni::String(String::from("aaa")))),
                     )],
                     vec![],
