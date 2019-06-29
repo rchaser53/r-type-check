@@ -45,7 +45,7 @@ pub fn resolve_statement(statements: Vec<Statement>, context: &Context) -> Resul
                 for Assign(assignable, exp) in lets {
                     // TBD need to think more
                     match assignable {
-                        Assignable::Field(field) => {
+                        Accessiable::Field(field) => {
                             context.current_left_id.replace(Some(field.id.0.clone()));
                             let right_type_result = resolve_expr(exp.clone(), &context)?;
 
@@ -63,7 +63,7 @@ pub fn resolve_statement(statements: Vec<Statement>, context: &Context) -> Resul
                                 .borrow_mut()
                                 .try_insert(field.id.0, right_type_result)?;
                         }
-                        Assignable::Index(_) => unimplemented!(),
+                        Accessiable::Index(_) => unimplemented!(),
                     }
                 }
                 context.current_left_id.replace(None);
@@ -135,7 +135,7 @@ pub fn resolve_statement(statements: Vec<Statement>, context: &Context) -> Resul
 }
 
 // TBD need to think more
-pub fn resolve_assign(field: Field, exp: Expr, context: &Context) -> Result<TypeResult> {
+pub fn resolve_assign_field(field: Field, exp: Expr, context: &Context) -> Result<TypeResult> {
     let position = exp.position.lo;
     let right_type_result = resolve_expr(exp.clone(), context)?;
     if let Some(left_type) = context.scope.type_map.borrow_mut().try_get(&field.id.0) {
@@ -180,7 +180,7 @@ pub fn resolve_expr(exp: Expr, context: &Context) -> Result<TypeResult> {
         Node::Unary(uni) => resolve_uni(uni, context),
         Node::Binary(left, op, right) => resolve_binary(*left, op, *right, context),
         Node::Fn(Function(args, body)) => resolve_fn(exp_id, args, body, context),
-        Node::Call(field, boxed_args) => resolve_call(field, boxed_args, context),
+        Node::Call(accessiable, boxed_args) => resolve_call(accessiable, boxed_args, context),
     };
 
     match result {
@@ -233,7 +233,16 @@ pub fn resolve_fn(
     )))
 }
 
-pub fn resolve_call(field: Field, args: Vec<Expr>, context: &Context) -> Result<TypeResult> {
+pub fn resolve_call(
+    accessiable: Accessiable,
+    args: Vec<Expr>,
+    context: &Context,
+) -> Result<TypeResult> {
+    let field = match accessiable {
+        Accessiable::Field(field) => field,
+        Accessiable::Index(Index(field, _)) => field,
+    };
+
     let first_type = if let Some(exp) = args.first() {
         match resolve_expr(exp.clone(), context)? {
             TypeResult::Resolved(type_kind) => Some(type_kind),

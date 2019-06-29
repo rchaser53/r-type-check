@@ -10,7 +10,7 @@ pub mod bin_op;
 use bin_op::{bin_op as bin_op_, BinOpKind};
 
 pub mod uni;
-use uni::{field, uni as create_uni, word, Field, Id, Uni};
+use uni::{field, index, uni as create_uni, word, Field, Id, Index, Uni};
 
 #[derive(Clone, Debug)]
 pub struct Expr {
@@ -40,10 +40,16 @@ impl PartialEq for Expr {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub enum Accessiable {
+    Field(Field),
+    Index(Index),
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum Node {
     Unary(Uni),
     Binary(Box<Expr>, BinOpKind, Box<Expr>),
-    Call(Field, Vec<Expr>),
+    Call(Accessiable, Vec<Expr>),
     Fn(Function),
 }
 
@@ -58,9 +64,14 @@ impl Node {
             Node::Unary(unary) => {
                 unary.renew_parent_id(field.id.0);
             }
-            Node::Call(left_field, _) => {
-                left_field.parent_id = Some(field.id);
-            }
+            Node::Call(accesible, _) => match accesible {
+                Accessiable::Field(left_field) => {
+                    left_field.parent_id = Some(field.id);
+                }
+                Accessiable::Index(Index(left_field, _)) => {
+                    left_field.parent_id = Some(field.id);
+                }
+            },
             _ => {}
         };
     }
@@ -207,7 +218,7 @@ parser! {
 parser! {
    pub fn call['a]()(MyStream<'a>) -> Expr
     {
-        skip_spaces(field())
+        skip_spaces(attempt(index()).or(field()))
             .and(between(
                 token_skip_spaces('('),
                 token_skip_spaces(')'),
@@ -215,8 +226,15 @@ parser! {
                     .map(|exps: Vec<Expr>| exps),
             ))
             .map(|(fn_name, args)| match fn_name {
-                Uni::Id(id) => Expr::new(Node::Call(Field::new(None, id, None), args)),
-                Uni::Field(field) => Expr::new(Node::Call(field, args)),
+                Uni::Id(id) => Expr::new(Node::Call(
+                    Accessiable::Field(Field::new(None, id, None)), args)
+                ),
+                Uni::Field(field) => Expr::new(Node::Call(
+                    Accessiable::Field(field), args)
+                ),
+                Uni::Index(index) => Expr::new(Node::Call(
+                    Accessiable::Index(index), args)
+                ),
                 _ => panic!("should come Uni::Id. actual: {:?}", fn_name),
             })
     }
@@ -270,13 +288,16 @@ mod test {
     fn call_test() {
         assert_eq!(
             expr().easy_parse(State::new(r#"ab()"#)).unwrap().0,
-            Expr::new(Call(Field::new(None, Id(String::from("ab")), None), vec![])),
+            Expr::new(Call(
+                Accessiable::Field(Field::new(None, Id(String::from("ab")), None)),
+                vec![]
+            )),
         );
 
         assert_eq!(
             expr().easy_parse(State::new(r#"ab( cde )"#)).unwrap().0,
             Expr::new(Call(
-                Field::new(None, Id(String::from("ab")), None),
+                Accessiable::Field(Field::new(None, Id(String::from("ab")), None)),
                 vec![Expr::new(Unary(Uni::Id(Id(String::from("cde")))))]
             ))
         );
@@ -287,7 +308,7 @@ mod test {
                 .unwrap()
                 .0,
             Expr::new(Call(
-                Field::new(None, Id(String::from("ab")), None),
+                Accessiable::Field(Field::new(None, Id(String::from("ab")), None)),
                 vec![
                     Expr::new(Unary(Uni::Id(Id(String::from("cde"))))),
                     Expr::new(Unary(Uni::Id(Id(String::from("fgh")))))
@@ -301,7 +322,7 @@ mod test {
                 .unwrap()
                 .0,
             Expr::new(Call(
-                Field::new(
+                Accessiable::Field(Field::new(
                     None,
                     Id(String::from("ab")),
                     Some(Box::new(Field::new(
@@ -309,7 +330,7 @@ mod test {
                         Id(String::from("field")),
                         None
                     )))
-                ),
+                )),
                 vec![
                     Expr::new(Unary(Uni::Id(Id(String::from("cde"))))),
                     Expr::new(Unary(Uni::Id(Id(String::from("fgh")))))
@@ -324,7 +345,7 @@ mod test {
             expr().easy_parse(State::new(r#"abc() * 3"#)).unwrap().0,
             Expr::new(Binary(
                 Box::new(Expr::new(Call(
-                    Field::new(None, Id(String::from("abc")), None),
+                    Accessiable::Field(Field::new(None, Id(String::from("abc")), None)),
                     vec![]
                 ))),
                 BinOpKind::Mul,
@@ -339,7 +360,7 @@ mod test {
                 .0,
             Expr::new(Binary(
                 Box::new(Expr::new(Call(
-                    Field::new(None, Id(String::from("abc")), None),
+                    Accessiable::Field(Field::new(None, Id(String::from("abc")), None)),
                     vec![Expr::new(Unary(Uni::Id(Id(String::from("def"))))),]
                 ))),
                 BinOpKind::Mul,
@@ -355,7 +376,7 @@ mod test {
             Expr::new(Binary(
                 Box::new(Expr::new(Binary(
                     Box::new(Expr::new(Call(
-                        Field::new(None, Id(String::from("abc")), None),
+                        Accessiable::Field(Field::new(None, Id(String::from("abc")), None)),
                         vec![Expr::new(Unary(Uni::Id(Id(String::from("def"))))),]
                     ))),
                     BinOpKind::Add,
@@ -525,7 +546,7 @@ mod test {
                 vec![],
                 vec![Statement::new(StmtKind::Let(
                     vec![Assign(
-                        Assignable::Field(Field::new(None, Id(String::from("abc")), None)),
+                        Accessiable::Field(Field::new(None, Id(String::from("abc")), None)),
                         Expr::new(Unary(Uni::String(String::from("aaa")))),
                     )],
                     vec![],
@@ -544,7 +565,7 @@ mod test {
                 vec![Id(String::from("a"))],
                 vec![Statement::new(StmtKind::Let(
                     vec![Assign(
-                        Assignable::Field(Field::new(None, Id(String::from("abc")), None)),
+                        Accessiable::Field(Field::new(None, Id(String::from("abc")), None)),
                         Expr::new(Unary(Uni::String(String::from("aaa")))),
                     )],
                     vec![],
@@ -563,7 +584,7 @@ mod test {
                 vec![Id(String::from("a")), Id(String::from("b")),],
                 vec![Statement::new(StmtKind::Let(
                     vec![Assign(
-                        Assignable::Field(Field::new(None, Id(String::from("abc")), None)),
+                        Accessiable::Field(Field::new(None, Id(String::from("abc")), None)),
                         Expr::new(Unary(Uni::String(String::from("aaa")))),
                     )],
                     vec![],
