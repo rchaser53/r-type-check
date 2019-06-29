@@ -84,7 +84,7 @@ parser! {
 parser! {
    pub fn assign_['a]()(MyStream<'a>) -> Assign
     {
-        skip_spaces(field())
+        skip_spaces(attempt(index()).or(field()))
             .and(token_skip_spaces('='))
             .and(skip_spaces(expr_()))
             .skip(token_skip_spaces(';'))
@@ -98,6 +98,10 @@ parser! {
                         let field = Field::new(None, id, None);
                         value.renew_parent_id(field.clone());
                         return Assign(Assignable::Field(field), value);
+                    },
+                    Uni::Index(Index(field, indexes)) => {
+                        value.renew_parent_id(field.clone());
+                        return Assign(Assignable::Index(Index(field, indexes)), value)
                     },
                     _ => unreachable!()
                 }
