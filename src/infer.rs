@@ -73,12 +73,16 @@ pub fn resolve_statement(statements: Vec<Statement>, context: &Context) -> Resul
                 resolve_expr(expr, context)?;
             }
             StmtKind::Assign(Assign(assignable, expr)) => match assignable {
-                Assignable::Field(field) => {
+                Accessiable::Field(field) => {
                     context.current_left_id.replace(Some(field.id.0.clone()));
-                    resolve_assign(field, expr, context)?;
+                    resolve_assign_field(field, expr, context)?;
                     context.current_left_id.replace(None);
                 }
-                Assignable::Index(_) => unimplemented!(),
+                Accessiable::Index(Index(field, indexes)) => {
+                    context.current_left_id.replace(Some(field.id.0.clone()));
+                    resolve_assign_index(field, indexes, expr, context)?;
+                    context.current_left_id.replace(None);
+                }
             },
             StmtKind::Return(expr) => {
                 let position = expr.position.lo;
@@ -134,7 +138,6 @@ pub fn resolve_statement(statements: Vec<Statement>, context: &Context) -> Resul
     }
 }
 
-// TBD need to think more
 pub fn resolve_assign_field(field: Field, exp: Expr, context: &Context) -> Result<TypeResult> {
     let position = exp.position.lo;
     let right_type_result = resolve_expr(exp.clone(), context)?;
@@ -143,6 +146,41 @@ pub fn resolve_assign_field(field: Field, exp: Expr, context: &Context) -> Resul
             if let Some(mut err) = validate_assign_type(left_type, &right_type_result) {
                 err.set_pos(position);
                 return Err(err);
+            }
+        };
+    } else {
+        let mut err = create_not_initialized_err(&field.id.0);
+        err.set_pos(position);
+        return Err(err);
+    };
+    context
+        .scope
+        .type_map
+        .borrow_mut()
+        .try_insert(field.id.0, right_type_result)
+}
+
+// TBD need to think more
+pub fn resolve_assign_index(
+    field: Field,
+    _indexes: Vec<usize>,
+    exp: Expr,
+    context: &Context,
+) -> Result<TypeResult> {
+    let position = exp.position.lo;
+    let right_type_result = resolve_expr(exp.clone(), context)?;
+    if let Some(left_type) = context.scope.type_map.borrow_mut().try_get(&field.id.0) {
+        if let TypeResult::Resolved(left_type) = left_type {
+            if let TypeKind::PrimitiveType(PrimitiveType::Array(array_type)) = left_type {
+                if let ArrayType::Defined(boxed_primitive_type) = array_type {
+                    if let Some(mut err) = validate_assign_type(
+                        &TypeKind::PrimitiveType(*boxed_primitive_type.clone()),
+                        &right_type_result,
+                    ) {
+                        err.set_pos(position);
+                        return Err(err);
+                    }
+                }
             }
         };
     } else {
@@ -1613,6 +1651,19 @@ mod test {
         let input = r#"
             let abc = [123, 456] in (
                 abc[0] + "aaa";
+            )
+        "#;
+        assert_infer_err!(
+            input,
+            create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+                &TypeKind::PrimitiveType(PrimitiveType::String),
+            )
+        );
+
+        let input = r#"
+            let abc = [123, 456] in (
+                abc[0] = "aaa";
             )
         "#;
         assert_infer_err!(
