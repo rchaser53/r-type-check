@@ -80,7 +80,7 @@ parser! {
     {
         skip_spaces(attempt(index()).or(field()))
             .and(token_skip_spaces('='))
-            .and(skip_spaces(expr_()))
+            .and(skip_spaces(expr()))
             .skip(token_skip_spaces(';'))
             .map(|((unary_, _), mut value)| {
                 match unary_ {
@@ -125,7 +125,7 @@ parser! {
             string_skip_spaces("let"),
             string_skip_spaces("in"),
             many(attempt(
-                skip_spaces(skip_spaces(word()).and(token_skip_spaces('=').with(skip_spaces(expr_()))))
+                skip_spaces(skip_spaces(word()).and(token_skip_spaces('=').with(skip_spaces(expr()))))
                     .map(|(uni, exp)| Assign(Accessiable::Field(Field::new(None, uni.id(), None)), exp)),
             )),
         )
