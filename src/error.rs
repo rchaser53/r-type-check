@@ -1,3 +1,5 @@
+use std::fmt;
+
 use combine::stream::state::SourcePosition;
 
 use crate::expr::bin_op::*;
@@ -5,7 +7,7 @@ use crate::expr::uni::*;
 use crate::scope::*;
 use crate::types::*;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct TypeError {
     pub message: String,
     pos: SourcePosition,
@@ -25,6 +27,12 @@ impl TypeError {
 
     pub fn create_message(&self) -> String {
         format!("L:{:?} {:?}", self.pos.line, self.message)
+    }
+}
+
+impl fmt::Debug for TypeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "L:{} {}", self.pos.line, self.message)
     }
 }
 
