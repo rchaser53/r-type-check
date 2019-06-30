@@ -234,9 +234,9 @@ pub fn resolve_fn(
     id: Id,
     args: Vec<Id>,
     body: Vec<Statement>,
-    _context: &Context,
+    context: &Context,
 ) -> Result<TypeResult> {
-    let fn_context = Context::new();
+    let fn_context = context.clone();
     for arg in args.clone() {
         fn_context
             .scope
@@ -318,7 +318,7 @@ pub fn resolve_call(
         type_result => type_result,
     };
 
-    let fn_context = Context::new();
+    let fn_context = context.clone();
     let result = match ret_result {
         TypeResult::Resolved(TypeKind::Function(_, params, return_opeaque)) => {
             for (index, param) in params.into_iter().enumerate() {
@@ -1671,6 +1671,26 @@ mod test {
             create_type_mismatch_err(
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
                 &TypeKind::PrimitiveType(PrimitiveType::String),
+            )
+        );
+    }
+
+    #[test]
+    fn let_and_param_infer() {
+        let input = r#"
+            let abc = fn(b) {
+                return 12 + b;
+            }
+            ghi = false
+            in (
+              abc(ghi);
+            )
+        "#;
+        assert_infer_err!(
+            input,
+            create_param_and_arg_type_is_mismatch_err(
+                &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean)),
+                &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int))
             )
         );
     }
