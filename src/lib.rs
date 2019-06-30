@@ -17,17 +17,26 @@ pub mod statement;
 pub mod types;
 pub mod utils;
 
-use combine::stream::state::State;
+use combine::easy;
+use combine::stream::state::{SourcePosition, State};
 use combine::Parser;
 
 use crate::ast::*;
-use crate::error::*;
 use crate::infer::*;
-use crate::scope::*;
+use crate::statement::*;
 
-pub fn compile(input: &'static str) -> Result<TypeResult, TypeError> {
+pub fn compile(input: &str) -> Result<(), String> {
     match ast().easy_parse(State::new(input)) {
-        Ok((statements, _)) => resolve_statement(statements, &Context::new()),
-        Err(err) => panic!(err),
+        Ok(result) => {
+            let (statements, _): (Vec<Statement>, State<&str, SourcePosition>) = result;
+            match resolve_statement(statements, &Context::new()) {
+                Ok(_) => Ok(()),
+                Err(err) => Err(format!("{:?}", err)),
+            }
+        }
+        Err(err) => {
+            let err: easy::Errors<char, &str, SourcePosition> = err;
+            panic!(err.position)
+        }
     }
 }
