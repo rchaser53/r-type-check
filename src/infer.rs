@@ -734,6 +734,7 @@ pub fn resolve_hash(
         return Ok(TypeResult::Unknown);
     };
 
+    let store_current_left_id = context.current_left_id.borrow_mut().clone();
     for (key, boxed_exp) in hash.0.into_iter() {
         context.current_left_id.replace(Some(key.clone()));
         let type_result = resolve_expr(*boxed_exp.clone(), context)?;
@@ -761,8 +762,8 @@ pub fn resolve_hash(
             .type_map
             .borrow_mut()
             .insert(key.clone(), type_result);
-        context.current_left_id.replace(None);
     }
+    context.current_left_id.replace(store_current_left_id);
 
     context.scope.scope_map.borrow_mut().insert(
         IdType::Object(hash_scope_id.clone()),
