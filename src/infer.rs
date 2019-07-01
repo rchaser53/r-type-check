@@ -765,10 +765,22 @@ pub fn resolve_hash(
     }
     context.current_left_id.replace(store_current_left_id);
 
-    context.scope.scope_map.borrow_mut().insert(
+    if let Some(old) = context.scope.scope_map.borrow_mut().insert(
         IdType::Object(hash_scope_id.clone()),
-        Box::new(Scope::Object(hash_scope)),
-    );
+        Box::new(Scope::Object(hash_scope.clone())),
+    ) {
+        if let Scope::Object(old_object_scope) = *old {
+            if old_object_scope != hash_scope {
+                return Err(create_hash_mismatch_err(
+                    &hash_scope_id.0,
+                    &old_object_scope.type_map,
+                    &hash_scope.type_map,
+                ));
+            }
+        } else {
+            unreachable!()
+        };
+    }
     Ok(TypeResult::Resolved(TypeKind::Scope(IdType::Object(
         hash_scope_id,
     ))))

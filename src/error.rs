@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::fmt;
 
 use combine::stream::state::SourcePosition;
@@ -121,5 +122,16 @@ pub fn create_cannnot_assign(id: &Id, wrong_type: &TypeResult) -> TypeError {
     TypeError::new(format!(
         "{:?} is cannot be indexed. type: {:?}",
         id, wrong_type
+    ))
+}
+
+pub fn create_hash_mismatch_err(
+    id: &Id,
+    defined: &RefCell<TypeMap>,
+    new: &RefCell<TypeMap>,
+) -> TypeError {
+    TypeError::new(format!(
+        "{:?} is used two type. defined:{:?} new:{:?}",
+        id, defined, new
     ))
 }
