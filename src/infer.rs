@@ -373,19 +373,57 @@ pub fn resolve_call(
     };
 
     DEBUG_INFO!("resolve_call", &fn_context);
+    let left_id = fn_context.current_left_id.borrow_mut().clone();
     let fn_return_type_result = resolve_statement(bodys, &fn_context)?;
 
     match (&fn_return_type_result, &result) {
         (TypeResult::Resolved(left_type_kind), TypeResult::Resolved(right_type_kind)) => {
-            if left_type_kind != right_type_kind {
+            if !compare_type_kind(left_type_kind.clone(), right_type_kind.clone(), context) {
                 return Err(create_conflict_type_return_err(
                     &TypeResult::Resolved(left_type_kind.clone()),
                     &TypeResult::Resolved(right_type_kind.clone()),
                 ));
             }
+            // when return type is objecdt
+            // need to set object_scope to context
+            if let TypeKind::Scope(_) = left_type_kind {
+                if let Some(id) = left_id {
+                    let object_id = IdType::Object(ObjectId(id));
+                    let insert_scope = fn_context
+                        .scope
+                        .scope_map
+                        .borrow_mut()
+                        .get(&object_id)
+                        .unwrap()
+                        .clone();
+
+                    context
+                        .scope
+                        .scope_map
+                        .borrow_mut()
+                        .insert(object_id, insert_scope);
+                }
+            }
+
             Ok(fn_return_type_result)
         }
         _ => Ok(fn_return_type_result),
+    }
+}
+
+// TBD need to think more
+fn compare_type_kind(left: TypeKind, right: TypeKind, context: &Context) -> bool {
+    match (left, right) {
+        (TypeKind::Scope(IdType::Object(left_id)), TypeKind::Scope(IdType::Object(right_id))) => {
+            match (
+                fetch_object_scope(left_id, context),
+                fetch_object_scope(right_id, context),
+            ) {
+                (Some(left_scope), Some(right_scope)) => left_scope == right_scope,
+                _ => true,
+            }
+        }
+        (left, right) => left == right,
     }
 }
 
@@ -1690,6 +1728,26 @@ mod test {
             create_param_and_arg_type_is_mismatch_err(
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean)),
                 &TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int))
+            )
+        );
+    }
+
+    #[test]
+    fn return_hash_infer() {
+        let input = r#"
+            let abc = fn() {
+                return { e: 1 };
+            } in (
+              let def = abc() in (
+                def.e + "abc";
+              )
+            )
+        "#;
+        assert_infer_err!(
+            input,
+            create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+                &TypeKind::PrimitiveType(PrimitiveType::String)
             )
         );
     }
