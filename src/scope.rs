@@ -115,12 +115,21 @@ impl TypeMap {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum TypeResult {
     Binary(Box<TypeResult>, BinOpKind, Box<TypeResult>),
     Resolved(TypeKind),
     IdOnly(Id),
     Unknown,
+}
+
+impl PartialEq for TypeResult {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (TypeResult::Resolved(left), TypeResult::Resolved(right)) => left == right,
+            _ => true,
+        }
+    }
 }
 
 impl Eq for TypeResult {}
