@@ -64,7 +64,7 @@ pub fn resolve_statement(statements: Vec<Statement>, context: &Context) -> Resul
                                 .borrow_mut()
                                 .try_insert(field.id.0, right_type_result)?;
                         }
-                        Accessiable::Index(_) => unimplemented!(),
+                        _ => unreachable!(),
                     }
                 }
                 context.current_left_id.replace(None);
