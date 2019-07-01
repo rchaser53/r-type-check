@@ -531,16 +531,8 @@ pub fn resolve_field(
         }
 
         let (first_id, field_object_ids) = field_object_ids.split_first().unwrap();
-        let mut result_scope = if let Some(scope) = context
-            .scope
-            .scope_map
-            .borrow_mut()
-            .get(&IdType::Object(first_id.clone()))
-        {
-            match *scope.clone() {
-                Scope::Local(_) => unreachable!(),
-                Scope::Object(object_scope) => object_scope,
-            }
+        let mut result_scope = if let Some(scope) = fetch_object_scope(first_id.clone(), context) {
+            scope
         } else {
             return Ok(TypeResult::Unknown);
         };
@@ -609,25 +601,14 @@ pub fn resolve_object(
     id: &Id,
     context: &Context,
 ) -> Result<TypeResult> {
-    if let Some(boxed_scope) = context
-        .scope
-        .scope_map
-        .borrow_mut()
-        .get_mut(&IdType::Object(object_scope_id.clone()))
-    {
-        if let Scope::Object(object_map) = *boxed_scope.clone() {
-            // try to get field type_result
-            if let Some(type_result) = object_map.type_map.borrow_mut().try_get(&id) {
-                Ok(type_result.clone())
-            } else {
-                unimplemented!()
-            }
+    if let Some(scope) = fetch_object_scope(object_scope_id.clone(), context) {
+        if let Some(type_result) = scope.type_map.borrow_mut().try_get(&id) {
+            Ok(type_result.clone())
         } else {
-            unreachable!()
+            unimplemented!()
         }
     } else {
-        // Maybe...
-        unreachable!()
+        unimplemented!()
     }
 }
 
@@ -876,6 +857,22 @@ pub fn check_left_op_right(
         }
     } else {
         Err(create_type_mismatch_err(&left, &right))
+    }
+}
+
+fn fetch_object_scope(object_id: ObjectId, context: &Context) -> Option<ObjectScope> {
+    if let Some(scope) = context
+        .scope
+        .scope_map
+        .borrow_mut()
+        .get(&IdType::Object(object_id))
+    {
+        match *scope.clone() {
+            Scope::Local(_) => unreachable!(),
+            Scope::Object(object_scope) => Some(object_scope),
+        }
+    } else {
+        None
     }
 }
 
