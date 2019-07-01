@@ -5,6 +5,7 @@ use combine::parser::char::{spaces, string};
 use combine::stream::Stream;
 use combine::{token, Parser};
 
+use crate::error::*;
 use crate::expr::uni::*;
 
 pub fn skip_spaces<I, T>(
@@ -47,8 +48,26 @@ impl Pool {
     }
 }
 
+pub struct ErrorStack(Mutex<Vec<TypeError>>);
+impl ErrorStack {
+    pub fn push(&self, error: TypeError) {
+        let mut temp = self.0.lock().unwrap();
+        temp.push(error);
+    }
+
+    pub fn len(&self) -> usize {
+        let temp = self.0.lock().unwrap();
+        temp.len()
+    }
+
+    pub fn new() -> ErrorStack {
+        ErrorStack(Mutex::new(vec![]))
+    }
+}
+
 lazy_static! {
     pub static ref ID_POOL: Pool = { Pool::new() };
+    pub static ref ERROR_STACK: ErrorStack = { ErrorStack::new() };
 }
 
 #[macro_export]

@@ -8,6 +8,7 @@ use crate::expr::*;
 use crate::scope::*;
 use crate::statement::*;
 use crate::types::*;
+use crate::utils::*;
 
 use crate::DEBUG_INFO;
 
@@ -131,6 +132,7 @@ pub fn resolve_statement(statements: Vec<Statement>, context: &Context) -> Resul
                 let mut err =
                     create_conflict_type_return_err(&first_type_result, &return_type_result);
                 err.set_pos(position);
+                ERROR_STACK.push(err.clone());
                 return Err(err);
             }
         }
