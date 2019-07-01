@@ -23,7 +23,7 @@ impl Eq for ObjectId {}
 pub struct ScopeId(pub Id);
 impl Eq for ScopeId {}
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Scope {
     Object(ObjectScope),
     Local(LocalScope),
@@ -56,6 +56,15 @@ impl ObjectScope {
     }
 }
 
+// TBD: need to think more
+impl PartialEq for ObjectScope {
+    fn eq(&self, other: &Self) -> bool {
+        self.type_map == other.type_map
+            && self.function_map == other.function_map
+            && self.scope_map == other.scope_map
+    }
+}
+
 /// scope_map in LocalScope has both LocalScope and ObjectScope
 #[derive(Clone, Debug)]
 pub struct LocalScope {
@@ -78,7 +87,16 @@ impl LocalScope {
     }
 }
 
-#[derive(Clone, Debug)]
+// TBD: need to think more
+impl PartialEq for LocalScope {
+    fn eq(&self, other: &Self) -> bool {
+        self.type_map == other.type_map
+            && self.function_map == other.function_map
+            && self.scope_map == other.scope_map
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct TypeMap(HashMap<Id, TypeResult>);
 impl TypeMap {
     pub fn new() -> Self {
