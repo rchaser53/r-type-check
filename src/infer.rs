@@ -858,7 +858,17 @@ pub fn try_insert_and_resolve_op(
         .borrow_mut()
         .try_insert(id.clone(), original.clone())?;
     match resolve_op_one_side(&original_type, op, context) {
-        Ok(_) => Ok(TypeResult::Resolved(original_type.clone())),
+        Ok(_) => match op {
+            BinOpKind::Eq
+            | BinOpKind::Lt
+            | BinOpKind::Le
+            | BinOpKind::Ne
+            | BinOpKind::Ge
+            | BinOpKind::Gt => Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+                PrimitiveType::Boolean,
+            ))),
+            _ => Ok(TypeResult::Resolved(original_type.clone())),
+        },
         Err(err_str) => Err(err_str),
     }
 }
@@ -1744,6 +1754,30 @@ mod test {
                 def.e + "abc";
               )
             )
+        "#;
+        assert_infer_err!(
+            input,
+            create_type_mismatch_err(
+                &TypeKind::PrimitiveType(PrimitiveType::Int),
+                &TypeKind::PrimitiveType(PrimitiveType::String)
+            )
+        );
+    }
+
+    #[test]
+    fn if_condition_infer() {
+        let input = r#"
+            let abc = fn(a) {
+          if (a == 2) {
+            return 1;
+          } else {
+            return 2;
+          }
+        } in (
+          let def = abc(1) in (
+            def + "12";
+          )
+        )
         "#;
         assert_infer_err!(
             input,
