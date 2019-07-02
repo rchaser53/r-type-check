@@ -1,0 +1,19 @@
+let abc = fn(a) {
+  if (a == 2) {
+    return {
+      e: {
+        f:12
+      }
+    };
+  } else {
+    return {
+        e: {
+          f: "abc"
+      } 
+    };
+  }
+} in (
+  let def = abc(1) in (
+    return def.e.f + "12";
+  )
+)
