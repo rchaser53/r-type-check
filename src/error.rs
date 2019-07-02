@@ -130,3 +130,14 @@ pub fn create_hash_mismatch_err(id: &Id, defined: &TypeMap, new: &TypeMap) -> Ty
         id, defined, new
     ))
 }
+
+pub fn create_arg_length_is_not_match(
+    id: &Id,
+    arg_length: usize,
+    parameter_length: usize,
+) -> TypeError {
+    TypeError::new(format!(
+        "{:?} argument length is {}. parameter length is {}",
+        id, arg_length, parameter_length
+    ))
+}

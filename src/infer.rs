@@ -378,10 +378,19 @@ pub fn resolve_call(
     let fn_context = context.clone();
     let result = match ret_result {
         TypeResult::Resolved(TypeKind::Function(_, params, return_opeaque)) => {
+            let params_length = params.len();
             for (index, param) in params.into_iter().enumerate() {
                 match param {
                     OpeaqueType::Defined(param_type_kind) => {
-                        let arg_exp = args.get(index).unwrap();
+                        let arg_exp = if let Some(arg_exp) = args.get(index) {
+                            arg_exp
+                        } else {
+                            return Err(create_arg_length_is_not_match(
+                                &id,
+                                args.len(),
+                                params_length,
+                            ));
+                        };
                         let arg_type_result = resolve_expr(arg_exp.clone(), &fn_context)?;
                         let param_type_result = TypeResult::Resolved(*param_type_kind.clone());
                         if arg_type_result != param_type_result {
@@ -1846,6 +1855,24 @@ mod test {
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
                 &TypeKind::PrimitiveType(PrimitiveType::String)
             )
+        );
+    }
+
+    #[test]
+    fn arg_length_and_param_length_is_not_match() {
+        let input = r#"
+            let abc = fn(a) {
+              if (a > 10) {
+                  abc();
+              }
+              a = a+1;
+            } in (
+              abc(0)
+            )
+        "#;
+        assert_infer_err!(
+            input,
+            create_arg_length_is_not_match(&Id(String::from("abc")), 0, 1)
         );
     }
 }
