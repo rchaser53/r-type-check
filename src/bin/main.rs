@@ -1,10 +1,11 @@
-extern crate regex;
 extern crate clap;
+extern crate regex;
 use crate::r_type_check::compile;
 
-use regex::Regex;
 use clap::{App, Arg};
 use r_type_check;
+use regex::Regex;
+use std::process::exit;
 use std::{fs, str};
 
 fn main() {
@@ -30,8 +31,11 @@ fn main() {
         panic!("should input file name")
     };
     match compile(&input_str) {
-        Ok(_) => {}
-        Err(err) => println!("{}", err),
+        Ok(_) => exit(0),
+        Err(err) => {
+            println!("{}", err);
+            exit(1)
+        }
     }
 }
 
@@ -41,6 +45,9 @@ where
 {
     match fs::read_to_string(&input_path) {
         Ok(result) => result,
-        Err(err) => panic!("{}", err),
+        Err(err) => {
+            println!("{}", err);
+            exit(1)
+        }
     }
 }
