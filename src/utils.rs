@@ -72,6 +72,7 @@ impl ErrorStack {
 lazy_static! {
     pub static ref ID_POOL: Pool = { Pool::new() };
     pub static ref ERROR_STACK: ErrorStack = { ErrorStack::new() };
+    pub static ref BUILT_IN_IDS: Vec<Id> = { vec![Id(String::from("println"))] };
 }
 
 #[macro_export]

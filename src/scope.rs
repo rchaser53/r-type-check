@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fmt;
 
 use crate::error::*;
 use crate::expr::bin_op::*;
@@ -96,7 +97,7 @@ impl PartialEq for LocalScope {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct TypeMap(HashMap<Id, TypeResult>);
 impl TypeMap {
     pub fn new() -> Self {
@@ -143,6 +144,18 @@ impl TypeMap {
 
     pub fn try_get(&mut self, id: &Id) -> Option<&mut TypeResult> {
         self.0.get_mut(id)
+    }
+}
+
+impl fmt::Debug for TypeMap {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut hash_map = HashMap::new();
+        for (key, value) in self.0.iter() {
+            if !BUILT_IN_IDS.contains(key) {
+                hash_map.insert(key, value);
+            }
+        }
+        write!(f, "{:?}", hash_map)
     }
 }
 
