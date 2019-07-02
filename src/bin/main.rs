@@ -5,6 +5,7 @@ use crate::r_type_check::compile;
 use clap::{App, Arg};
 use r_type_check;
 use regex::Regex;
+
 use std::process::exit;
 use std::{fs, str};
 
@@ -32,7 +33,8 @@ fn main() {
     };
     match compile(&input_str) {
         Ok(_) => exit(0),
-        Err(err_stack) => {
+        Err(mut err_stack) => {
+            err_stack.dedup();
             for err in err_stack {
                 println!("{}", err.create_message());
             }
