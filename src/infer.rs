@@ -1,3 +1,4 @@
+use combine::stream::state::SourcePosition;
 use std::cell::RefCell;
 use std::env;
 
@@ -43,92 +44,19 @@ pub fn resolve_statement(statements: Vec<Statement>, context: &Context) -> Resul
     for statement in statements {
         match statement.node {
             StmtKind::Let(lets, body) => {
-                for Assign(assignable, exp) in lets {
-                    // TBD need to think more
-                    match assignable {
-                        Accessiable::Field(field) => {
-                            context.current_left_id.replace(Some(field.id.0.clone()));
-                            let right_type_result = resolve_expr(exp.clone(), &context)?;
-
-                            if let Node::Fn(function) = exp.node {
-                                context
-                                    .scope
-                                    .function_map
-                                    .borrow_mut()
-                                    .insert(field.id.0.clone(), function.clone());
-                            };
-
-                            context
-                                .scope
-                                .type_map
-                                .borrow_mut()
-                                .try_insert(field.id.0, right_type_result)?;
-                        }
-                        _ => unreachable!(),
-                    }
-                }
-                context.current_left_id.replace(None);
-                match resolve_statement(body, context) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        ERROR_STACK.push(err.clone());
-                        return Err(err);
-                    }
-                };
+                resolve_let_statement(lets, body, context)?;
+            }
+            StmtKind::Assign(Assign(accesiable, expr)) => {
+                resolve_assign_statement(accesiable, expr, context)?;
+            }
+            StmtKind::Return(expr) => {
+                resolve_return_statement(expr, &mut return_type_results, context)?;
+            }
+            StmtKind::If(if_tuples) => {
+                resolve_if_statement(if_tuples, &mut return_type_results, context)?;
             }
             StmtKind::Expr(expr) => {
                 resolve_expr(expr, context)?;
-            }
-            StmtKind::Assign(Assign(assignable, expr)) => match assignable {
-                Accessiable::Field(field) => {
-                    context.current_left_id.replace(Some(field.id.0.clone()));
-                    resolve_assign_field(field, expr, context)?;
-                    context.current_left_id.replace(None);
-                }
-                Accessiable::Index(Index(field, indexes)) => {
-                    context.current_left_id.replace(Some(field.id.0.clone()));
-                    resolve_assign_index(field, indexes, expr, context)?;
-                    context.current_left_id.replace(None);
-                }
-            },
-            StmtKind::Return(expr) => {
-                let position = expr.position.lo;
-                let type_result = resolve_expr(expr, context)?;
-                return_type_results.push((type_result.clone(), position));
-            }
-            StmtKind::If(if_tuples) => {
-                for (if_condition, boxed_body) in if_tuples {
-                    let position = if_condition.position.lo;
-                    let if_condition_type_result = resolve_expr(if_condition, context)?;
-                    match if_condition_type_result {
-                        TypeResult::Resolved(type_kind) => {
-                            if type_kind != TypeKind::PrimitiveType(PrimitiveType::Boolean) {
-                                let mut err = create_if_condition_not_boolean_err(&type_kind);
-                                err.set_pos(position);
-                                return Err(err);
-                            }
-                        }
-                        TypeResult::IdOnly(id) => {
-                            context.scope.type_map.borrow_mut().try_insert(
-                                id.clone(),
-                                TypeResult::Resolved(TypeKind::PrimitiveType(
-                                    PrimitiveType::Boolean,
-                                )),
-                            )?;
-                        }
-                        _ => unreachable!(),
-                    };
-                    let unboxed_body = boxed_body;
-                    // get return type in if statement
-                    let if_return_type_result = match resolve_statement(unboxed_body, context) {
-                        Ok(result) => result,
-                        Err(err) => {
-                            ERROR_STACK.push(err.clone());
-                            return Err(err);
-                        }
-                    };
-                    return_type_results.push((if_return_type_result, position));
-                }
             }
         };
     }
@@ -152,7 +80,67 @@ pub fn resolve_statement(statements: Vec<Statement>, context: &Context) -> Resul
     }
 }
 
-pub fn resolve_assign_field(field: Field, exp: Expr, context: &Context) -> Result<TypeResult> {
+fn resolve_let_statement(
+    lets: Vec<Assign>,
+    body: Vec<Statement>,
+    context: &Context,
+) -> Result<TypeResult> {
+    for Assign(assignable, exp) in lets {
+        // TBD need to think more
+        match assignable {
+            Accessiable::Field(field) => {
+                context.current_left_id.replace(Some(field.id.0.clone()));
+                let right_type_result = resolve_expr(exp.clone(), &context)?;
+
+                if let Node::Fn(function) = exp.node {
+                    context
+                        .scope
+                        .function_map
+                        .borrow_mut()
+                        .insert(field.id.0.clone(), function.clone());
+                };
+
+                context
+                    .scope
+                    .type_map
+                    .borrow_mut()
+                    .try_insert(field.id.0, right_type_result)?;
+            }
+            _ => unreachable!(),
+        }
+    }
+    context.current_left_id.replace(None);
+    match resolve_statement(body, context) {
+        Ok(result) => Ok(result),
+        Err(err) => {
+            ERROR_STACK.push(err.clone());
+            return Err(err);
+        }
+    }
+}
+
+fn resolve_assign_statement(
+    accessiable: Accessiable,
+    expr: Expr,
+    context: &Context,
+) -> Result<TypeResult> {
+    match accessiable {
+        Accessiable::Field(field) => {
+            context.current_left_id.replace(Some(field.id.0.clone()));
+            let result = resolve_assign_field(field, expr, context);
+            context.current_left_id.replace(None);
+            result
+        }
+        Accessiable::Index(Index(field, indexes)) => {
+            context.current_left_id.replace(Some(field.id.0.clone()));
+            let result = resolve_assign_index(field, indexes, expr, context);
+            context.current_left_id.replace(None);
+            result
+        }
+    }
+}
+
+fn resolve_assign_field(field: Field, exp: Expr, context: &Context) -> Result<TypeResult> {
     let position = exp.position.lo;
     let right_type_result = resolve_expr(exp.clone(), context)?;
     if let Some(left_type) = context.scope.type_map.borrow_mut().try_get(&field.id.0) {
@@ -175,7 +163,7 @@ pub fn resolve_assign_field(field: Field, exp: Expr, context: &Context) -> Resul
 }
 
 // TBD need to think more
-pub fn resolve_assign_index(
+fn resolve_assign_index(
     field: Field,
     _indexes: Vec<usize>,
     exp: Expr,
@@ -209,10 +197,7 @@ pub fn resolve_assign_index(
         .try_insert(field.id.0, right_type_result)
 }
 
-pub fn validate_assign_type(
-    left_type: &TypeKind,
-    right_type_result: &TypeResult,
-) -> Option<TypeError> {
+fn validate_assign_type(left_type: &TypeKind, right_type_result: &TypeResult) -> Option<TypeError> {
     match right_type_result {
         TypeResult::Resolved(right_type) => {
             if *left_type != *right_type {
@@ -223,6 +208,57 @@ pub fn validate_assign_type(
         }
         _ => None,
     }
+}
+
+fn resolve_return_statement(
+    expr: Expr,
+    return_type_results: &mut Vec<(TypeResult, SourcePosition)>,
+    context: &Context,
+) -> Result<TypeResult> {
+    let position = expr.position.lo;
+    let type_result = resolve_expr(expr, context)?;
+    return_type_results.push((type_result.clone(), position));
+    Ok(type_result)
+}
+
+fn resolve_if_statement(
+    if_tuples: Vec<(Expr, Vec<Statement>)>,
+    return_type_results: &mut Vec<(TypeResult, SourcePosition)>,
+    context: &Context,
+) -> Result<TypeResult> {
+    for (if_condition, boxed_body) in if_tuples {
+        let position = if_condition.position.lo;
+        let if_condition_type_result = resolve_expr(if_condition, context)?;
+        match if_condition_type_result {
+            TypeResult::Resolved(type_kind) => {
+                if type_kind != TypeKind::PrimitiveType(PrimitiveType::Boolean) {
+                    let mut err = create_if_condition_not_boolean_err(&type_kind);
+                    err.set_pos(position);
+                    return Err(err);
+                }
+            }
+            TypeResult::IdOnly(id) => {
+                context.scope.type_map.borrow_mut().try_insert(
+                    id.clone(),
+                    TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Boolean)),
+                )?;
+            }
+            _ => unreachable!(),
+        };
+        let unboxed_body = boxed_body;
+        // get return type in if statement
+        let if_return_type_result = match resolve_statement(unboxed_body, context) {
+            Ok(result) => result,
+            Err(err) => {
+                ERROR_STACK.push(err.clone());
+                return Err(err);
+            }
+        };
+        return_type_results.push((if_return_type_result, position));
+    }
+    Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
+        PrimitiveType::Void,
+    )))
 }
 
 pub fn resolve_expr(exp: Expr, context: &Context) -> Result<TypeResult> {
