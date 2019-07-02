@@ -231,6 +231,7 @@ fn resolve_if_statement(
     return_type_results: &mut Vec<(TypeResult, SourcePosition)>,
     context: &Context,
 ) -> Result<TypeResult> {
+    let mut if_return_types = vec![];
     for (if_condition, boxed_body) in if_tuples {
         let position = if_condition.position.lo;
         let if_condition_type_result = resolve_expr(if_condition, context)?;
@@ -252,18 +253,30 @@ fn resolve_if_statement(
         };
         let unboxed_body = boxed_body;
         // get return type in if statement
-        let if_return_type_result = match resolve_statement(unboxed_body, context) {
-            Ok(result) => result,
+        match resolve_statement(unboxed_body, context) {
+            Ok(result) => {
+                match result {
+                    TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Void)) => {}
+                    result => {
+                        if_return_types.push((result, position));
+                    }
+                };
+            }
             Err(err) => {
                 ERROR_STACK.push(err.clone());
                 return Err(err);
             }
         };
-        return_type_results.push((if_return_type_result, position));
     }
-    Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
-        PrimitiveType::Void,
-    )))
+
+    let result_type = if if_return_types.len() == 0 {
+        TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Void))
+    } else {
+        if_return_types.first().unwrap().0.clone()
+    };
+    return_type_results.append(&mut if_return_types);
+
+    Ok(result_type)
 }
 
 pub fn resolve_expr(exp: Expr, context: &Context) -> Result<TypeResult> {
@@ -1922,6 +1935,22 @@ mod test {
               a = a+1;
             } in (
               abc(0)
+            )
+        "#;
+        assert_infer!(
+            input,
+            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Void))
+        );
+
+        let input = r#"
+            let abc = fn(a) {
+              if (a > 10) {
+                  abc(a);
+              }
+              a = a+1;
+              return a;
+            } in (
+              abc(0);
             )
         "#;
         assert_infer!(
