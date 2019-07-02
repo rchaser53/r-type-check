@@ -68,7 +68,13 @@ pub fn resolve_statement(statements: Vec<Statement>, context: &Context) -> Resul
                     }
                 }
                 context.current_left_id.replace(None);
-                resolve_statement(body, context)?;
+                match resolve_statement(body, context) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        ERROR_STACK.push(err.clone());
+                        return Err(err);
+                    }
+                };
             }
             StmtKind::Expr(expr) => {
                 resolve_expr(expr, context)?;
@@ -114,7 +120,13 @@ pub fn resolve_statement(statements: Vec<Statement>, context: &Context) -> Resul
                     };
                     let unboxed_body = boxed_body;
                     // get return type in if statement
-                    let if_return_type_result = resolve_statement(unboxed_body, context)?;
+                    let if_return_type_result = match resolve_statement(unboxed_body, context) {
+                        Ok(result) => result,
+                        Err(err) => {
+                            ERROR_STACK.push(err.clone());
+                            return Err(err);
+                        }
+                    };
                     return_type_results.push((if_return_type_result, position));
                 }
             }
@@ -246,7 +258,14 @@ pub fn resolve_fn(
             .borrow_mut()
             .insert(arg.clone(), TypeResult::IdOnly(arg));
     }
-    let result = resolve_statement(body, &fn_context)?;
+
+    let result = match resolve_statement(body, &fn_context) {
+        Ok(result) => result,
+        Err(err) => {
+            ERROR_STACK.push(err.clone());
+            return Err(err);
+        }
+    };
 
     let fn_arg_types = args
         .into_iter()
@@ -373,7 +392,13 @@ pub fn resolve_call(
     };
 
     DEBUG_INFO!("resolve_call", &fn_context);
-    let fn_return_type_result = resolve_statement(bodys, &fn_context)?;
+    let fn_return_type_result = match resolve_statement(bodys, &fn_context) {
+        Ok(result) => result,
+        Err(err) => {
+            ERROR_STACK.push(err.clone());
+            return Err(err);
+        }
+    };
 
     match (&fn_return_type_result, &result) {
         (TypeResult::Resolved(left_type_kind), TypeResult::Resolved(right_type_kind)) => {
