@@ -97,7 +97,7 @@ impl PartialEq for OpeaqueType {
                     false
                 }
             }
-            OpeaqueType::Unknown => false,
+            OpeaqueType::Unknown => true,
         }
     }
 }
