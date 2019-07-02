@@ -100,7 +100,20 @@ impl PartialEq for LocalScope {
 pub struct TypeMap(HashMap<Id, TypeResult>);
 impl TypeMap {
     pub fn new() -> Self {
-        TypeMap(HashMap::new())
+        TypeMap(TypeMap::create_type_map())
+    }
+
+    fn create_type_map() -> HashMap<Id, TypeResult> {
+        let mut hash_map = HashMap::new();
+        hash_map.insert(
+            Id(String::from("println")),
+            TypeResult::Resolved(TypeKind::Function(
+                Id(String::from("println")),
+                vec![OpeaqueType::Unknown],
+                OpeaqueType::Defined(Box::new(TypeKind::PrimitiveType(PrimitiveType::Void))),
+            )),
+        );
+        hash_map
     }
 
     pub fn insert(&mut self, id: Id, value: TypeResult) -> Option<TypeResult> {

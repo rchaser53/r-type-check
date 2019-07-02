@@ -1,0 +1,16 @@
+let fizzbuzz = fn(a) {
+  if (a < 100) {
+    fizzbuzz(a + 1);
+  }
+
+  if (a % 15 == 0) {
+    println("fizzbuzz");
+  } else if (a % 5 == 0) {
+    println("fizz");
+  } else if (a % 3 == 0) {
+    println("buzz");
+  }
+} 
+in (
+  fizzbuzz(0);
+)
