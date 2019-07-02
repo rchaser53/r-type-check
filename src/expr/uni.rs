@@ -39,7 +39,7 @@ impl Uni {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Index(pub Field, pub Vec<usize>);
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Hash, PartialEq)]
 pub struct Field {
     pub parent_id: Option<ObjectId>,
     pub id: ObjectId,
@@ -69,6 +69,7 @@ impl fmt::Debug for Field {
         write!(f, "{}{}", (self.id.0).0, child_str)
     }
 }
+impl Eq for Field {}
 
 impl Uni {
     pub fn to_string(&self) -> String {

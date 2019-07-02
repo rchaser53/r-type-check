@@ -6,6 +6,7 @@ use crate::scope::*;
 #[derive(Clone)]
 pub enum TypeKind {
     PrimitiveType(PrimitiveType),
+    Polymorphism(Vec<TypeKind>),
     Function(Id, Vec<OpeaqueType>, OpeaqueType),
     Scope(IdType),
 }
@@ -14,6 +15,7 @@ impl fmt::Debug for TypeKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             TypeKind::PrimitiveType(primitive) => write!(f, "{:?}", primitive),
+            TypeKind::Polymorphism(primitives) => write!(f, "{:?}", primitives),
             TypeKind::Function(_, args, ret_type) => {
                 write!(f, "args:{:?} return:{:?}", args, ret_type)
             }
@@ -31,6 +33,13 @@ impl PartialEq for TypeKind {
             TypeKind::PrimitiveType(left) => {
                 if let TypeKind::PrimitiveType(right) = other {
                     left == right
+                } else {
+                    false
+                }
+            }
+            TypeKind::Polymorphism(left_types) => {
+                if let Some(_) = left_types.into_iter().find(|left_type| *left_type == other) {
+                    true
                 } else {
                     false
                 }

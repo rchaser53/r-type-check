@@ -141,6 +141,15 @@ pub enum TypeResult {
     Unknown,
 }
 
+impl TypeResult {
+    pub fn extract_type_kind(&self) -> Option<TypeKind> {
+        match self {
+            TypeResult::Resolved(type_kind) => Some(type_kind.clone()),
+            _ => None,
+        }
+    }
+}
+
 impl PartialEq for TypeResult {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
@@ -149,5 +158,4 @@ impl PartialEq for TypeResult {
         }
     }
 }
-
 impl Eq for TypeResult {}

@@ -1,5 +1,6 @@
 use combine::stream::state::SourcePosition;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::env;
 
 use crate::error::*;
@@ -24,13 +25,17 @@ use string::*;
 
 #[derive(Clone, Debug)]
 pub struct Context {
-    pub scope: LocalScope,
     pub current_left_id: RefCell<Option<Id>>,
+    pub current_called_id: RefCell<Option<Id>>,
+    pub called_map: RefCell<HashMap<Field, TypeResult>>,
+    pub scope: LocalScope,
 }
 impl Context {
     pub fn new() -> Self {
         Context {
             current_left_id: RefCell::new(None),
+            current_called_id: RefCell::new(None),
+            called_map: RefCell::new(HashMap::new()),
             scope: LocalScope::new(None),
         }
     }
@@ -268,7 +273,9 @@ pub fn resolve_expr(exp: Expr, context: &Context) -> Result<TypeResult> {
         Node::Unary(uni) => resolve_uni(uni, context),
         Node::Binary(left, op, right) => resolve_binary(*left, op, *right, context),
         Node::Fn(Function(args, body)) => resolve_fn(exp_id, args, body, context),
-        Node::Call(accessiable, boxed_args) => resolve_call(accessiable, boxed_args, context),
+        Node::Call(accessiable, boxed_args) => {
+            resolve_call(exp_id, accessiable, boxed_args, context)
+        }
     };
 
     match result {
@@ -329,6 +336,7 @@ pub fn resolve_fn(
 }
 
 pub fn resolve_call(
+    id: Id,
     accessiable: Accessiable,
     args: Vec<Expr>,
     context: &Context,
@@ -337,6 +345,20 @@ pub fn resolve_call(
         Accessiable::Field(field) => field,
         Accessiable::Index(Index(field, _)) => field,
     };
+
+    // check call recursively
+    let current_call_id = context.current_called_id.borrow_mut().clone();
+    let called_same_fn = Some(id.clone()) == current_call_id;
+    if let Some(type_result) = context.called_map.borrow_mut().get(&field) {
+        if called_same_fn {
+            // doesn't need to initialize current_called_id
+            // because call recursively
+            return Ok(type_result.clone());
+        }
+    }
+
+    let temp_called_id = context.current_called_id.borrow_mut().clone();
+    context.current_called_id.replace(Some(id));
 
     let first_type = if let Some(exp) = args.first() {
         match resolve_expr(exp.clone(), context)? {
@@ -347,7 +369,7 @@ pub fn resolve_call(
         None
     };
     let id = get_id(field.id.clone(), field.child.clone()).0;
-    let type_result = resolve_field(field, vec![], first_type, context)?;
+    let type_result = resolve_field(field.clone(), vec![], first_type, context)?;
 
     let arg_len = args.len();
     let mut arg_type_vec = Vec::with_capacity(arg_len);
@@ -385,6 +407,7 @@ pub fn resolve_call(
                         let arg_exp = if let Some(arg_exp) = args.get(index) {
                             arg_exp
                         } else {
+                            context.current_called_id.replace(temp_called_id);
                             return Err(create_arg_length_is_not_match(
                                 &id,
                                 args.len(),
@@ -394,6 +417,7 @@ pub fn resolve_call(
                         let arg_type_result = resolve_expr(arg_exp.clone(), &fn_context)?;
                         let param_type_result = TypeResult::Resolved(*param_type_kind.clone());
                         if arg_type_result != param_type_result {
+                            context.current_called_id.replace(temp_called_id);
                             return Err(create_param_and_arg_type_is_mismatch_err(
                                 &arg_type_result,
                                 &param_type_result,
@@ -437,14 +461,24 @@ pub fn resolve_call(
     };
 
     DEBUG_INFO!("resolve_call", &fn_context);
-    let fn_return_type_result = match resolve_statement(bodys, &fn_context) {
-        Ok(result) => result,
-        Err(err) => {
-            ERROR_STACK.push(err.clone());
-            return Err(err);
+    let fn_return_type_result = if called_same_fn {
+        TypeResult::Unknown
+    } else {
+        match resolve_statement(bodys, &fn_context) {
+            Ok(result) => result,
+            Err(err) => {
+                ERROR_STACK.push(err.clone());
+                context.current_called_id.replace(temp_called_id);
+                return Err(err);
+            }
         }
     };
 
+    context
+        .called_map
+        .borrow_mut()
+        .insert(field.clone(), fn_return_type_result.clone());
+    context.current_called_id.replace(temp_called_id);
     match (&fn_return_type_result, &result) {
         (TypeResult::Resolved(left_type_kind), TypeResult::Resolved(right_type_kind)) => {
             if !compare_type_kind(left_type_kind.clone(), right_type_kind.clone(), context) {
@@ -500,6 +534,8 @@ pub fn resolve_binary(
     right: Expr,
     context: &Context,
 ) -> Result<TypeResult> {
+    let left_id = left.id;
+    let right_id = right.id;
     match (left.node, right.node) {
         (Node::Binary(l_left, l_op, l_right), Node::Binary(r_left, r_op, r_right)) => {
             let l_resolved = resolve_binary(*l_left, l_op, *l_right, context)?;
@@ -513,7 +549,7 @@ pub fn resolve_binary(
         }
         (Node::Binary(l_left, l_op, l_right), Node::Call(r_field, args)) => {
             let l_resolved = resolve_binary(*l_left, l_op, *l_right, context)?;
-            let r_resolved = resolve_call(r_field, args, context)?;
+            let r_resolved = resolve_call(right_id, r_field, args, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         (Node::Unary(left), Node::Binary(r_left, r_op, r_right)) => {
@@ -528,22 +564,22 @@ pub fn resolve_binary(
         }
         (Node::Unary(left), Node::Call(r_field, args)) => {
             let l_resolved = resolve_uni(left, context)?;
-            let r_resolved = resolve_call(r_field, args, context)?;
+            let r_resolved = resolve_call(right_id, r_field, args, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         (Node::Call(l_field, args), Node::Binary(r_left, r_op, r_right)) => {
-            let l_resolved = resolve_call(l_field, args, context)?;
+            let l_resolved = resolve_call(left_id, l_field, args, context)?;
             let r_resolved = resolve_binary(*r_left, r_op, *r_right, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         (Node::Call(l_field, args), Node::Unary(right)) => {
-            let l_resolved = resolve_call(l_field, args, context)?;
+            let l_resolved = resolve_call(left_id, l_field, args, context)?;
             let r_resolved = resolve_uni(right, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         (Node::Call(l_field, left_args), Node::Call(r_field, right_args)) => {
-            let l_resolved = resolve_call(l_field, left_args, context)?;
-            let r_resolved = resolve_call(r_field, right_args, context)?;
+            let l_resolved = resolve_call(left_id, l_field, left_args, context)?;
+            let r_resolved = resolve_call(right_id, r_field, right_args, context)?;
             resolve_type_result_with_op(l_resolved, op, r_resolved, context)
         }
         _ => unreachable!(),
@@ -1873,6 +1909,24 @@ mod test {
         assert_infer_err!(
             input,
             create_arg_length_is_not_match(&Id(String::from("abc")), 0, 1)
+        );
+    }
+
+    #[test]
+    fn recursive() {
+        let input = r#"
+            let abc = fn(a) {
+              if (a > 10) {
+                  abc(1);
+              }
+              a = a+1;
+            } in (
+              abc(0)
+            )
+        "#;
+        assert_infer!(
+            input,
+            TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Void))
         );
     }
 }
