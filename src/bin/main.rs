@@ -32,8 +32,10 @@ fn main() {
     };
     match compile(&input_str) {
         Ok(_) => exit(0),
-        Err(err) => {
-            println!("{}", err);
+        Err(err_stack) => {
+            for err in err_stack {
+                println!("{}", err.create_message());
+            }
             exit(1)
         }
     }

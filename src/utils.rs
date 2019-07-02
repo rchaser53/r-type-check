@@ -50,6 +50,10 @@ impl Pool {
 
 pub struct ErrorStack(Mutex<Vec<TypeError>>);
 impl ErrorStack {
+    pub fn new() -> ErrorStack {
+        ErrorStack(Mutex::new(vec![]))
+    }
+
     pub fn push(&self, error: TypeError) {
         let mut temp = self.0.lock().unwrap();
         temp.push(error);
@@ -60,8 +64,8 @@ impl ErrorStack {
         temp.len()
     }
 
-    pub fn new() -> ErrorStack {
-        ErrorStack(Mutex::new(vec![]))
+    pub fn emit(&self) -> Vec<TypeError> {
+        self.0.lock().unwrap().to_vec()
     }
 }
 

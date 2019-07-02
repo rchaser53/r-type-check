@@ -22,16 +22,18 @@ use combine::stream::state::{SourcePosition, State};
 use combine::Parser;
 
 use crate::ast::*;
+use crate::error::*;
 use crate::infer::*;
 use crate::statement::*;
+use crate::utils::*;
 
-pub fn compile(input: &str) -> Result<(), String> {
+pub fn compile(input: &str) -> Result<(), Vec<TypeError>> {
     match ast().easy_parse(State::new(input)) {
         Ok(result) => {
             let (statements, _): (Vec<Statement>, State<&str, SourcePosition>) = result;
             match resolve_statement(statements, &Context::new()) {
                 Ok(_) => Ok(()),
-                Err(err) => Err(format!("{:?}", err)),
+                Err(_) => Err(ERROR_STACK.emit()),
             }
         }
         Err(err) => {
