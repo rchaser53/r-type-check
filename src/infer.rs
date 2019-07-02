@@ -628,8 +628,6 @@ pub fn resolve_object(
     id: &Id,
     context: &Context,
 ) -> Result<TypeResult> {
-    // dbg!(&object_scope_id);
-    // dbg!(&context);
     if let Some(scope) = fetch_object_scope(object_scope_id.clone(), context) {
         if let Some(type_result) = scope.type_map.borrow_mut().try_get(&id) {
             Ok(type_result.clone())

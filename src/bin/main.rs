@@ -1,6 +1,8 @@
+extern crate regex;
 extern crate clap;
 use crate::r_type_check::compile;
 
+use regex::Regex;
 use clap::{App, Arg};
 use r_type_check;
 use std::{fs, str};
@@ -17,7 +19,13 @@ fn main() {
         )
         .get_matches();
     let input_str = if let Some(input) = matches.value_of("INPUT") {
-        read_file(input)
+        let re = Regex::new(r"\.rtc$").unwrap();
+        if re.is_match(input) {
+            read_file(input)
+        } else {
+            println!("file extension should be .rtc");
+            exit(1);
+        }
     } else {
         panic!("should input file name")
     };
