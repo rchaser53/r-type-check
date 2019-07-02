@@ -373,7 +373,6 @@ pub fn resolve_call(
     };
 
     DEBUG_INFO!("resolve_call", &fn_context);
-    let left_id = fn_context.current_left_id.borrow_mut().clone();
     let fn_return_type_result = resolve_statement(bodys, &fn_context)?;
 
     match (&fn_return_type_result, &result) {
@@ -384,25 +383,15 @@ pub fn resolve_call(
                     &TypeResult::Resolved(right_type_kind.clone()),
                 ));
             }
-            // when return type is objecdt
-            // need to set object_scope to context
-            if let TypeKind::Scope(_) = left_type_kind {
-                if let Some(id) = left_id {
-                    let object_id = IdType::Object(ObjectId(id));
-                    let insert_scope = fn_context
-                        .scope
-                        .scope_map
-                        .borrow_mut()
-                        .get(&object_id)
-                        .unwrap()
-                        .clone();
 
-                    context
-                        .scope
-                        .scope_map
-                        .borrow_mut()
-                        .insert(object_id, insert_scope);
-                }
+            // when return type is object
+            // need to set object_scope to context
+            for (key, value) in fn_context.scope.scope_map.borrow_mut().iter() {
+                context
+                    .scope
+                    .scope_map
+                    .borrow_mut()
+                    .insert(key.clone(), value.clone());
             }
 
             Ok(fn_return_type_result)
@@ -639,6 +628,8 @@ pub fn resolve_object(
     id: &Id,
     context: &Context,
 ) -> Result<TypeResult> {
+    // dbg!(&object_scope_id);
+    // dbg!(&context);
     if let Some(scope) = fetch_object_scope(object_scope_id.clone(), context) {
         if let Some(type_result) = scope.type_map.borrow_mut().try_get(&id) {
             Ok(type_result.clone())
@@ -773,8 +764,8 @@ pub fn resolve_hash(
             if old_object_scope != hash_scope {
                 return Err(create_hash_mismatch_err(
                     &hash_scope_id.0,
-                    &old_object_scope.type_map,
-                    &hash_scope.type_map,
+                    &old_object_scope.type_map.borrow_mut().clone(),
+                    &hash_scope.type_map.borrow_mut().clone(),
                 ));
             }
         } else {

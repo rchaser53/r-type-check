@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::fmt;
 
 use combine::stream::state::SourcePosition;
@@ -125,11 +124,7 @@ pub fn create_cannnot_assign(id: &Id, wrong_type: &TypeResult) -> TypeError {
     ))
 }
 
-pub fn create_hash_mismatch_err(
-    id: &Id,
-    defined: &RefCell<TypeMap>,
-    new: &RefCell<TypeMap>,
-) -> TypeError {
+pub fn create_hash_mismatch_err(id: &Id, defined: &TypeMap, new: &TypeMap) -> TypeError {
     TypeError::new(format!(
         "{:?} is used two type. defined:{:?} new:{:?}",
         id, defined, new
