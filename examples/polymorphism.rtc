@@ -1,0 +1,6 @@
+let abc = fn(a) {
+  return a;
+} in (
+    abc("def") + "ghi";
+    abc(1) + "123";
+)
