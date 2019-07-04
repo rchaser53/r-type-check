@@ -2,8 +2,8 @@ use crate::error::*;
 use crate::infer::*;
 
 pub fn resolve_array_method(
-    parent_id: &Id,
-    id: &Id,
+    parent_id: Id,
+    id: Id,
     first_call_arg_type: Option<TypeKind>,
     context: &Context,
 ) -> Result<TypeResult> {
@@ -12,7 +12,7 @@ pub fn resolve_array_method(
             PrimitiveType::Int,
         ))),
         "push" => {
-            match get_array_method_type(parent_id, context) {
+            match get_array_method_type(parent_id.clone(), context) {
                 TypeResult::Resolved(TypeKind::Function(_, _, return_type)) => {
                     if let Some(first_arg_type_kind) = first_call_arg_type {
                         match return_type {
@@ -44,40 +44,38 @@ pub fn resolve_array_method(
             };
 
             Ok(TypeResult::Resolved(TypeKind::Function(
-                parent_id.clone(),
+                parent_id,
                 vec![OpeaqueType::Unknown],
                 OpeaqueType::Defined(Box::new(TypeKind::PrimitiveType(PrimitiveType::Void))),
             )))
         }
         "pop" => Ok(get_array_method_type(parent_id, context)),
-        _ => Err(create_undefined_field_err(parent_id, id)),
+        _ => Err(create_undefined_field_err(&parent_id, &id)),
     }
 }
 
-fn get_array_method_type(parent_id: &Id, context: &Context) -> TypeResult {
-    let result = context
+fn get_array_method_type(parent_id: Id, context: &Context) -> TypeResult {
+    if let Some(result) = context
         .scope
         .type_map
         .borrow_mut()
-        .try_get(parent_id)
+        .try_get(&parent_id)
         .and_then(|type_result| match type_result {
             TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Array(array))) => {
-                Some(array.clone())
+                Some(array)
             }
             _ => unimplemented!(),
-        });
-    if let Some(result) = result {
+        })
+    {
         match result {
             ArrayType::Defined(type_kind) => TypeResult::Resolved(TypeKind::Function(
-                parent_id.clone(),
+                parent_id,
                 vec![],
-                OpeaqueType::Defined(Box::new(TypeKind::PrimitiveType(*type_kind))),
+                OpeaqueType::Defined(Box::new(TypeKind::PrimitiveType(*type_kind.clone()))),
             )),
-            ArrayType::Unknown => TypeResult::Resolved(TypeKind::Function(
-                parent_id.clone(),
-                vec![],
-                OpeaqueType::Unknown,
-            )),
+            ArrayType::Unknown => {
+                TypeResult::Resolved(TypeKind::Function(parent_id, vec![], OpeaqueType::Unknown))
+            }
         }
     } else {
         TypeResult::Unknown

@@ -72,15 +72,15 @@ impl fmt::Debug for Field {
 impl Eq for Field {}
 
 impl Uni {
-    pub fn to_string(&self) -> String {
+    pub fn to_string(self) -> String {
         match self {
             Uni::Id(id) => id.0.to_string(),
             Uni::Array(array) => array
-                .iter()
+                .into_iter()
                 .map(|uni| uni.to_string())
                 .collect::<Vec<String>>()
                 .join(","),
-            Uni::String(string_) => string_.clone(),
+            Uni::String(string_) => string_,
             Uni::Number(num) => num.to_string(),
             Uni::Boolean(boolean) => boolean.to_string(),
             Uni::Index(Index(field, indexes)) => format!(

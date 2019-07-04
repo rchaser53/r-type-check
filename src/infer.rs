@@ -729,13 +729,7 @@ pub fn resolve_field_object(
         },
         TypeResult::Resolved(type_kind) => {
             // check property for primitive type
-            resolve_unique_field(
-                &current_id,
-                &field.id.0,
-                &type_kind,
-                first_call_arg,
-                context,
-            )
+            resolve_unique_field(current_id, field.id.0, type_kind, first_call_arg, context)
         }
         type_result => Ok(type_result),
     }
@@ -759,9 +753,9 @@ pub fn resolve_object(
 }
 
 pub fn resolve_unique_field(
-    parent_id: &Id,
-    id: &Id,
-    type_kind: &TypeKind,
+    parent_id: Id,
+    id: Id,
+    type_kind: TypeKind,
     first_call_arg: Option<TypeKind>,
     context: &Context,
 ) -> Result<TypeResult> {

@@ -126,7 +126,7 @@ impl TypeMap {
             match (defined_type, &new_type) {
                 (TypeResult::Resolved(ref defined), TypeResult::Resolved(ref new)) => {
                     if defined == new {
-                        Ok(self.0.insert(id, new_type.clone()).unwrap())
+                        Ok(self.0.insert(id, new_type).unwrap())
                     } else {
                         Err(create_assign_conflict_type_err(&id, defined, &new))
                     }
@@ -168,9 +168,9 @@ pub enum TypeResult {
 }
 
 impl TypeResult {
-    pub fn extract_type_kind(&self) -> Option<TypeKind> {
+    pub fn extract_type_kind(self) -> Option<TypeKind> {
         match self {
-            TypeResult::Resolved(type_kind) => Some(type_kind.clone()),
+            TypeResult::Resolved(type_kind) => Some(type_kind),
             _ => None,
         }
     }
