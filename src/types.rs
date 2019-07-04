@@ -37,13 +37,10 @@ impl PartialEq for TypeKind {
                     false
                 }
             }
-            TypeKind::Polymorphism(left_types) => {
-                if let Some(_) = left_types.into_iter().find(|left_type| *left_type == other) {
-                    true
-                } else {
-                    false
-                }
-            }
+            TypeKind::Polymorphism(left_types) => left_types
+                .iter()
+                .find(|left_type| *left_type == other)
+                .is_some(),
             TypeKind::Function(_, left_args, left_ret) => {
                 if let TypeKind::Function(_, right_args, right_ret) = other {
                     left_args == right_args && left_ret == right_ret

@@ -86,16 +86,16 @@ parser! {
                 match unary_ {
                     Uni::Field(field) => {
                         value.renew_parent_id(field.clone());
-                        return Assign(Accessiable::Field(field), value);
+                        Assign(Accessiable::Field(field), value)
                     },
                     Uni::Id(id) => {
                         let field = Field::new(None, id, None);
                         value.renew_parent_id(field.clone());
-                        return Assign(Accessiable::Field(field), value);
+                        Assign(Accessiable::Field(field), value)
                     },
                     Uni::Index(Index(field, indexes)) => {
                         value.renew_parent_id(field.clone());
-                        return Assign(Accessiable::Index(Index(field, indexes)), value)
+                        Assign(Accessiable::Index(Index(field, indexes)), value)
                     },
                     _ => unreachable!()
                 }
@@ -165,7 +165,8 @@ parser! {
         skip_spaces(expr()).map(|exp| Statement::new(StmtKind::Expr(exp)))
     }
 }
-
+type ElseIfElse = (Vec<(Expr, Vec<Statement>)>, Option<Vec<Statement>>);
+type IfElseIf = ((Expr, Vec<Statement>), Vec<(Expr, Vec<Statement>)>);
 parser! {
    pub fn if_['a]()(MyStream<'a>) -> Statement
     {
@@ -190,10 +191,7 @@ parser! {
             many(statement()),
         ))))
         .map(
-            |(mut else_ifs, else_statement): (
-                Vec<(Expr, Vec<Statement>)>,
-                Option<Vec<Statement>>,
-            )| {
+            |(mut else_ifs, else_statement): ElseIfElse| {
                 if let Some(else_statement) = else_statement {
                     else_ifs.push((
                         Expr::new(Unary(Uni::Boolean(Boolean::True))),
@@ -208,10 +206,7 @@ parser! {
         string_skip_spaces("if")
           .with(create_if())
           .and(else_if()).map(
-            |((cond, stetements_), mut elses): (
-                (Expr, Vec<Statement>),
-                Vec<(Expr, Vec<Statement>)>,
-            )| {
+            |((cond, stetements_), mut elses): IfElseIf| {
                 let mut if_vecs = vec![(cond, stetements_)];
                 if_vecs.append(&mut elses);
                 Statement::new(StmtKind::If(if_vecs))

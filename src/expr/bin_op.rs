@@ -21,7 +21,7 @@ pub enum BinOpKind {
 }
 
 impl BinOpKind {
-    pub fn priority(&self) -> usize {
+    pub fn priority(self) -> usize {
         match self {
             BinOpKind::Add => 2,
             BinOpKind::Sub => 2,

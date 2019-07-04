@@ -87,7 +87,7 @@ impl Uni {
                 "{:?}{}",
                 field,
                 indexes
-                    .into_iter()
+                    .iter()
                     .map(|index| format!("[{}]", index))
                     .collect::<Vec<String>>()
                     .join("")
@@ -199,7 +199,6 @@ parser! {
                     let mut first_field = Field::new(None, first_word.clone(), None);
                     let child =
                         left_words
-                            .clone()
                             .iter()
                             .fold(None, |previous: Option<Field>, id| {
                                 fn set_field_to_leaf(

@@ -119,7 +119,7 @@ fn resolve_let_statement(
         Ok(result) => Ok(result),
         Err(err) => {
             ERROR_STACK.push(err.clone());
-            return Err(err);
+            Err(err)
         }
     }
 }
@@ -269,7 +269,7 @@ fn resolve_if_statement(
         };
     }
 
-    let result_type = if if_return_types.len() == 0 {
+    let result_type = if if_return_types.is_empty() {
         TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Void))
     } else {
         if_return_types.first().unwrap().0.clone()
