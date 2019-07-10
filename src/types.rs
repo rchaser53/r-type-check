@@ -7,8 +7,16 @@ use crate::scope::*;
 pub enum TypeKind {
     PrimitiveType(PrimitiveType),
     Polymorphism(Vec<TypeKind>),
-    Function(Id, Vec<OpeaqueType>, OpeaqueType),
+    Function(FunctionType),
     Scope(IdType),
+}
+
+#[derive(Clone)]
+pub struct FunctionType(pub Id, pub Vec<OpeaqueType>, pub OpeaqueType);
+impl fmt::Debug for FunctionType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "args:{:?} return:{:?}", self.1, self.2)
+    }
 }
 
 impl fmt::Debug for TypeKind {
@@ -16,9 +24,7 @@ impl fmt::Debug for TypeKind {
         match self {
             TypeKind::PrimitiveType(primitive) => write!(f, "{:?}", primitive),
             TypeKind::Polymorphism(primitives) => write!(f, "{:?}", primitives),
-            TypeKind::Function(_, args, ret_type) => {
-                write!(f, "args:{:?} return:{:?}", args, ret_type)
-            }
+            TypeKind::Function(fn_type) => write!(f, "{:?}", fn_type),
             TypeKind::Scope(id_type) => match id_type {
                 IdType::Local(local_id) => write!(f, "local id:{:?}", local_id),
                 IdType::Object(object_id) => write!(f, "object id:{:?}", object_id),
@@ -40,8 +46,8 @@ impl PartialEq for TypeKind {
             TypeKind::Polymorphism(left_types) => {
                 left_types.iter().any(|left_type| left_type == other)
             }
-            TypeKind::Function(_, left_args, left_ret) => {
-                if let TypeKind::Function(_, right_args, right_ret) = other {
+            TypeKind::Function(FunctionType(_, left_args, left_ret)) => {
+                if let TypeKind::Function(FunctionType(_, right_args, right_ret)) = other {
                     left_args == right_args && left_ret == right_ret
                 } else {
                     false
@@ -62,7 +68,7 @@ impl Eq for TypeKind {}
 impl TypeKind {
     pub fn convert_opeaque(self) -> OpeaqueType {
         match &self {
-            TypeKind::PrimitiveType(_) | TypeKind::Function(_, _, _) => {
+            TypeKind::PrimitiveType(_) | TypeKind::Function(FunctionType(_, _, _)) => {
                 OpeaqueType::Defined(Box::new(self))
             }
             _ => panic!("failed to convert TypeKind::Scope {:?}", self),

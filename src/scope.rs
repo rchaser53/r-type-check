@@ -108,11 +108,11 @@ impl TypeMap {
         let mut hash_map = HashMap::new();
         hash_map.insert(
             Id(String::from("println")),
-            TypeResult::Resolved(TypeKind::Function(
+            TypeResult::Resolved(TypeKind::Function(FunctionType(
                 Id(String::from("println")),
                 vec![OpeaqueType::Unknown],
                 OpeaqueType::Defined(Box::new(TypeKind::PrimitiveType(PrimitiveType::Void))),
-            )),
+            ))),
         );
         hash_map
     }

@@ -6,11 +6,11 @@ pub fn resolve_int_method(parent_id: Id, id: Id, _context: &Context) -> Result<T
         "length" => Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
             PrimitiveType::Int,
         ))),
-        "to_string" => Ok(TypeResult::Resolved(TypeKind::Function(
+        "to_string" => Ok(TypeResult::Resolved(TypeKind::Function(FunctionType(
             parent_id,
             vec![],
             OpeaqueType::Defined(Box::new(TypeKind::PrimitiveType(PrimitiveType::String))),
-        ))),
+        )))),
         _ => Err(create_undefined_field_err(&parent_id, &id)),
     }
 }

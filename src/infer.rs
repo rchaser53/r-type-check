@@ -341,11 +341,11 @@ pub fn resolve_fn(
         _ => unreachable!(),
     };
     // TBD: need to think more
-    Ok(TypeResult::Resolved(TypeKind::Function(
+    Ok(TypeResult::Resolved(TypeKind::Function(FunctionType(
         id,
         fn_arg_types,
         return_type,
-    )))
+    ))))
 }
 
 pub fn resolve_call(
@@ -393,11 +393,11 @@ pub fn resolve_call(
                 *item = OpeaqueType::Unknown
             }
 
-            let type_result = TypeResult::Resolved(TypeKind::Function(
+            let type_result = TypeResult::Resolved(TypeKind::Function(FunctionType(
                 id.clone(),
                 arg_type_vec,
                 OpeaqueType::Unknown,
-            ));
+            )));
 
             context
                 .scope
@@ -412,7 +412,7 @@ pub fn resolve_call(
 
     let fn_context = context.clone();
     let result = match ret_result {
-        TypeResult::Resolved(TypeKind::Function(_, params, return_opeaque)) => {
+        TypeResult::Resolved(TypeKind::Function(FunctionType(_, params, return_opeaque))) => {
             let params_length = params.len();
             for (index, param) in params.into_iter().enumerate() {
                 match param {
@@ -1405,7 +1405,11 @@ mod test {
         assert_infer_err!(
             input,
             create_type_mismatch_err(
-                &TypeKind::Function(Id(String::from("whatever")), vec![], OpeaqueType::Unknown),
+                &TypeKind::Function(FunctionType(
+                    Id(String::from("whatever")),
+                    vec![],
+                    OpeaqueType::Unknown
+                )),
                 &TypeKind::PrimitiveType(PrimitiveType::Int),
             )
         );

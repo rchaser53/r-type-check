@@ -13,7 +13,7 @@ pub fn resolve_array_method(
         ))),
         "push" => {
             match get_array_method_type(parent_id.clone(), context) {
-                TypeResult::Resolved(TypeKind::Function(_, _, return_type)) => {
+                TypeResult::Resolved(TypeKind::Function(FunctionType(_, _, return_type))) => {
                     if let Some(first_arg_type_kind) = first_call_arg_type {
                         match return_type {
                             OpeaqueType::Defined(type_kind) => {
@@ -43,11 +43,11 @@ pub fn resolve_array_method(
                 _ => {}
             };
 
-            Ok(TypeResult::Resolved(TypeKind::Function(
+            Ok(TypeResult::Resolved(TypeKind::Function(FunctionType(
                 parent_id,
                 vec![OpeaqueType::Unknown],
                 OpeaqueType::Defined(Box::new(TypeKind::PrimitiveType(PrimitiveType::Void))),
-            )))
+            ))))
         }
         "pop" => Ok(get_array_method_type(parent_id, context)),
         _ => Err(create_undefined_field_err(&parent_id, &id)),
@@ -68,14 +68,18 @@ fn get_array_method_type(parent_id: Id, context: &Context) -> TypeResult {
         })
     {
         match result {
-            ArrayType::Defined(type_kind) => TypeResult::Resolved(TypeKind::Function(
+            ArrayType::Defined(type_kind) => {
+                TypeResult::Resolved(TypeKind::Function(FunctionType(
+                    parent_id,
+                    vec![],
+                    OpeaqueType::Defined(Box::new(TypeKind::PrimitiveType(*type_kind.clone()))),
+                )))
+            }
+            ArrayType::Unknown => TypeResult::Resolved(TypeKind::Function(FunctionType(
                 parent_id,
                 vec![],
-                OpeaqueType::Defined(Box::new(TypeKind::PrimitiveType(*type_kind.clone()))),
-            )),
-            ArrayType::Unknown => {
-                TypeResult::Resolved(TypeKind::Function(parent_id, vec![], OpeaqueType::Unknown))
-            }
+                OpeaqueType::Unknown,
+            ))),
         }
     } else {
         TypeResult::Unknown
