@@ -453,13 +453,7 @@ pub fn resolve_call(
                     }
                 }
             }
-
-            match return_opeaque {
-                OpeaqueType::Defined(boxed_type_kind) => {
-                    Ok(TypeResult::Resolved(*boxed_type_kind.clone()))
-                }
-                OpeaqueType::IdOnly(_) | OpeaqueType::Unknown => Ok(TypeResult::Unknown),
-            }
+            Ok(return_opeaque.convert_type_result())
         }
         TypeResult::Resolved(type_kind) => Err(create_cannot_call_err(&id, &type_kind)),
         TypeResult::IdOnly(_) | TypeResult::Unknown => Ok(TypeResult::Unknown),

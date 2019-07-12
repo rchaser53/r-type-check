@@ -104,6 +104,16 @@ impl PartialEq for OpeaqueType {
     }
 }
 impl Eq for OpeaqueType {}
+impl OpeaqueType {
+    pub fn convert_type_result(self) -> TypeResult {
+        match self {
+            OpeaqueType::Defined(boxed_type_kind) => {
+                TypeResult::Resolved(*boxed_type_kind.clone())
+            }
+            OpeaqueType::IdOnly(_) | OpeaqueType::Unknown => TypeResult::Unknown,
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub enum PrimitiveType {
