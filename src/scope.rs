@@ -73,7 +73,7 @@ pub struct LocalScope {
     pub id: ObjectId,
     pub scope_map: RefCell<HashMap<IdType, Box<Scope>>>,
     pub type_map: RefCell<TypeMap>,
-    pub function_map: RefCell<HashMap<Id, Function>>,
+    pub function_map: RefCell<HashMap<Id, FunctionType>>,
 }
 
 impl LocalScope {

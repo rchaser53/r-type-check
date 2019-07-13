@@ -11,7 +11,7 @@ pub enum TypeKind {
     Scope(IdType),
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct FunctionType(pub Id, pub Vec<OpeaqueType>, pub OpeaqueType);
 impl fmt::Debug for FunctionType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -107,9 +107,7 @@ impl Eq for OpeaqueType {}
 impl OpeaqueType {
     pub fn convert_type_result(self) -> TypeResult {
         match self {
-            OpeaqueType::Defined(boxed_type_kind) => {
-                TypeResult::Resolved(*boxed_type_kind.clone())
-            }
+            OpeaqueType::Defined(boxed_type_kind) => TypeResult::Resolved(*boxed_type_kind.clone()),
             OpeaqueType::IdOnly(_) | OpeaqueType::Unknown => TypeResult::Unknown,
         }
     }
