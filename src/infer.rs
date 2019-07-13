@@ -101,27 +101,26 @@ fn resolve_let_statement(
                     let Function(args, body) = function.clone();
                     let fn_context = context.clone();
                     // field.id.0.clone()が多分いらない
+                    // 自分自身を呼び出せるように把握している範囲で型をinsertする
                     fn_context.scope.type_map.borrow_mut().insert(
                         field.id.0.clone(),
-                        TypeResult::Resolved(TypeKind::Function(
-                            FunctionType(
-                                field.id.0.clone(),
-                                args.clone()
-                                    .into_iter()
-                                    .map(|id| OpeaqueType::IdOnly(id))
-                                    .collect(),
-                                OpeaqueType::Unknown,
-                            ),
-                        )),
+                        TypeResult::Resolved(TypeKind::Function(FunctionType(
+                            field.id.0.clone(),
+                            args.clone()
+                                .into_iter()
+                                .map(|id| OpeaqueType::IdOnly(id))
+                                .collect(),
+                            OpeaqueType::Unknown,
+                        ))),
                     );
-                    if let TypeResult::Resolved(TypeKind::Function(_)) =
+                    if let TypeResult::Resolved(TypeKind::Function(function_type)) =
                         resolve_fn(field.id.0.clone(), args, body, &fn_context)?
                     {
                         context
                             .scope
                             .function_map
                             .borrow_mut()
-                            .insert(field.id.0.clone(), function);
+                            .insert(field.id.0.clone(), function_type);
                     }
                 };
 
