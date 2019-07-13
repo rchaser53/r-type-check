@@ -98,11 +98,31 @@ fn resolve_let_statement(
                 let right_type_result = resolve_expr(exp.clone(), &context)?;
 
                 if let Node::Fn(function) = exp.node {
-                    context
-                        .scope
-                        .function_map
-                        .borrow_mut()
-                        .insert(field.id.0.clone(), function.clone());
+                    let Function(args, body) = function.clone();
+                    let fn_context = context.clone();
+                    // field.id.0.clone()が多分いらない
+                    fn_context.scope.type_map.borrow_mut().insert(
+                        field.id.0.clone(),
+                        TypeResult::Resolved(TypeKind::Function(
+                            FunctionType(
+                                field.id.0.clone(),
+                                args.clone()
+                                    .into_iter()
+                                    .map(|id| OpeaqueType::IdOnly(id))
+                                    .collect(),
+                                OpeaqueType::Unknown,
+                            ),
+                        )),
+                    );
+                    if let TypeResult::Resolved(TypeKind::Function(_)) =
+                        resolve_fn(field.id.0.clone(), args, body, &fn_context)?
+                    {
+                        context
+                            .scope
+                            .function_map
+                            .borrow_mut()
+                            .insert(field.id.0.clone(), function);
+                    }
                 };
 
                 context
@@ -387,7 +407,7 @@ pub fn resolve_call(
     let arg_len = args.len();
     let mut arg_type_vec = Vec::with_capacity(arg_len);
 
-    let ret_result = match type_result {
+    let field_type_result = match type_result {
         TypeResult::IdOnly(_) => {
             for item in arg_type_vec.iter_mut().take(arg_len) {
                 *item = OpeaqueType::Unknown
@@ -411,7 +431,7 @@ pub fn resolve_call(
     };
 
     let fn_context = context.clone();
-    let result = match ret_result {
+    let result = match field_type_result {
         TypeResult::Resolved(TypeKind::Function(FunctionType(_, params, return_opeaque))) => {
             let params_length = params.len();
             for (index, param) in params.into_iter().enumerate() {
@@ -438,7 +458,16 @@ pub fn resolve_call(
                         }
                     }
                     OpeaqueType::IdOnly(arg_id) => {
-                        let arg_exp = args.get(index).unwrap();
+                        let arg_exp = if let Some(arg_exp) = args.get(index) {
+                            arg_exp
+                        } else {
+                            context.current_called_id.replace(temp_called_id);
+                            return Err(create_arg_length_is_not_match(
+                                &id,
+                                args.len(),
+                                params_length,
+                            ));
+                        };
                         let arg_type_result = resolve_expr(arg_exp.clone(), &fn_context)?;
                         // save type information for paramerter in function
                         // and retry type check somewhere
