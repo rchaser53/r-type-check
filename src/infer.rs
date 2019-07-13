@@ -342,6 +342,16 @@ pub fn resolve_fn(
         }
     };
 
+    // objectだった場合はcontextにその値を保存する
+    if let TypeResult::Resolved(TypeKind::Scope(ref id_type)) = result {
+        let fn_scope = fn_context.scope.scope_map.borrow_mut();
+        context
+            .scope
+            .scope_map
+            .borrow_mut()
+            .insert(id_type.clone(), fn_scope.get(id_type).unwrap().clone());
+    }
+
     let fn_arg_types = args
         .into_iter()
         .map(|id| {
