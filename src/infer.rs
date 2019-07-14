@@ -194,7 +194,7 @@ fn resolve_assign_index(
     context: &Context,
 ) -> Result<TypeResult> {
     let position = exp.position.lo;
-    let right_type_result = resolve_expr(exp.clone(), context)?;
+    let right_type_result = resolve_expr(exp, context)?;
     if let Some(left_type) = context.scope.type_map.borrow_mut().try_get(&field.id.0) {
         if let TypeResult::Resolved(left_type) = left_type {
             if let TypeKind::PrimitiveType(PrimitiveType::Array(array_type)) = left_type {
@@ -484,7 +484,7 @@ pub fn resolve_call(
                             .scope
                             .type_map
                             .borrow_mut()
-                            .insert(arg_id.clone(), arg_type_result);
+                            .insert(arg_id, arg_type_result);
                     }
                     _ => {
                         // TBD: need to check correctly
@@ -523,7 +523,7 @@ pub fn resolve_call(
     context
         .called_map
         .borrow_mut()
-        .insert(field.clone(), fn_return_type_result.clone());
+        .insert(field, fn_return_type_result.clone());
     context.current_called_id.replace(temp_called_id);
     match (&fn_return_type_result, &result) {
         (TypeResult::Resolved(left_type_kind), TypeResult::Resolved(right_type_kind)) => {
@@ -575,7 +575,7 @@ fn compare_type_kind(left: TypeKind, right: TypeKind, context: &Context) -> bool
 
 pub fn get_id(id: ObjectId, field: Option<Box<Field>>) -> ObjectId {
     if let Some(field) = field {
-        get_id(field.id.clone(), field.child)
+        get_id(field.id, field.child)
     } else {
         id
     }
@@ -662,8 +662,8 @@ pub fn resolve_index(field: Field, _indexes: Vec<usize>, context: &Context) -> R
     let id = get_id(field.id.clone(), field.child.clone()).0;
     let type_result = resolve_field(field, vec![], None, context)?;
 
-    match &type_result {
-        TypeResult::Resolved(TypeKind::PrimitiveType(primitive_type)) => {
+    match type_result {
+        TypeResult::Resolved(TypeKind::PrimitiveType(ref primitive_type)) => {
             if let PrimitiveType::Array(array_type) = primitive_type {
                 match array_type {
                     ArrayType::Defined(primitive_type) => Ok(TypeResult::Resolved(
@@ -716,8 +716,9 @@ pub fn resolve_field(
             return Ok(TypeResult::Unknown);
         }
 
-        let (first_id, field_object_ids) = field_object_ids.split_first().unwrap();
-        let mut result_scope = if let Some(scope) = fetch_object_scope(first_id.clone(), context) {
+        let first_id = field_object_ids.remove(0);
+        let field_object_ids = field_object_ids;
+        let mut result_scope = if let Some(scope) = fetch_object_scope(first_id, context) {
             scope
         } else {
             return Ok(TypeResult::Unknown);
@@ -725,7 +726,7 @@ pub fn resolve_field(
 
         for resolve_id in field_object_ids {
             let temp_scope =
-                if let Some(scope) = result_scope.scope_map.borrow_mut().get(resolve_id) {
+                if let Some(scope) = result_scope.scope_map.borrow_mut().get(&resolve_id) {
                     scope.clone()
                 } else {
                     // scope doesn't find
@@ -734,14 +735,9 @@ pub fn resolve_field(
             result_scope = *temp_scope;
         }
 
-        match result_scope
-            .clone()
-            .type_map
-            .borrow_mut()
-            .try_get(&current_id.0)
-            .cloned()
-        {
-            Some(result) => Ok(result),
+        let mut type_map = result_scope.type_map.borrow_mut();
+        match type_map.try_get(&current_id.0) {
+            Some(result) => Ok(result.clone()),
             _ => Ok(TypeResult::IdOnly(current_id.0)),
         }
     }
@@ -757,8 +753,8 @@ pub fn resolve_field_object(
     match type_result {
         TypeResult::Resolved(TypeKind::Scope(id_type)) => match id_type {
             IdType::Object(object_id) => {
-                let type_result = resolve_object(&object_id, &field.id.0, context);
-                let current_id = field.id.0.clone();
+                let type_result = resolve_object(object_id, &field.id.0, context);
+                let current_id = field.id.0;
                 if let Some(child) = field.child {
                     resolve_field_object(*child, current_id, type_result?, first_call_arg, context)
                 } else {
@@ -776,29 +772,15 @@ pub fn resolve_field_object(
 }
 
 /// try to get object scope
-pub fn resolve_object(
-    object_scope_id: &ObjectId,
-    id: &Id,
-    context: &Context,
-) -> Result<TypeResult> {
-    if let Some(scope) = fetch_object_scope(object_scope_id.clone(), context) {
+pub fn resolve_object(object_scope_id: ObjectId, id: &Id, context: &Context) -> Result<TypeResult> {
+    if let Some(scope) = fetch_object_scope(object_scope_id, context) {
         if let Some(type_result) = scope.type_map.borrow_mut().try_get(&id) {
             Ok(type_result.clone())
         } else {
-            unimplemented!(
-                "\nobject_scope_id:{:?},\n id:{:?},\n context:{:?}\n",
-                object_scope_id,
-                id,
-                context
-            )
+            unimplemented!()
         }
     } else {
-        unimplemented!(
-            "\nobject_scope_id:{:?},\n id:{:?},\n context:{:?}\n",
-            object_scope_id,
-            id,
-            context
-        )
+        unimplemented!()
     }
 }
 
@@ -820,7 +802,7 @@ pub fn resolve_unique_field(
         TypeKind::PrimitiveType(PrimitiveType::Array(_)) => {
             resolve_array_method(parent_id, id, first_call_arg, context)
         }
-        result => Ok(TypeResult::Resolved(result.clone())),
+        result => Ok(TypeResult::Resolved(result)),
     }
 }
 
@@ -878,7 +860,7 @@ pub fn resolve_hash(
 ) -> Result<TypeResult> {
     let hash_scope = ObjectScope::new(parent_id, None);
     let hash_scope_id = if let Some(left_id) = context.current_left_id.borrow_mut().clone() {
-        ObjectId(left_id.clone())
+        ObjectId(left_id)
     } else {
         // this is a case StmtKind::Expr(Expr::Unary(Uni::Hash))
         // so it's not used. like below
@@ -910,10 +892,7 @@ pub fn resolve_hash(
             type_result => type_result,
         };
 
-        hash_scope
-            .type_map
-            .borrow_mut()
-            .insert(key.clone(), type_result);
+        hash_scope.type_map.borrow_mut().insert(key, type_result);
     }
     context.current_left_id.replace(store_current_left_id);
 
@@ -944,39 +923,39 @@ pub fn resolve_type_result_with_op(
     right: TypeResult,
     context: &Context,
 ) -> Result<TypeResult> {
-    match (&left, &right) {
+    match (left, right) {
         (TypeResult::Resolved(ref left), TypeResult::Resolved(ref right)) => {
             check_left_op_right(left, op, right, context)
         }
-        (TypeResult::Resolved(left_type), TypeResult::IdOnly(id)) => {
-            try_insert_and_resolve_op(&left, left_type, &id, op, context)
+        (left @ TypeResult::Resolved(_), TypeResult::IdOnly(id)) => {
+            try_insert_and_resolve_op(left, id, op, context)
         }
-        (TypeResult::Resolved(_), TypeResult::Unknown) => Ok(left.clone()),
-        (TypeResult::IdOnly(id), TypeResult::Resolved(right_type)) => {
-            try_insert_and_resolve_op(&right, right_type, &id, op, context)
+        (left @ TypeResult::Resolved(_), TypeResult::Unknown) => Ok(left),
+        (TypeResult::IdOnly(id), right @ TypeResult::Resolved(_)) => {
+            try_insert_and_resolve_op(right, id, op, context)
         }
         (TypeResult::IdOnly(left_id), TypeResult::IdOnly(right_id)) => {
-            let left_result = filter_type_result(&left, &left_id, context)?;
-            let right_result = filter_type_result(&right, &right_id, context)?;
+            let left_result = filter_type_result(left_id, context)?;
+            let right_result = filter_type_result(right_id, context)?;
 
             match (left_result, right_result) {
                 (TypeResult::Resolved(left_type), TypeResult::Resolved(_)) => {
-                    Ok(TypeResult::Resolved(left_type.clone()))
+                    Ok(TypeResult::Resolved(left_type))
                 }
-                (TypeResult::Resolved(left_type), TypeResult::IdOnly(right_id)) => {
-                    try_insert_and_resolve_op(&left_result, left_type, &right_id, op, context)
+                (left_result @ TypeResult::Resolved(_), TypeResult::IdOnly(right_id)) => {
+                    try_insert_and_resolve_op(left_result, right_id, op, context)
                 }
-                (TypeResult::IdOnly(left_id), TypeResult::Resolved(right_type)) => {
-                    try_insert_and_resolve_op(&right_result, right_type, &left_id, op, context)
+                (TypeResult::IdOnly(left_id), right_result @ TypeResult::Resolved(_)) => {
+                    try_insert_and_resolve_op(right_result, left_id, op, context)
                 }
                 (TypeResult::IdOnly(left_id), TypeResult::IdOnly(right_id)) => match op {
                     BinOpKind::Sub | BinOpKind::Mul | BinOpKind::Div | BinOpKind::Shr => {
                         context.scope.type_map.borrow_mut().insert(
-                            left_id.clone(),
+                            left_id,
                             TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
                         );
                         context.scope.type_map.borrow_mut().insert(
-                            right_id.clone(),
+                            right_id,
                             TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
                         );
                         Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
@@ -985,23 +964,23 @@ pub fn resolve_type_result_with_op(
                     }
                     BinOpKind::Lt | BinOpKind::Le | BinOpKind::Ge | BinOpKind::Gt => {
                         context.scope.type_map.borrow_mut().insert(
-                            left_id.clone(),
+                            left_id,
                             TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
                         );
                         context.scope.type_map.borrow_mut().insert(
-                            right_id.clone(),
+                            right_id,
                             TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Int)),
                         );
                         Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
                             PrimitiveType::Boolean,
                         )))
                     }
-                    _ => Ok(TypeResult::IdOnly(left_id.clone())),
+                    _ => Ok(TypeResult::IdOnly(left_id)),
                 },
                 _ => unreachable!(),
             }
         }
-        (TypeResult::Unknown, TypeResult::Resolved(_)) => Ok(right.clone()),
+        (TypeResult::Unknown, right @ TypeResult::Resolved(_)) => Ok(right),
         (TypeResult::Unknown, _) => Ok(TypeResult::Unknown),
         (_, TypeResult::Unknown) => Ok(TypeResult::Unknown),
         _ => unimplemented!(),
@@ -1009,18 +988,23 @@ pub fn resolve_type_result_with_op(
 }
 
 pub fn try_insert_and_resolve_op(
-    original: &TypeResult,
-    original_type: &TypeKind,
-    id: &Id,
+    type_result: TypeResult,
+    id: Id,
     op: BinOpKind,
     context: &Context,
 ) -> Result<TypeResult> {
+    let type_kind = if let TypeResult::Resolved(type_kind) = &type_result {
+        type_kind.clone()
+    } else {
+        unreachable!()
+    };
+
     context
         .scope
         .type_map
         .borrow_mut()
-        .try_insert(id.clone(), original.clone())?;
-    match resolve_op_one_side(&original_type, op, context) {
+        .try_insert(id, type_result.clone())?;
+    match resolve_op_one_side(&type_kind, op, context) {
         Ok(_) => match op {
             BinOpKind::Eq
             | BinOpKind::Lt
@@ -1030,21 +1014,18 @@ pub fn try_insert_and_resolve_op(
             | BinOpKind::Gt => Ok(TypeResult::Resolved(TypeKind::PrimitiveType(
                 PrimitiveType::Boolean,
             ))),
-            _ => Ok(TypeResult::Resolved(original_type.clone())),
+            _ => Ok(type_result),
         },
         Err(err_str) => Err(err_str),
     }
 }
 
 // return Resolved or Unknown only
-pub fn filter_type_result<'a>(
-    original: &'a TypeResult,
-    id: &Id,
-    context: &Context,
-) -> Result<&'a TypeResult> {
-    if let Some(result) = context.scope.type_map.borrow_mut().try_get(id) {
+pub fn filter_type_result(id: Id, context: &Context) -> Result<TypeResult> {
+    if let Some(result) = context.scope.type_map.borrow_mut().try_get(&id) {
         return match result {
-            TypeResult::Resolved(_) | TypeResult::IdOnly(_) => Ok(original),
+            TypeResult::Resolved(_) => Ok(result.clone()),
+            TypeResult::IdOnly(_) => Ok(TypeResult::IdOnly(id)),
             TypeResult::Unknown => unimplemented!(),
             TypeResult::Binary(_, _, _) => unreachable!(),
         };
@@ -1054,7 +1035,7 @@ pub fn filter_type_result<'a>(
         .type_map
         .borrow_mut()
         .insert(id.clone(), TypeResult::IdOnly(id.clone()));
-    Ok(original)
+    Ok(TypeResult::IdOnly(id))
 }
 
 pub fn check_left_op_right(

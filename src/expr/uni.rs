@@ -98,9 +98,9 @@ impl Uni {
         }
     }
 
-    pub fn id(&self) -> Id {
+    pub fn id(self) -> Id {
         match self {
-            Uni::Id(id) => id.clone(),
+            Uni::Id(id) => id,
             _ => panic!("should use id only Uni::Id. actual:{:?}", self),
         }
     }
@@ -185,7 +185,7 @@ parser! {
             if words.len() == 1 {
                 words.pop().unwrap()
             } else {
-                let ids: Vec<Id> = words
+                let mut ids: Vec<Id> = words
                     .into_iter()
                     .map(|word| {
                         match word {
@@ -195,49 +195,48 @@ parser! {
                     })
                     .collect();
 
-                if let Some((first_word, left_words)) = ids.split_first() {
-                    let mut first_field = Field::new(None, first_word.clone(), None);
-                    let child =
-                        left_words
-                            .iter()
-                            .fold(None, |previous: Option<Field>, id| {
-                                fn set_field_to_leaf(
-                                    mut field: Field,
-                                    parent_id: ObjectId,
-                                    id: Id,
-                                ) -> Field {
-                                    if field.child.is_none() {
-                                        field.child =
-                                            Some(Box::new(Field::new(Some(parent_id), id, None)));
-                                        field
-                                    } else {
-                                        let child = *field.child.unwrap().clone();
-                                        let child_id = child.id.clone();
-                                        field.child =
-                                            Some(Box::new(set_field_to_leaf(child, child_id, id)));
-                                        field
-                                    }
-                                }
-
-                                // for the first time
-                                let result = if let Some(previous) = previous {
-                                    set_field_to_leaf(previous.clone(), previous.id, id.clone())
+                let first_word = ids.remove(0);
+                let left_words = ids;
+                let mut first_field = Field::new(None, first_word.clone(), None);
+                let child =
+                    left_words
+                        .into_iter()
+                        .fold(None, |previous: Option<Field>, id| {
+                            fn set_field_to_leaf(
+                                mut field: Field,
+                                parent_id: ObjectId,
+                                id: Id,
+                            ) -> Field {
+                                if field.child.is_none() {
+                                    field.child =
+                                        Some(Box::new(Field::new(Some(parent_id), id, None)));
+                                    field
                                 } else {
-                                    Field::new(Some(ObjectId(first_word.clone())), id.clone(), None)
-                                };
-                                Some(result)
-                            });
+                                    let child = *field.child.unwrap();
+                                    let child_id = child.id.clone();
+                                    field.child =
+                                        Some(Box::new(set_field_to_leaf(child, child_id, id)));
+                                    field
+                                }
+                            }
 
-                    first_field.child = if let Some(child) = child {
-                        Some(Box::new(child))
-                    } else {
-                        None
-                    };
+                            // for the first time
+                            let result = if let Some(previous) = previous {
+                                let previous_id = previous.id.clone();
+                                set_field_to_leaf(previous, previous_id, id)
+                            } else {
+                                Field::new(Some(ObjectId(first_word.clone())), id, None)
+                            };
+                            Some(result)
+                        });
 
-                    Uni::Field(first_field)
+                first_field.child = if let Some(child) = child {
+                    Some(Box::new(child))
                 } else {
-                    unreachable!()
-                }
+                    None
+                };
+
+                Uni::Field(first_field)
             }
         })
     }
