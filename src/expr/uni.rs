@@ -219,7 +219,7 @@ parser! {
                                     }
                                 }
 
-                                // 初回のみ
+                                // for the first time
                                 let result = if let Some(previous) = previous {
                                     set_field_to_leaf(previous.clone(), previous.id, id.clone())
                                 } else {

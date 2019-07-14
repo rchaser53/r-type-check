@@ -100,8 +100,8 @@ fn resolve_let_statement(
                 if let Node::Fn(function) = exp.node {
                     let Function(args, body) = function.clone();
                     let fn_context = context.clone();
-                    // field.id.0.clone()が多分いらない
-                    // 自分自身を呼び出せるように把握している範囲で型をinsertする
+                    // field.id.0 is not needed maybe
+                    // for call recursive
                     fn_context.scope.type_map.borrow_mut().insert(
                         field.id.0.clone(),
                         TypeResult::Resolved(TypeKind::Function(FunctionType(
@@ -342,7 +342,7 @@ pub fn resolve_fn(
         }
     };
 
-    // objectだった場合はcontextにその値を保存する
+    // insert result to context in the case of object
     if let TypeResult::Resolved(TypeKind::Scope(ref id_type)) = result {
         let fn_scope = fn_context.scope.scope_map.borrow_mut();
         context
@@ -511,11 +511,6 @@ pub fn resolve_call(
         match return_type {
             OpeaqueType::Unknown => TypeResult::Unknown,
             OpeaqueType::IdOnly(id) => TypeResult::IdOnly(id.clone()),
-            // for (index, arg_type) in arg_types.into_iter().enumerate() {
-            //     if arg_type {
-            //         call_id == id
-            //     }
-            // }
             OpeaqueType::Defined(boxed_type_kind) => TypeResult::Resolved(*boxed_type_kind.clone()),
         }
     } else {
@@ -551,7 +546,13 @@ pub fn resolve_call(
 
             Ok(fn_return_type_result)
         }
-        (TypeResult::IdOnly(_), _) => Ok(TypeResult::Unknown),
+        (TypeResult::IdOnly(id), _) => {
+            if let Some(type_result) = fn_context.scope.type_map.borrow_mut().try_get(id) {
+                Ok(type_result.clone())
+            } else {
+                Ok(TypeResult::Unknown)
+            }
+        }
         _ => Ok(fn_return_type_result),
     }
 }
@@ -1509,10 +1510,10 @@ mod test {
             TypeResult::Resolved(TypeKind::PrimitiveType(PrimitiveType::Void))
         );
 
-        /* TBD need to fix this implement 
-          // 現在の実装だとエラーとして検出できない
-          abc("a", true);
-         */
+        /* TBD need to fix this implement
+         // cannot emit error under current implementation
+         abc("a", true);
+        */
         // let input = r#"
         //     let abc = fn (def, ghi){ return def + ghi; } in (
         //         abc(2, 1) + 33;
