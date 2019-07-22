@@ -49,7 +49,11 @@ pub struct ForCondition(Box<Statement>, Box<Statement>, Box<Statement>);
 parser! {
    pub fn statement['a]()(MyStream<'a>) -> Statement
     {
-        position()
+        let comment = || {
+            between(string_skip_spaces("//"), token_skip_spaces('\n'), statement())
+        };
+        optional(comment())
+        .with(position())
         .and(choice(
             (
                 attempt(return_()),
@@ -60,6 +64,7 @@ parser! {
             )
         ))
         .and(position())
+        .skip(optional(comment()))
         .map(|((lo, mut stmt), hi): ((SourcePosition, Statement), SourcePosition)| {
             stmt.position.hi = hi;
             stmt.position.lo = lo;
